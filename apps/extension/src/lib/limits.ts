@@ -8,6 +8,13 @@ export const LIMITS = {
   requestMs: 2000,
   /** Creation date and archival dating together; the verdict never waits longer for them. */
   optionalMs: 1500,
+  /**
+   * Your own history (recent sends for lookalikes, "sent here before?") on one shared budget.
+   * Info-only: past it, lookalikes are compared with saved contacts only and the first-send note is left out.
+   */
+  historyMs: 2500,
+  /** Your recent history is reused for this long (a new send shows up after it). */
+  historyCacheMs: 60_000,
   /** The content script stops waiting for the service worker after this. */
   pageWaitMs: 8000,
   /** Typing pause before a typed (not pasted) address is checked. */

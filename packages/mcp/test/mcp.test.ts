@@ -191,3 +191,40 @@ describe("compatibility and demo", () => {
     expect(p.stdout).toMatch(/No transaction was signed/);
   });
 });
+
+describe("gideon_check `from` (sender history)", () => {
+  const me = "me.testnet";
+  const real = "a1b2" + "0".repeat(56) + "c3d4";
+  const fakeAddr = "a1b2" + "f".repeat(56) + "c3d4";
+  it("first send → ATTENTION / ASK_HUMAN with the first-send reason", async () => {
+    const c = await connect({ sources: sources({ viewAccount: person, sentCount: async () => 0 }) });
+    const r = await call(c, "gideon_check", { recipient: "kemi-rent.testnet", network: "testnet", from: me, destination: "wallet" });
+    expect(r.structuredContent.agent_action).toBe("ASK_HUMAN");
+    expect(r.structuredContent.reasons.map((x: any) => x.code)).toContain("FIRST_SEND");
+  });
+  it("sent before → SAFE", async () => {
+    const c = await connect({ sources: sources({ viewAccount: person, sentCount: async () => 2 }) });
+    const r = await call(c, "gideon_check", { recipient: "kemi-rent.testnet", network: "testnet", from: me, destination: "wallet" });
+    expect(r.structuredContent.verdict).toBe("SAFE");
+  });
+  it("lookalike of a past recipient → DO_NOT_SEND (old `sender` name still works)", async () => {
+    const hist = sources({ viewAccount: person, recentTransfers: async () => [{ hash: "t", signer: me, receiver: real, depositYocto: 1e24 }], sentCount: async () => 0 });
+    for (const key of ["from", "sender"]) {
+      const c = await connect({ sources: hist });
+      const r = await call(c, "gideon_check", { recipient: fakeAddr, network: "testnet", [key]: me });
+      expect(r.structuredContent.agent_action).toBe("DO_NOT_SEND");
+      expect(r.structuredContent.reasons[0].code).toBe("LOOKALIKE_OF_PAST_RECIPIENT");
+    }
+  });
+  it("history down → no first-send note, verdict unaffected", async () => {
+    const c = await connect({ sources: sources({ viewAccount: person, recentTransfers: down, sentCount: down }) });
+    const r = await call(c, "gideon_check", { recipient: "kemi-rent.testnet", network: "testnet", from: me, destination: "wallet" });
+    expect(r.structuredContent.verdict).toBe("SAFE");
+    expect(r.structuredContent.couldnt_check).toEqual([]);
+  });
+  it("the schema documents `from`", async () => {
+    const c = await connect({ sources: sources() });
+    const t = (await c.listTools()).tools.find((x) => x.name === "gideon_check")!;
+    expect((t.inputSchema.properties as Record<string, any>).from.description).toMatch(/never sent/);
+  });
+});

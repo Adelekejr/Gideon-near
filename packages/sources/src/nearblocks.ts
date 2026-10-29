@@ -29,6 +29,18 @@ export class NearBlocks {
   }
 
   /**
+   * How many transactions `from` signed with `to` as the receiver, all time (NearBlocks count
+   * endpoint; one small request). Token transfers aren't counted: their receiver is the token contract.
+   */
+  async sentCount(network: Network, from: string, to: string): Promise<number> {
+    const { body } = await this.get<{ txns?: { count?: string | number }[] }>(network,
+      `/v1/account/${encodeURIComponent(from)}/txns-only/count?to=${encodeURIComponent(to)}`);
+    const n = Number(body?.txns?.[0]?.count);
+    if (!Number.isFinite(n) || n < 0) throw new SourceError("NearBlocks returned no count");
+    return n;
+  }
+
+  /**
    * When an account was created, plus whether NearBlocks has indexed it at all and how far its
    * data goes (its `block_height`), so the engine can tell "too new for the indexer" from "unknown".
    */

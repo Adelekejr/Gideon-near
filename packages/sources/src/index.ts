@@ -35,6 +35,7 @@ export function liveSources(o: LiveSourcesOptions = {}): Sources {
     nearTx: (n, h) => nb.nearTx(n, h),
     communityFlags: (n, reg, a) => rpc.communityFlags(n, reg, a),
     accountCreated: (n, a) => nb.accountCreated(n, a),
+    sentCount: (n, f, t) => nb.sentCount(n, f, t),
     accountExistedAt: (n, a, t) => rpc.accountExistedAt(n, a, t),
   };
 }

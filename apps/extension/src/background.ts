@@ -13,7 +13,7 @@ import { cacheable, checkKey } from "./lib/runcache.js";
  * extension to the public APIs listed in host_permissions, never through the page.
  * Every check is time-limited (LIMITS): the in-page card must always resolve, even on a slow phone.
  */
-const sources = cachedSources(liveSources({ timeoutMs: LIMITS.requestMs }), LIMITS.cacheMs);
+const sources = cachedSources(liveSources({ timeoutMs: LIMITS.requestMs }), LIMITS.cacheMs, Date.now, LIMITS.historyCacheMs);
 const results = new TtlCache<CheckResult>(LIMITS.cacheMs);
 
 export async function runRequest(req: CheckRequest): Promise<{ result: CheckResult; net: NetUsed }> {
@@ -30,6 +30,7 @@ export async function runRequest(req: CheckRequest): Promise<{ result: CheckResu
       deadlineMs: Math.max(1500, LIMITS.totalMs - (Date.now() - t0)),
       sourceTimeoutMs: LIMITS.sourceMs,
       optionalBudgetMs: LIMITS.optionalMs,
+      historyTimeoutMs: LIMITS.historyMs,
     }), cacheable);
   const last: LastCheck = {
     host: req.host,

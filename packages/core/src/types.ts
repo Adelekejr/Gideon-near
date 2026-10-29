@@ -7,7 +7,7 @@ export type Status = "BLOCKED" | "ATTENTION" | "PASS" | "COULD_NOT_CHECK" | "SKI
 export type Verdict = "BLOCKED" | "ATTENTION" | "SAFE";
 
 export type RuleId =
-  | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12";
+  | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12" | "R13";
 
 export type Destination = "wallet" | "exchange" | "intents" | "unknown";
 
@@ -61,6 +61,12 @@ export interface CheckOptions {
    * found. When it runs out the date reads "unavailable"; the verdict never waits on it. Defaults to sourceTimeoutMs.
    */
   optionalBudgetMs?: number;
+  /**
+   * Limit for the sender's history lookups (recent transfers, "sent here before?"), in ms. These
+   * are info-only: when they run out, lookalikes are compared with saved contacts only and the
+   * first-send note is left out. Defaults to sourceTimeoutMs.
+   */
+  historyTimeoutMs?: number;
 }
 
 export interface Evidence {
@@ -267,6 +273,11 @@ export interface Sources {
    * RPC state. Used only to date accounts the indexer hasn't caught up with. null = unknown.
    */
   accountExistedAt?(network: Network, accountId: string, atMs: number): Promise<boolean | null>;
+  /**
+   * Optional: how many transactions `from` has signed with `to` as the receiver (any time). Feeds
+   * R13 (first send). Native NEAR sends and calls only: token transfers go to the token contract.
+   */
+  sentCount?(network: Network, from: string, to: string): Promise<number>;
 }
 
 /** One report in the community flag registry (contracts/flag-registry). */

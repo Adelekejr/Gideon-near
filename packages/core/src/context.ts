@@ -7,6 +7,14 @@ import { withTimeout } from "./time.js";
 export interface CtxLimits {
   sourceTimeoutMs?: number;
   optionalBudgetMs?: number;
+  historyTimeoutMs?: number;
+}
+
+export interface AskOptions {
+  /** Info-only lookup: a failure never makes the answer incomplete (marked optional in the calls list). */
+  optional?: boolean;
+  /** Overrides limits.sourceTimeoutMs for this lookup. */
+  timeoutMs?: number;
 }
 
 export type Settled<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -15,7 +23,7 @@ export interface Ctx {
   input: CheckInput & { asset: Asset; destination: Destination };
   c: Classification;
   /** Calls a source once per key, records timing, never throws. */
-  ask<T>(source: string, key: string, fn: (s: Sources) => Promise<T>): Promise<Settled<T>>;
+  ask<T>(source: string, key: string, fn: (s: Sources) => Promise<T>, opts?: AskOptions): Promise<Settled<T>>;
   calls: SourceCall[];
   /** Clock (ms since epoch) for deadline checks. */
   now: number;
@@ -48,17 +56,18 @@ export function makeCtx(input: Ctx["input"], c: Classification, sources: Sources
     accountFacts() {
       return (facts ??= readFacts(ctx, sources));
     },
-    ask<T>(source: string, key: string, fn: (s: Sources) => Promise<T>) {
+    ask<T>(source: string, key: string, fn: (s: Sources) => Promise<T>, opts: AskOptions = {}) {
       const k = `${source}:${key}`;
       if (!memo.has(k)) {
         const t0 = Date.now();
+        const opt = opts.optional ? { optional: true } : {};
         memo.set(
           k,
-          withTimeout(Promise.resolve().then(() => fn(sources)), limits.sourceTimeoutMs, source).then(
-            (value) => { calls.push({ source: k, ok: true, ms: Date.now() - t0 }); return { ok: true as const, value }; },
+          withTimeout(Promise.resolve().then(() => fn(sources)), opts.timeoutMs ?? limits.sourceTimeoutMs, source).then(
+            (value) => { calls.push({ source: k, ok: true, ms: Date.now() - t0, ...opt }); return { ok: true as const, value }; },
             (e: unknown) => {
               const error = e instanceof Error ? e.message : String(e);
-              calls.push({ source: k, ok: false, ms: Date.now() - t0, error });
+              calls.push({ source: k, ok: false, ms: Date.now() - t0, ...opt, error });
               return { ok: false as const, error };
             },
           ),

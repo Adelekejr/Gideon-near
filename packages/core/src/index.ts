@@ -1,7 +1,8 @@
 export * from "./types.js";
 export { check, verdictOf, headlineOf, ENGINE_VERSION } from "./engine.js";
 export { classify, networkOfName, isNearAccountKind } from "./classify.js";
-export { editDistance, skeleton, lookalike } from "./similarity.js";
+export { editDistance, skeleton, lookalike, sharedEnds } from "./similarity.js";
+export { senderOf } from "./history.js";
 export { NETWORKS, DEFAULT_NETWORK, ONECLICK_API, resolveNetwork, explorerAccountUrl, explorerTxUrl, type NetworkConfig } from "./networks.js";
 export { exchangesFor, findExchange, tokensFor, tokenByContract, tokenBySymbol, EXCHANGES_CHECKED, type ExchangeEntry, type TokenEntry } from "./data.js";
 export { canonicalJson, resultDigest, makeReceipt, verifyReceipt, newReceiptKey, type ReceiptCheck } from "./receipt.js";

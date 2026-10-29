@@ -45,14 +45,20 @@ export class TtlCache<T> {
 }
 
 /** Sources with account lookups (existence, creation date, archival dating) remembered for `ttlMs`. */
-export function cachedSources(s: Sources, ttlMs = 3 * 60_000, now: () => number = Date.now): Sources {
+export function cachedSources(s: Sources, ttlMs = 3 * 60_000, now: () => number = Date.now, historyTtlMs = 60_000): Sources {
   const accounts = new TtlCache<Awaited<ReturnType<Sources["viewAccount"]>>>(ttlMs, now);
+  // Your own history changes when you send, so it's kept only briefly. Failures are never kept.
+  const history = new TtlCache<Awaited<ReturnType<Sources["recentTransfers"]>>>(historyTtlMs, now);
+  const sent = new TtlCache<number>(historyTtlMs, now);
   const created = new TtlCache<unknown>(ttlMs, now);
   const existed = new TtlCache<boolean | null>(ttlMs, now);
   return {
     ...s,
     // "Not found" isn't kept: the account may be created a minute later.
     viewAccount: (n, a) => accounts.wrap(`${n}:${a}`, () => s.viewAccount(n, a), (v) => v != null),
+    recentTransfers: (n, a) => history.wrap(`${n}:${a}`, () => s.recentTransfers(n, a)),
+    // A send makes "never sent here" stale, so only "sent before" (which can't change back) is kept.
+    ...(s.sentCount ? { sentCount: (n, f, t) => sent.wrap(`${n}:${f}>${t}`, () => s.sentCount!(n, f, t), (v) => v > 0) } : {}),
     ...(s.accountCreated
       ? { accountCreated: (n, a) => created.wrap(`${n}:${a}`, () => s.accountCreated!(n, a), hasDate) as ReturnType<NonNullable<Sources["accountCreated"]>> }
       : {}),

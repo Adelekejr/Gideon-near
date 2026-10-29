@@ -18,11 +18,14 @@ const INSTRUCTION: Record<Verdict, string> = {
 };
 
 export const INSTRUCTIONS = `Gideon is a read-only pre-send safety check for NEAR. It never signs or moves funds.
-Before you send any NEAR or NEAR token, call gideon_check with the exact recipient, network, amount and token.
+Before you send any NEAR or NEAR token, call gideon_check with the exact recipient, network, amount and token, and \`from\` (the account you send from) when you know it.
 - BLOCKED (agent_action DO_NOT_SEND): do not send. Report the reason and fix steps to the human.
 - ATTENTION (agent_action ASK_HUMAN): do not send on your own. Ask a human and wait for an explicit yes. A lookup that failed ("couldn't check") is ATTENTION, never safe.
 - SAFE (agent_action SEND): you may send, with exactly the details you checked. If anything changes, check again.
 gideon_explain turns a result into plain words. gideon_flags lists community reports about an account; reports are not proof.`;
+
+/** Your own history (first send, lookalikes of past sends) is info-only: it never holds the answer longer than this. */
+export const HISTORY_MS = 4000;
 
 export interface ServerDeps {
   sources?: Sources;
@@ -47,7 +50,8 @@ const checkFields = {
   token_contract: z.string().optional().describe("NEP-141 contract for a token send, e.g. usdc.near."),
   destination: z.enum(["wallet", "exchange", "intents", "unknown"]).optional().describe("What the recipient is. Default unknown."),
   exchange: z.string().optional().describe("Exchange id when destination is exchange: generic, binance, coinbase, kraken, okx."),
-  sender: z.string().optional().describe("Your NEAR account. Lets Gideon compare the recipient with your history (address poisoning)."),
+  from: z.string().optional().describe("The NEAR account you're sending from. Gideon compares the recipient with your own history: BLOCKED if it looks like someone you've sent to (or a dust sender: address poisoning), ATTENTION if you've never sent to it before."),
+  sender: z.string().optional().describe("Same as `from` (older name)."),
   address_book: z.array(z.object({ account: z.string(), label: z.string().optional() })).optional().describe("Known-good recipients, for the lookalike check."),
 };
 
@@ -121,7 +125,7 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
       amount: a.amount as string | undefined,
       destination: (a.destination as CheckInput["destination"]) ?? "unknown",
       exchange: a.exchange as string | undefined,
-      from: a.sender as string | undefined,
+      from: ((a.from ?? a.sender) as string | undefined) || undefined,
       addressBook: a.address_book as CheckInput["addressBook"],
     };
     const reg = registryFor(n);
@@ -129,6 +133,7 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
       now: deps.now,
       receiptKey: env.GIDEON_RECEIPT_KEY || undefined,
       flagRegistry: reg ?? "",
+      historyTimeoutMs: HISTORY_MS,
     });
   }
 

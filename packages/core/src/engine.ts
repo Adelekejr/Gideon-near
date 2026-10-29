@@ -42,7 +42,7 @@ export async function check(rawInput: CheckInput, sources: Sources, opts: CheckO
   };
   const c = classify(input.to);
   const registry = opts.flagRegistry !== undefined ? opts.flagRegistry || null : NETWORKS[input.network]?.flagRegistry ?? null;
-  const ctx = makeCtx(input, c, sources, now, registry, { sourceTimeoutMs: opts.sourceTimeoutMs, optionalBudgetMs: opts.optionalBudgetMs });
+  const ctx = makeCtx(input, c, sources, now, registry, { sourceTimeoutMs: opts.sourceTimeoutMs, optionalBudgetMs: opts.optionalBudgetMs, historyTimeoutMs: opts.historyTimeoutMs });
 
   // One hard limit for the whole check: whatever hasn't answered by then can't be called safe.
   const TIMED_OUT = Symbol("timed-out");

@@ -53,7 +53,7 @@ npm run build:web           # static build in apps/web/dist
 
 # the Chrome extension
 npm run build:extension     # unpacked build in apps/extension/dist
-npm run zip:extension       # apps/extension/gideon-extension-0.2.2.zip
+npm run zip:extension       # apps/extension/gideon-extension-0.2.3.zip
 npm run zip:firefox -w @gideon/extension   # Firefox / Firefox for Android build (see "Phones")
 
 # the MCP server for AI agents (see "AI agents (MCP server)")
@@ -73,7 +73,7 @@ CLI exit codes: `0` SAFE, `1` ATTENTION (including "couldn't check"),
 flowchart LR
   U["You or an agent<br/>to, token, amount, destination"] --> E["@gideon/core<br/>check()"]
   E --> C["Classify the input<br/>(named, implicit, 0x, tx hash, Tron, ...)"]
-  C --> R["Rules R1 to R11"]
+  C --> R["Rules R1 to R13"]
   R <-->|"read-only lookups"| S["@gideon/sources"]
   S --> RPC["NEAR RPC (FastNEAR)"]
   S --> NB["NearBlocks API"]
@@ -100,11 +100,12 @@ browser, straight against the public APIs) and your own code
 | R4 Ethereum-style account | A `0x` + 40 hex address used on NEAR: in use, or never used? | NEAR RPC |
 | R5 Token | Is the token real, not a lookalike, and is the receiver registered with it? | NEAR RPC, token list |
 | R6 Intents deposit | For a 1Click deposit address: does the token match what it expects, is it still open? | 1Click `/v0/status` (mainnet) |
-| R7 Lookalike | Close to a saved contact, or to a recent dust sender (address poisoning)? | your contacts, NearBlocks |
+| R7 Lookalike | Looks almost like a saved contact or an account you've sent to before (l/1, o/0, i/l, rn/m, - vs ., an extra or missing character, extra digits at the end, or a 64-hex address with the same first and last characters)? BLOCKED "Looks like X, but it isn't", naming the address. Close to another account in your recent history: ATTENTION, or BLOCKED as address poisoning when it sent you dust. If your history can't be read in time, only contacts are compared and the verdict doesn't change. | your contacts, NearBlocks (needs your sending account) |
 | R8 Exchange | Will this exchange credit this token? Never BLOCKED from registry data alone. | `packages/core/data/exchanges.json` |
 | R9 Clipboard | Is what was pasted what you copied? | the extension (copies made on the same page) |
 | R10 Community flags | Has anyone flagged this account as a scam or poisoning address? ATTENTION at most, never BLOCKED. | `get_flags` view call on the flag registry contract (off until it's deployed) |
 | R11 Account age | How new is the account? Created under 24 hours ago: ATTENTION "Brand-new account, created today. It really exists on NEAR (checked live)." Under 7 days: ATTENTION "New account (created N days ago)". Exists on chain but newer than the indexer's data: dated from archival chain state (did it exist 1 day / 7 days ago?), or, if that lookup fails, ATTENTION "Created recently (newer than our indexer's data)". If no date can be read at all it says "Creation date unavailable" and the verdict doesn't change. Runs in every flow, the wallet flow included (answers are cached). | NearBlocks `/v1/account` (creation date and indexer height), archival NEAR RPC `view_account` at a past block |
+| R13 First send | Have you ever sent to this address from your account? Never: ATTENTION "You've never sent to this address before". Saved contacts and past recipients pass. If NearBlocks is slow or rate-limited the note is skipped and the verdict doesn't change (native NEAR sends and calls are counted, token transfers aren't). | NearBlocks `/v1/account/{from}/txns-only/count?to=` (needs your sending account) |
 
 How a verdict is reached:
 
@@ -134,7 +135,7 @@ Gideon is not on the Chrome Web Store. Install it from this repo:
 4. Pin Gideon from the puzzle-piece menu. It starts on **testnet**; switch to
    mainnet in the popup.
 
-`npm run zip:extension` also writes `apps/extension/gideon-extension-0.2.2.zip`.
+`npm run zip:extension` also writes `apps/extension/gideon-extension-0.2.3.zip`.
 To install from the zip, unzip it and load that folder the same way. Works in
 Chrome 111+ and other Chromium browsers (Edge, Brave, Arc).
 
@@ -182,12 +183,12 @@ linked below.
 
 Build the files on a computer and copy them to the phone:
 
-- `npm run zip:extension`: `apps/extension/gideon-extension-0.2.2.zip` (Chromium browsers)
-- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.2.2.zip` (Firefox)
+- `npm run zip:extension`: `apps/extension/gideon-extension-0.2.3.zip` (Chromium browsers)
+- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.2.3.zip` (Firefox)
 
 **Mises Browser** (Chromium). Menu → **Extensions** → turn on
 **Developer mode** → **+ (from .zip/.crx/.user.js)** → pick
-`gideon-extension-0.2.2.zip`. Keep it zipped. Mises unpacks it into its cache,
+`gideon-extension-0.2.3.zip`. Keep it zipped. Mises unpacks it into its cache,
 so clearing the browser's cache or data removes it; install again if so.
 ([steps](https://github.com/lukman754/Mentari-Unpam),
 [Play listing](https://play.google.com/store/apps/details?id=site.mises.browser_stable),
@@ -198,7 +199,7 @@ so clearing the browser's cache or data removes it; install again if so.
 sideloaded extensions (fixed in 1.8.2).
 
 **Yandex Browser.** Officially it installs from the Chrome Web Store and
-Opera add-ons. For testing: unzip `gideon-extension-0.2.2.zip` into a phone
+Opera add-ons. For testing: unzip `gideon-extension-0.2.3.zip` into a phone
 folder, open `browser://extensions`, turn on **Developer mode**, tap **Load
 unpacked extension** and pick `manifest.json` in that folder. Users reported
 in 2020 that newer builds stopped loading unpacked extensions, so this may not

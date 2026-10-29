@@ -8,7 +8,7 @@ engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 ```bash
 npm install
 npm run build:extension      # → apps/extension/dist
-npm run zip:extension        # → apps/extension/gideon-extension-0.2.2.zip
+npm run zip:extension        # → apps/extension/gideon-extension-0.2.3.zip
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
@@ -34,6 +34,18 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 | `scripts/screenshots.mjs` | Loads `dist/` into Playwright's Chromium and takes the screenshots in `/shots`. Needs `playwright-core` and `npx playwright install chromium`. |
 
 Tests are in `test/` and run with the root `npm test`.
+
+## What changed in 0.2.3
+
+- The extension reads the account you're signed in with from the wallet's header (Meteor and
+  others) and uses it as the sender. Nothing is sent anywhere except the public NearBlocks lookups.
+- **First send.** If that account has never sent to the address you pasted, the card says
+  "You've never sent to this address before" (look again). Saved contacts and past recipients pass.
+  This lookup has its own 2.5 s limit and never holds up or changes the verdict when it's slow.
+- **Lookalikes.** An address that looks almost like a saved contact or an account you've sent to
+  (l/1, o/0, i/l, rn/m, - vs ., one extra or missing character, extra digits at the end, or a long
+  hex address with the same first and last characters) is STOPPED, naming the address it imitates.
+- Your recent history is remembered for 1 minute; "sent before" for 3 minutes.
 
 ## What changed in 0.2.2
 

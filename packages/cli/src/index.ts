@@ -13,7 +13,7 @@ const HELP = `gideon — check a NEAR send before you make it
     --amount <n>                human amount, e.g. 25
     --dest wallet|exchange|intents|unknown
     --exchange <id>             generic, binance, coinbase, kraken, okx
-    --from <account>            your account (for lookalike history)
+    --from <account>            your account: first-send note + lookalikes of your past sends
     --book <file.json>          address book: [{"account":"x.testnet","label":"Ada"}]
     --copied <text>             what you copied (clipboard check)
     --registry <contract>       community flag registry for R10 (or GIDEON_FLAG_REGISTRY)
@@ -63,6 +63,7 @@ async function main(argv: string[]): Promise<number> {
   const flagRegistry = values.registry ?? process.env.GIDEON_FLAG_REGISTRY;
   const r = await check(input, liveSources(sourcesOptionsFromEnv(process.env)), {
     receiptKey: process.env.GIDEON_RECEIPT_KEY || undefined,
+    historyTimeoutMs: 4000,
     ...(flagRegistry !== undefined ? { flagRegistry } : {}),
   });
   if (values.json) console.log(JSON.stringify(r, null, 2));

@@ -3,6 +3,7 @@ import { explorerAccountUrl, NETWORKS } from "../networks.js";
 import { couldNotCheck, f, skipped, type RuleResult } from "./util.js";
 import { networkOfName } from "../classify.js";
 import { editDistance, lookalike } from "../similarity.js";
+import { senderHistory } from "../history.js";
 
 /**
  * Accounts you might have meant: saved contacts and (when a sender is given) recent
@@ -11,11 +12,8 @@ import { editDistance, lookalike } from "../similarity.js";
 async function closeMatches(ctx: Ctx, to: string): Promise<string[]> {
   const { input } = ctx;
   const pool = new Set((input.addressBook ?? []).map((b) => b.account));
-  if (input.from) {
-    const from = input.from;
-    const h = await ctx.ask(`nearblocks-${input.network}`, `history:${from}`, (s) => s.recentTransfers(input.network, from));
-    if (h.ok) for (const t of h.value) for (const a of [t.signer, t.receiver]) if (a && a !== from) pool.add(a);
-  }
+  const h = await senderHistory(ctx);
+  if (h?.ok) for (const a of [...h.value.pastRecipients, ...h.value.counterparties]) pool.add(a);
   pool.delete(to);
   const max = to.length < 10 ? 2 : 3;
   return [...pool]

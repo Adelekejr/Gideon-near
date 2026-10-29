@@ -41,16 +41,30 @@ describe("R7 lookalike and address poisoning", () => {
     }));
     expect(r.headline?.code).toBe("ADDRESS_POISONING");
   });
-  it("lookalike of a counterparty without dust → ATTENTION", async () => {
+  it("lookalike of someone you sent to → BLOCKED, naming them", async () => {
     const r = await run({ to: fakeAddr, from: "me.testnet" }, empty({
       viewAccount: async () => acct(1),
       recentTransfers: async () => [{ hash: "t1", signer: "me.testnet", receiver: real, depositYocto: 5e24 }],
     }));
-    expect(r.headline?.code).toBe("LOOKALIKE_OF_HISTORY");
+    expect(r.verdict).toBe("BLOCKED");
+    expect(r.headline?.code).toBe("LOOKALIKE_OF_PAST_RECIPIENT");
+    expect(r.headline?.detail).toContain(real);
   });
-  it("history unavailable → COULD_NOT_CHECK", async () => {
+  it("lookalike of someone who only sent to you (no dust) → ATTENTION", async () => {
+    const r = await run({ to: fakeAddr, from: "me.testnet" }, empty({
+      viewAccount: async () => acct(1),
+      recentTransfers: async () => [{ hash: "t1", signer: real, receiver: "me.testnet", depositYocto: 5e24 }],
+    }));
+    expect(find(r, "R7")[0].code).toBe("LOOKALIKE_OF_HISTORY");
+    expect(find(r, "R7")[0].status).toBe("ATTENTION");
+  });
+  it("history unavailable → contacts only, never blocks the verdict", async () => {
     const r = await run({ to: "bob.testnet", from: "me.testnet" }, empty({ viewAccount: async () => acct(1), recentTransfers: async () => { throw new Error("NearBlocks rate limit reached"); } }));
-    expect(find(r, "R7")[0].status).toBe("COULD_NOT_CHECK");
+    const r7 = find(r, "R7")[0];
+    expect(r7.status).toBe("PASS");
+    expect(r7.code).toBe("HISTORY_UNAVAILABLE");
+    expect(r7.detail).toContain("rate limit");
+    expect(r.sources.find((c) => c.source.includes("history:"))?.optional).toBe(true);
   });
   it("nothing to compare → SKIPPED", async () => {
     const r = await run({ to: "bob.testnet" }, live);

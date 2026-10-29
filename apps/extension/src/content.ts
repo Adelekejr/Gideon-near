@@ -4,7 +4,7 @@ import { findSendButtons, isRecipientField, isTextField, shouldCheck, type Field
 import { card, checking, failed, tamperCard, toneOf } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
 import { sendCheck, type CheckResponse } from "./lib/messages.js";
-import { collectSignals, pageHint, recipientScope } from "./lib/network.js";
+import { collectSignals, pageHint, recipientScope, signedInAccount } from "./lib/network.js";
 import { placement } from "./lib/place.js";
 import { asShift, loadShift, themeOf, type Shift } from "./lib/shift.js";
 import { playAll } from "./lib/motion.js";
@@ -264,13 +264,17 @@ async function run(field: Field, value: string, copied: string | null, force = f
   p.seq = seq;
   p.value = value;
   let page;
+  let from: string | null = null;
   try {
-    page = settings.networkMode === "auto" ? pageHint(location.href, collectSignals(document, recipientScope(field))) : undefined;
+    const signals = collectSignals(document, recipientScope(field));
+    page = settings.networkMode === "auto" ? pageHint(location.href, signals) : undefined;
+    // The wallet's signed-in account is the sender: its history feeds the lookalike and first-send checks.
+    from = signedInAccount(signals);
   } catch {
     page = undefined;
   }
   const req = {
-    input: { to: value, ...(copied ? { clipboard: { copied } } : {}) },
+    input: { to: value, ...(from ? { from } : {}), ...(copied ? { clipboard: { copied } } : {}) },
     host: location.host,
     ...(page ? { page } : {}),
   };

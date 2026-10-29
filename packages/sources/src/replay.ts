@@ -4,7 +4,7 @@ import type { Sources } from "@gideon/core";
 export type Recorded = { value: unknown } | { error: string };
 export type Recording = Record<string, Recorded>;
 
-const METHODS = ["viewAccount", "tronTx", "ethTx", "btcTx", "ftMetadata", "storageRegistered", "oneClickStatus", "recentTransfers", "nearTx", "communityFlags", "accountCreated", "accountExistedAt"] as const;
+const METHODS = ["viewAccount", "tronTx", "ethTx", "btcTx", "ftMetadata", "storageRegistered", "oneClickStatus", "recentTransfers", "nearTx", "communityFlags", "accountCreated", "accountExistedAt", "sentCount"] as const;
 /** Info-only methods: a missing recording means "unknown" (null), not a failure. */
 const INFO_ONLY = new Set<string>(["accountCreated", "accountExistedAt"]);
 

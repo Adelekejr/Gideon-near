@@ -141,6 +141,21 @@ export function fromTexts(signals: TextSignal[]): NetHint | null {
   return null;
 }
 
+/**
+ * The account signed in to the wallet: the one named NEAR account shown in the page header
+ * (Meteor's account bar and the like). Null when the header shows none, or more than one.
+ * Gideon passes it as the sender, so it can compare the recipient with your own history.
+ */
+export function signedInAccount(signals: TextSignal[]): string | null {
+  const head = new Set<string>();
+  for (const s of signals) {
+    if (!s.header) continue;
+    const t = s.text.trim().toLowerCase().replace(/^@/, "");
+    if (ACCOUNT.test(t) && !t.includes("…")) head.add(t);
+  }
+  return head.size === 1 ? [...head][0]! : null;
+}
+
 /** Page signals in order of trust: the address, then the signed-in account, then badges and other accounts. */
 export function pageHint(href: string, signals: TextSignal[]): NetHint {
   return fromUrl(href) ?? fromTexts(signals) ?? NONE;

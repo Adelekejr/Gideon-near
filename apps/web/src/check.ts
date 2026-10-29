@@ -6,6 +6,7 @@ import { inputFromQuery, runCheck, CASES } from "./run";
 const RULE_NAMES: Record<string, string> = {
   R1: "Format & network", R2: "Pasted hash", R3: "Account on chain", R4: "Ethereum-style account", R5: "Token",
   R6: "Intents deposit", R7: "Lookalike", R8: "Exchange rules", R9: "Clipboard", R10: "Community registry", R11: "Account age",
+  R13: "First send",
 };
 const ST: Record<Status, [string, string]> = {
   BLOCKED: ["block", "BLOCK"], ATTENTION: ["warn", "LOOK"], PASS: ["safe", "PASS"], COULD_NOT_CHECK: ["cnc", "COULDN’T CHECK"], SKIPPED: ["skip", "—"],
@@ -63,7 +64,7 @@ async function render(r: CheckResult) {
   } else {
     addrBlock = `<div class="addrbox"><div class="addr">${addrSegs(r.input.to)}</div></div>`;
   }
-  const anno = `<div class="anno"><span>${esc(r.classification.label)}</span><span>${esc(r.input.network)}</span><span>${esc(r.input.amount ? r.input.amount + " " : "")}${esc(asset.symbol)}${asset.contract ? " · " + esc(asset.contract.length > 30 ? asset.contract.slice(0, 12) + "…" : asset.contract) : ""}</span><span>to: ${esc(r.input.destination)}${r.input.exchange ? " · " + esc(r.input.exchange) : ""}</span></div>`;
+  const anno = `<div class="anno"><span>${esc(r.classification.label)}</span><span>${esc(r.input.network)}</span><span>${esc(r.input.amount ? r.input.amount + " " : "")}${esc(asset.symbol)}${asset.contract ? " · " + esc(asset.contract.length > 30 ? asset.contract.slice(0, 12) + "…" : asset.contract) : ""}</span><span>to: ${esc(r.input.destination)}${r.input.exchange ? " · " + esc(r.input.exchange) : ""}</span>${r.input.from ? `<span>from: ${esc(r.input.from)}</span>` : ""}</div>`;
 
   const shown = r.findings.filter((f) => f.status !== "SKIPPED");
   const skippedN = r.findings.length - shown.length;

@@ -12,6 +12,7 @@ import { r08Exchange } from "./r08-exchange.js";
 import { r09Clipboard } from "./r09-clipboard.js";
 import { r10Registry } from "./r10-registry.js";
 import { r11AccountAge } from "./r11-account-age.js";
+import { r13FirstSend } from "./r13-first-send.js";
 
 export type Rule = { id: RuleId; name: string; run: (ctx: Ctx) => RuleResult | Promise<RuleResult> };
 
@@ -27,7 +28,8 @@ export const RULES: Rule[] = [
   { id: "R9", name: "Clipboard changed", run: r09Clipboard },
   { id: "R10", name: "Community flag registry", run: r10Registry },
   { id: "R11", name: "Account age (brand-new accounts)", run: r11AccountAge },
+  { id: "R13", name: "First send to this address", run: r13FirstSend },
 ];
 
 /** When several rules block, the most specific explanation leads. */
-export const HEADLINE_ORDER: RuleId[] = ["R9", "R2", "R6", "R7", "R8", "R5", "R1", "R3", "R4", "R11", "R10"];
+export const HEADLINE_ORDER: RuleId[] = ["R9", "R2", "R6", "R7", "R8", "R5", "R1", "R3", "R4", "R11", "R13", "R10"];

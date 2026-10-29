@@ -26,8 +26,11 @@ export function sources(replay: boolean): Sources {
   return (live ??= liveSources({ timeoutMs: 8000 }));
 }
 
+/** Your own history (lookalikes of past sends, first send) is info-only: it never holds the verdict longer than this. */
+export const HISTORY_MS = 3000;
+
 export function runCheck(input: CheckInput, replay = false): Promise<CheckResult> {
-  return check(input, sources(replay));
+  return check(input, sources(replay), { historyTimeoutMs: HISTORY_MS });
 }
 
 /** Build a CheckInput from check.html query params. */

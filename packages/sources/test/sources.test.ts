@@ -136,3 +136,19 @@ describe("liveSources", () => {
     await expect(s.oneClickStatus("x")).rejects.toThrow(/unreachable/);
   });
 });
+
+describe("NearBlocks send count (first send)", () => {
+  it("asks the count endpoint for from → to and reads the number", async () => {
+    let url = "";
+    const nb = new NearBlocks({ fetch: fetchOf((u) => { url = u; return J({ txns: [{ count: "4" }] }); }) });
+    expect(await nb.sentCount("mainnet", "adelekejr.near", "betalife.near")).toBe(4);
+    expect(url).toBe("https://api.nearblocks.io/v1/account/adelekejr.near/txns-only/count?to=betalife.near");
+  });
+  it("zero is zero; rate limit and odd answers throw (never read as 'never sent')", async () => {
+    expect(await new NearBlocks({ fetch: fetchOf(() => J({ txns: [{ count: 0 }] })) }).sentCount("testnet", "a.testnet", "b.testnet")).toBe(0);
+    await expect(new NearBlocks({ fetch: fetchOf(() => J({}, 429)) }).sentCount("testnet", "a.testnet", "b.testnet")).rejects.toThrow(/rate limit/);
+    await expect(new NearBlocks({ fetch: fetchOf(() => J({ txns: [] })) }).sentCount("testnet", "a.testnet", "b.testnet")).rejects.toThrow();
+    await expect(new NearBlocks({ fetch: fetchOf(() => J(null, 404)) }).sentCount("testnet", "a.testnet", "b.testnet")).rejects.toThrow();
+  });
+  it("live sources expose it", () => expect(typeof liveSources().sentCount).toBe("function"));
+});
