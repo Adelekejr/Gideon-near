@@ -3,8 +3,9 @@
 **A pre-send safety check for NEAR.** Paste the address, token and
 destination you're about to send to. Gideon checks them against live,
 public chain data and says **BLOCKED**, **ATTENTION** or **SAFE**, with the
-reason in plain words and how to fix it. It never signs, never sees keys and
-never moves funds.
+reason in plain words and how to fix it. Gideon never sees keys and never
+holds funds. On the website's **Send** page your own NEAR wallet signs the
+transfer, and only after the check.
 
 Work began 29 Oct 2026.
 
@@ -46,6 +47,9 @@ npm run build:web           # static build in apps/web/dist
 # the Chrome extension
 npm run build:extension     # unpacked build in apps/extension/dist
 npm run zip:extension       # apps/extension/gideon-extension-0.1.0.zip
+
+# the community flag registry contract (Rust; see "Community flag registry")
+cd contracts/flag-registry && cargo test
 ```
 
 CLI exit codes: `0` SAFE, `1` ATTENTION (including "couldn't check"),
@@ -87,7 +91,7 @@ browser, straight against the public APIs) and your own code
 | R7 Lookalike | Close to a saved contact, or to a recent dust sender (address poisoning)? | your contacts, NearBlocks |
 | R8 Exchange | Will this exchange credit this token? Never BLOCKED from registry data alone. | `packages/core/data/exchanges.json` |
 | R9 Clipboard | Is what was pasted what you copied? | the extension (copies made on the same page) |
-| R10 Community flags | Has the community flagged this address? | registry contract (not deployed) |
+| R10 Community flags | Has anyone flagged this account as a scam or poisoning address? ATTENTION at most, never BLOCKED. | `get_flags` view call on the flag registry contract (off until it's deployed) |
 
 How a verdict is reached:
 
@@ -141,6 +145,93 @@ More: [popup](shots/extension-popup.png),
 Playwright's Chromium on the local test page `apps/extension/test-page/withdraw.html`
 (`node apps/extension/scripts/screenshots.mjs`).
 
+## Check, then send (website)
+
+`send.html` (**Send** in the top bar) connects a NEAR wallet with
+[NEAR Connect](https://github.com/hot-dao/near-connect)
+(`@hot-labs/near-connect`) and only lets it send after Gideon has checked the
+exact recipient, amount and network:
+
+1. **Connect** a wallet. NEAR Connect lists the wallets that support the
+   network (on testnet: Meteor, Intear, Nightly, Ledger and others).
+2. **Check.** Enter the recipient and amount. Gideon runs the full check,
+   with the connected account as the sender (so R7 compares the recipient
+   with your own history) and your saved contacts as the address book.
+3. **Send.** The button follows the verdict:
+
+| Verdict | Send button |
+| --- | --- |
+| SAFE | enabled: your wallet opens to sign the NEAR transfer |
+| ATTENTION (including "couldn't check") | disabled until you tick "I read why Gideon flagged this and I still want to send" |
+| BLOCKED | disabled, with no override. Fix the address and check again. |
+| not checked, or edited since the check | disabled ("Send (check first)") |
+
+Changing the recipient, amount or account resets the check and the
+confirm. The transfer goes to the account the check normalised, for exactly the
+amount checked. Nothing is sent without your wallet's own signing prompt.
+
+**Testnet by default.** The Send page's network is fixed at build time:
+`VITE_GIDEON_SEND_NETWORK=mainnet npm run build:web` builds it for mainnet
+(the top-bar network menu doesn't change it, so a wallet connection can't
+switch networks mid-flow).
+
+![The Send page holds a lookalike of a past recipient until you confirm](shots/send-3-attention.png)
+
+More: [connect](shots/send-1-connect.png), [safe](shots/send-2-safe.png),
+[blocked (address poisoning)](shots/send-4-blocked.png) and
+[sent](shots/send-5-sent.png). They were taken with a **mock wallet** injected
+into the page and mocked chain answers, so no real transaction was signed or
+sent. The same script asserts the gating (SAFE sends, ATTENTION needs the
+confirm, BLOCKED never sends, one transfer for the checked amount):
+`npm run build:web && node apps/web/scripts/send-screenshots.mjs` (needs
+`playwright-core` and its Chromium).
+
+## Community flag registry (contract)
+
+[`contracts/flag-registry`](contracts/flag-registry) is a small NEAR contract
+(Rust, `near-sdk` 5.30, built with `cargo-near`) that holds a public list of
+community flags against scam and address-poisoning accounts. R10 reads it.
+
+| Method | Who | What |
+| --- | --- | --- |
+| `report({account_id, reason})` | anyone, with a deposit | Adds your flag. The reason is 1 to 280 bytes. Attach about 0.01 NEAR: it pays for the storage used (0.00001 NEAR per byte, usually under 0.005 NEAR) and the rest is refunded. |
+| `withdraw({account_id})` | the reporter | Removes your own flag and refunds its storage deposit. |
+| `get_flags({account_id})` | anyone, view call, no key | The flags on that account: `[{reporter, reason, at_ms}]`. |
+
+Anti-spam: one flag per reporter per account, no flagging your own account,
+the storage deposit, and at most 100 flags per account. There is **no owner,
+no admin key and no init call**: nobody can edit or delete someone else's
+flag. Once it's deployed, deleting the contract account's full-access key
+locks the code too.
+
+Build and test (Rust 1.95 is pinned in `rust-toolchain.toml`):
+
+```bash
+cd contracts/flag-registry
+cargo test --lib                            # unit tests
+cargo test --test sandbox                   # builds the wasm and runs it on a local near-sandbox
+cargo near build non-reproducible-wasm      # target/near/gideon_flag_registry.wasm
+```
+
+**Not deployed yet.** To deploy it to testnet later (with the
+[NEAR CLI](https://github.com/near/near-cli-rs)):
+
+```bash
+near account create-account fund-myself flags.hammed-stampdue.testnet '2 NEAR' \
+  autogenerate-new-keypair save-to-keychain sign-as hammed-stampdue.testnet \
+  network-config testnet sign-with-keychain send
+cd contracts/flag-registry
+cargo near deploy build-non-reproducible-wasm flags.hammed-stampdue.testnet \
+  without-init-call network-config testnet sign-with-keychain send
+```
+
+Then turn R10 on by setting `flagRegistry` for testnet in
+[`packages/core/src/networks.ts`](packages/core/src/networks.ts). Until then
+R10 is skipped. To try a registry without changing code: `--registry <contract>`
+(or `GIDEON_FLAG_REGISTRY`) on the CLI, or `check(input, sources, { flagRegistry })`
+in code. If the registry account has no contract (or the call fails), R10
+says **"couldn't check"**, never "no flags".
+
 ## Testnet and mainnet
 
 One config ([`packages/core/src/networks.ts`](packages/core/src/networks.ts))
@@ -151,6 +242,8 @@ covers both. **Testnet is the default.** To switch:
 | CLI | `--network mainnet`, or `GIDEON_NETWORK=mainnet` |
 | Code | `check({ ..., network: "mainnet" }, liveSources())` |
 | Website | the network menu in the top bar (remembered in your browser), or `?net=mainnet` in the URL |
+| Send page | `VITE_GIDEON_SEND_NETWORK=mainnet` when building the website |
+| R10 registry | `flagRegistry` per network in `networks.ts`, `--registry` / `GIDEON_FLAG_REGISTRY` on the CLI |
 
 NEAR Intents (1Click) has no testnet, so R6 always reads mainnet.
 
@@ -171,11 +264,12 @@ variables) to turn one on.
 packages/core      rule engine, verdicts, receipts, network config, token and exchange data
 packages/sources   free, no-key data sources, plus replay for offline tests
 packages/cli       the gideon command
-apps/web           the website (Vite, static): Checker, Extension preview, Agents preview
+apps/web           the website (Vite, static): Checker, Send (check, then send), Extension preview, Agents preview
 apps/extension     Chrome MV3 extension: popup, in-page warning, clipboard check, address book
+contracts/flag-registry  Rust contract for community flags (R10)
 packages/mcp       MCP server scaffold for AI agents (README only; not built yet)
 demo               the 8 real cases and their recorded responses
-shots              screenshots of the website and the extension
+shots              screenshots of the website, the Send flow and the extension
 ```
 
 The website deploys as a static site; `vercel.json` builds it with
@@ -209,8 +303,20 @@ The website deploys as a static site; `vercel.json` builds it with
   that tab stays in front. Copies from other apps, `navigator.clipboard`
   writes and clipboard malware on your computer aren't visible to it, so then
   R9 is skipped, not passed.
-- **R10 (community flags) needs a registry contract** that isn't deployed,
-  so it is skipped.
+- **R10 is off until the flag registry is deployed.** The contract is built
+  and tested on a local sandbox only. Until it's deployed and set in
+  `networks.ts`, R10 is skipped.
+- **Community flags are reports, not proof.** Anyone with a few cents of
+  NEAR can flag an account, and one person can use many accounts. That's why a
+  flag only raises ATTENTION, shows who flagged and why, and never blocks.
+  A flagged account can't remove the flags, and reporters can withdraw their
+  own. There is no moderation.
+- **The Send page was tested with a mock wallet only.** No real wallet has
+  signed or sent a transaction through it yet. It sends native NEAR only
+  (no tokens, no Intents), with one transfer per check.
+- **A busy NearBlocks makes sends harder, not riskier.** The Send page reads
+  your history to catch lookalikes. If NearBlocks is rate-limited, the check
+  says "couldn't check" and Send needs your confirm.
 - **Lookalike checks need something to compare against**: your saved
   contacts (website and extension: stored only in your browser) or
   `--book`/`--from` on the CLI.
@@ -223,7 +329,10 @@ The website deploys as a static site; `vercel.json` builds it with
 
 - **Code:** TypeScript, Vite (website and extension bundles), Vitest and
   happy-dom (tests), `@noble/hashes` and `@noble/ed25519` (receipts),
-  Playwright (screenshots only). Fonts: Archivo and JetBrains Mono (SIL Open
+  Playwright (screenshots and the Send-page mock-wallet test).
+- **NEAR:** NEAR Connect (`@hot-labs/near-connect`, wallet selector on the
+  Send page). The flag registry uses Rust, `near-sdk`, `cargo-near`, and
+  `near-sandbox` + `near-api` for its sandbox test. Fonts: Archivo and JetBrains Mono (SIL Open
   Font License), bundled in the extension.
 - **Free, no-key APIs:** FastNEAR RPC (testnet and mainnet), NearBlocks API,
   NEAR Intents 1Click API, TronGrid, PublicNode Ethereum RPC and
