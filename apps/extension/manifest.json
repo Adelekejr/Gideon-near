@@ -2,8 +2,9 @@
   "manifest_version": 3,
   "name": "Gideon: NEAR pre-send check",
   "short_name": "Gideon",
-  "version": "0.0.1",
-  "description": "Checks a NEAR address the moment you paste it, before you send.",
+  "version": "0.1.0",
+  "description": "Checks a NEAR address the moment you paste it, and holds the send when it's a mistake you can't undo.",
+  "minimum_chrome_version": "111",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -12,10 +13,40 @@
   },
   "action": {
     "default_title": "Gideon",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"
     }
   },
-  "permissions": ["storage"]
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://rpc.testnet.fastnear.com/*",
+    "https://test.rpc.fastnear.com/*",
+    "https://rpc.mainnet.fastnear.com/*",
+    "https://free.rpc.fastnear.com/*",
+    "https://api.nearblocks.io/*",
+    "https://api-testnet.nearblocks.io/*",
+    "https://1click.chaindefuser.com/*",
+    "https://api.trongrid.io/*",
+    "https://ethereum-rpc.publicnode.com/*",
+    "https://mempool.space/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["fonts/*.woff2"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ]
 }

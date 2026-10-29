@@ -1,0 +1,20 @@
+{
+  "name": "@gideon/extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Gideon for Chrome: checks a NEAR address the moment you paste it.",
+  "scripts": {
+    "build": "node build.mjs",
+    "zip": "node build.mjs --zip"
+  },
+  "dependencies": {
+    "@gideon/core": "0.1.0",
+    "@gideon/sources": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.300",
+    "happy-dom": "^21.0.4",
+    "vite": "^8.3.5"
+  }
+}

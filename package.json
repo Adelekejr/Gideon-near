@@ -12,7 +12,8 @@
     "packages/core",
     "packages/sources",
     "packages/cli",
-    "apps/web"
+    "apps/web",
+    "apps/extension"
   ],
   "scripts": {
     "build": "npm run build -w @gideon/core -w @gideon/sources -w @gideon/cli",
@@ -24,7 +25,9 @@
     "build:web": "npm run build -w @gideon/web",
     "preview:web": "npm run preview -w @gideon/web",
     "gideon": "node packages/cli/dist/index.js",
-    "typecheck": "tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/sources/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit"
+    "typecheck": "tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/sources/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit && tsc -p apps/extension/tsconfig.json --noEmit",
+    "build:extension": "npm run build -w @gideon/extension",
+    "zip:extension": "npm run zip -w @gideon/extension"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

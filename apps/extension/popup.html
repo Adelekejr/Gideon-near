@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gideon</title>
+<meta name="color-scheme" content="dark">
+
+</head>
+<body>
+<div class="g-root pp" id="app">
+  <header class="top">
+    <span class="logo" id="logo"></span><b class="word">GIDEON</b>
+    <label class="net"><span class="dot"></span><select id="net" aria-label="Network"><option value="testnet">testnet</option><option value="mainnet">mainnet</option></select></label>
+  </header>
+
+  <form id="f" class="sec" autocomplete="off">
+    <div class="lab">CHECK A SEND BEFORE YOU SIGN</div>
+    <input id="to" class="mono in" placeholder="recipient: alice.near, 64-hex, 0x…" spellcheck="false" aria-label="Recipient">
+    <div class="row">
+      <select id="asset" class="in" aria-label="Token"></select>
+      <input id="amount" class="in mono" placeholder="amount" inputmode="decimal" aria-label="Amount">
+    </div>
+    <div class="row">
+      <select id="dest" class="in" aria-label="Where is it going">
+        <option value="unknown">Destination: not sure</option>
+        <option value="wallet">A personal wallet</option>
+        <option value="exchange">An exchange deposit</option>
+        <option value="intents">NEAR Intents / swap</option>
+      </select>
+      <select id="exchange" class="in hidden" aria-label="Exchange"></select>
+    </div>
+    <button class="go" id="go" type="submit">Check this send <span>▌</span></button>
+  </form>
+
+  <div id="result" class="sec res" aria-live="polite"></div>
+
+  <section class="sec">
+    <div class="lab">LAST CHECK ON A PAGE</div>
+    <div id="last" class="last"></div>
+  </section>
+
+  <section class="stats">
+    <div><b id="sChecked">0</b><span>CHECKED</span></div>
+    <div><b id="sStopped" class="v">0</b><span>STOPPED</span></div>
+    <div><b id="sSaved">0</b><span>SAVED</span></div>
+  </section>
+
+  <section class="sec">
+    <div class="lab">ON WALLET &amp; EXCHANGE PAGES</div>
+    <label class="tg"><input type="checkbox" id="checkOnPaste"><i></i><span>Check recipient fields on paste and typing</span></label>
+    <label class="tg"><input type="checkbox" id="holdSend"><i></i><span>Hold the Send button while a check says <b class="v">STOPPED</b></span></label>
+    <label class="tg"><input type="checkbox" id="clipboardCheck"><i></i><span>Compare what I copied with what I paste (R9)</span></label>
+  </section>
+
+  <details class="sec book" id="book">
+    <summary class="lab">ADDRESS BOOK · <span id="ccount">0</span></summary>
+    <p class="hint">Gideon compares every send with these to catch lookalike and poisoned addresses. Stored only on this device.</p>
+    <ul id="clist"></ul>
+    <div class="row">
+      <input id="cacc" class="in mono" placeholder="account" spellcheck="false" aria-label="Account">
+      <input id="clab" class="in" placeholder="label" aria-label="Label">
+      <button type="button" class="btn" id="cadd">Add</button>
+    </div>
+  </details>
+
+  <footer class="foot"><span>read-only · no keys · free public APIs</span><span id="ver"></span></footer>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

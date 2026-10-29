@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["chrome", "node"],
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false,
+    "paths": {
+      "@gideon/core": ["../../packages/core/src/index.ts"],
+      "@gideon/sources": ["../../packages/sources/src/index.ts"]
+    }
+  },
+  "include": ["src", "test"]
+}
