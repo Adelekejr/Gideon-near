@@ -22,7 +22,7 @@
     {
       "id": "wnear-to-exchange",
       "title": "wNEAR sent to an exchange",
-      "input": { "to": "hammed-stampdue.testnet", "network": "testnet", "destination": "exchange", "exchange": "binance", "asset": { "symbol": "wNEAR", "contract": "wrap.testnet" }, "amount": "3" },
+      "input": { "to": "adelekejr.testnet", "network": "testnet", "destination": "exchange", "exchange": "binance", "asset": { "symbol": "wNEAR", "contract": "wrap.testnet" }, "amount": "3" },
       "expect": { "verdict": "ATTENTION", "headline": "EXCHANGE_MAY_NOT_CREDIT" }
     },
     {
@@ -46,7 +46,7 @@
     {
       "id": "safe",
       "title": "A normal send",
-      "input": { "to": "hammed-stampdue.testnet", "network": "testnet", "asset": { "symbol": "NEAR" }, "amount": "1", "destination": "wallet" },
+      "input": { "to": "adelekejr.testnet", "network": "testnet", "asset": { "symbol": "NEAR" }, "amount": "1", "destination": "wallet" },
       "expect": { "verdict": "SAFE", "headline": null }
     }
   ]

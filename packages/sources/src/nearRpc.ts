@@ -5,6 +5,8 @@ import { json, request, SourceError, type HttpOptions } from "./http.js";
 export interface RpcOptions extends HttpOptions {
   /** Replace the free endpoints, e.g. with a paid provider (adapter, off by default). */
   urls?: Partial<Record<Network, string[]>>;
+  /** Replace the free archival endpoints (used only to date accounts the indexer hasn't seen). */
+  archivalUrls?: Partial<Record<Network, string[]>>;
   /** Extra headers for every RPC call, e.g. { Authorization: "Bearer <key>" }. */
   headers?: Record<string, string>;
 }
@@ -19,9 +21,9 @@ export class NearRpc {
   }
 
   /** Try each endpoint in order; only transport failures fall through to the next one. */
-  async call(network: Network, method: string, params: unknown): Promise<RpcReply> {
+  async call(network: Network, method: string, params: unknown, urls = this.urls(network)): Promise<RpcReply> {
     let last = "no RPC endpoint configured";
-    for (const url of this.urls(network)) {
+    for (const url of urls) {
       try {
         const res = await request(url, {
           method: "POST",
@@ -44,7 +46,51 @@ export class NearRpc {
       if (name === "UNKNOWN_ACCOUNT" || name === "INVALID_ACCOUNT") return null;
       throw new SourceError(`NEAR RPC error: ${name || r.error.message || "unknown"}`);
     }
-    return { amountYocto: r.result.amount, codeHash: r.result.code_hash, storageUsage: r.result.storage_usage };
+    return { amountYocto: r.result.amount, codeHash: r.result.code_hash, storageUsage: r.result.storage_usage,
+      ...(typeof r.result.block_height === "number" ? { blockHeight: r.result.block_height } : {}) };
+  }
+
+  /** Block-rate reference per network (head and an older block), reused for 10 minutes. */
+  private ref = new Map<Network, { at: number; h: number; t: number; msPerBlock: number }>();
+
+  private archival(network: Network) {
+    return this.o.archivalUrls?.[network]?.length ? this.o.archivalUrls[network]! : NETWORKS[network].archivalRpcUrls;
+  }
+
+  private async header(network: Network, blockRef: { finality: "final" } | { block_id: number }): Promise<{ height: number; timestampMs: number }> {
+    const r = await this.call(network, "block", blockRef, this.archival(network));
+    if (r.error || !r.result?.header) throw new SourceError(`archival block lookup failed: ${r.error?.cause?.name ?? r.error?.message ?? "no header"}`);
+    return { height: r.result.header.height, timestampMs: Number(BigInt(r.result.header.timestamp_nanosec ?? r.result.header.timestamp) / 1_000_000n) };
+  }
+
+  /** Estimate the block height at a moment, from the current head and the average block time over ~1 day. */
+  async heightAt(network: Network, atMs: number): Promise<number> {
+    let ref = this.ref.get(network);
+    if (!ref || Date.now() - ref.at > 600_000) {
+      const head = await this.header(network, { finality: "final" });
+      const back = await this.header(network, { block_id: head.height - 100_000 }).catch(() => null);
+      const msPerBlock = back && head.height > back.height ? (head.timestampMs - back.timestampMs) / (head.height - back.height) : 1000;
+      ref = { at: Date.now(), h: head.height, t: head.timestampMs, msPerBlock };
+      this.ref.set(network, ref);
+    }
+    return Math.max(1, ref.h - Math.round((ref.t - atMs) / ref.msPerBlock));
+  }
+
+  /**
+   * Did this account exist at a past moment? Reads archival state at the (estimated) block.
+   * Used to date accounts newer than the indexer. Skipped heights (no block) try the next few.
+   */
+  async accountExistedAt(network: Network, accountId: string, atMs: number): Promise<boolean> {
+    const h = await this.heightAt(network, atMs);
+    for (let i = 0; i < 4; i++) {
+      const r = await this.call(network, "query", { request_type: "view_account", block_id: h + i, account_id: accountId }, this.archival(network));
+      if (!r.error) return true;
+      const name = r.error.cause?.name ?? "";
+      if (name === "UNKNOWN_ACCOUNT") return false;
+      if (name === "UNKNOWN_BLOCK") continue;
+      throw new SourceError(`archival RPC error: ${name || r.error.message || "unknown"}`);
+    }
+    throw new SourceError("archival RPC: no block near that time");
   }
 
   async viewFunction<T>(network: Network, contract: string, method: string, args: unknown): Promise<{ ok: true; value: T } | { ok: false; reason: "no-account" | "no-method" }> {

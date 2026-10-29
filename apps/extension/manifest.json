@@ -41,7 +41,9 @@
     "https://1click.chaindefuser.com/*",
     "https://api.trongrid.io/*",
     "https://ethereum-rpc.publicnode.com/*",
-    "https://mempool.space/*"
+    "https://mempool.space/*",
+    "https://archival-rpc.testnet.fastnear.com/*",
+    "https://archival-rpc.mainnet.fastnear.com/*"
   ],
   "web_accessible_resources": [
     {

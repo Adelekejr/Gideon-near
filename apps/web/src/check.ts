@@ -5,7 +5,7 @@ import { inputFromQuery, runCheck, CASES } from "./run";
 
 const RULE_NAMES: Record<string, string> = {
   R1: "Format & network", R2: "Pasted hash", R3: "Account on chain", R4: "Ethereum-style account", R5: "Token",
-  R6: "Intents deposit", R7: "Lookalike", R8: "Exchange rules", R9: "Clipboard", R10: "Community registry",
+  R6: "Intents deposit", R7: "Lookalike", R8: "Exchange rules", R9: "Clipboard", R10: "Community registry", R11: "Account age",
 };
 const ST: Record<Status, [string, string]> = {
   BLOCKED: ["block", "BLOCK"], ATTENTION: ["warn", "LOOK"], PASS: ["safe", "PASS"], COULD_NOT_CHECK: ["cnc", "COULDN’T CHECK"], SKIPPED: ["skip", "—"],

@@ -12,10 +12,11 @@ describe("NEAR RPC", () => {
     const rpc = new NearRpc({ fetch: fetchOf((_u, i) => {
       const p = JSON.parse(String(i.body)).params;
       return p.account_id === "a.testnet"
-        ? J({ result: { amount: "10000000000000000000000000", code_hash: "11111111111111111111111111111111", storage_usage: 182 } })
+        ? J({ result: { amount: "10000000000000000000000000", code_hash: "11111111111111111111111111111111", storage_usage: 182, block_height: 275341942 } })
         : J({ error: { name: "HANDLER_ERROR", cause: { name: "UNKNOWN_ACCOUNT" } } });
     }) });
     expect((await rpc.viewAccount("testnet", "a.testnet"))?.amountYocto).toBe("10000000000000000000000000");
+    expect((await rpc.viewAccount("testnet", "a.testnet"))?.blockHeight).toBe(275341942);
     expect(await rpc.viewAccount("testnet", "b.testnet")).toBeNull();
   });
   it("falls back to the next endpoint on 5xx, then throws", async () => {
@@ -106,6 +107,25 @@ describe("NearBlocks", () => {
   });
   it("429 → throws rate limit", async () => {
     await expect(new NearBlocks({ fetch: fetchOf(() => new Response("", { status: 429 })) }).recentTransfers("testnet", "a")).rejects.toThrow(/rate limit/);
+  });
+  it("accountCreated: indexed account with a date (real response shape)", async () => {
+    const nb = new NearBlocks({ fetch: fetchOf(() => J({ account: [{ account_id: "adelekejr.testnet", created: { transaction_hash: "59b3", block_timestamp: 1651301529639405800 }, block_height: "270420307" }] })) });
+    expect(await nb.accountCreated("testnet", "adelekejr.testnet")).toEqual({ createdMs: 1651301529639, indexed: true, indexedHeight: 270420307 });
+  });
+  it("accountCreated: not yet indexed → indexed:false with the indexer's last block (real response shape)", async () => {
+    const nb = new NearBlocks({ fetch: fetchOf(() => J({ account: [{ block_height: "270420307", block_hash: "6fvF" }] })) });
+    expect(await nb.accountCreated("testnet", "lifeguard-mvtx9n46.testnet")).toEqual({ createdMs: null, indexed: false, indexedHeight: 270420307 });
+  });
+  it("accountCreated: caches known dates, never caches failures", async () => {
+    let n = 0;
+    const ok = new NearBlocks({ fetch: fetchOf(() => { n++; return J({ account: [{ account_id: "a", created: { block_timestamp: 1e18 }, block_height: "5" }] }); }) });
+    await ok.accountCreated("testnet", "a"); await ok.accountCreated("testnet", "a");
+    expect(n).toBe(1);
+    let m = 0;
+    const bad = new NearBlocks({ fetch: fetchOf(() => { m++; return new Response("", { status: 429 }); }) });
+    await expect(bad.accountCreated("testnet", "a")).rejects.toThrow(/rate limit/);
+    await expect(bad.accountCreated("testnet", "a")).rejects.toThrow(/rate limit/);
+    expect(m).toBe(2);
   });
 });
 

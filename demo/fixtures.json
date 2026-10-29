@@ -1,11 +1,11 @@
 {
-  "recordedAt": "2026-10-29T17:13:42.887Z",
+  "recordedAt": "2026-10-29T19:51:37.165Z",
   "note": "Live answers recorded by scripts/record-fixtures.mjs. Read-only calls only.",
   "answers": {
-    "viewAccount(\"mainnet\",\"89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944\")": {
+    "oneClickStatus(\"89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944\")": {
       "value": null
     },
-    "oneClickStatus(\"89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944\")": {
+    "viewAccount(\"mainnet\",\"89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944\")": {
       "value": null
     },
     "ethTx(\"0x89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944\")": {
@@ -29,7 +29,8 @@
       "value": {
         "amountYocto": "0",
         "codeHash": "11111111111111111111111111111111",
-        "storageUsage": 182
+        "storageUsage": 182,
+        "blockHeight": 222169098
       }
     },
     "ftMetadata(\"mainnet\",\"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1\")": {
@@ -43,7 +44,7 @@
       "value": {
         "status": "SUCCESS",
         "updatedAt": "2026-09-30T00:31:15.000Z",
-        "correlationId": "6ca75a34-e453-49bf-a9c2-892e14fc5582",
+        "correlationId": "57e4a98b-3612-4088-94f7-7372817d2d0a",
         "quoteResponse": {
           "timestamp": "2026-09-30T00:30:44.627Z",
           "signature": "ed25519:3hYxVCB1gssV95DSZ6moHfkKFFqcZiB5vySEMjJDc5fWuP9ZinKohFBxB8FoRPaHYYsh3pJFb79jqgrSSssbfyDV",
@@ -85,11 +86,19 @@
     "storageRegistered(\"mainnet\",\"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1\",\"6560ef42e12a16195010ca95b194cd1385fa241a39ff6a9016cdea278c18afee\")": {
       "value": false
     },
-    "viewAccount(\"testnet\",\"hammed-stampdue.testnet\")": {
+    "accountCreated(\"mainnet\",\"6560ef42e12a16195010ca95b194cd1385fa241a39ff6a9016cdea278c18afee\")": {
       "value": {
-        "amountYocto": "10000000000000000000000000",
+        "createdMs": 1790728257415,
+        "indexed": true,
+        "indexedHeight": 222169099
+      }
+    },
+    "viewAccount(\"testnet\",\"adelekejr.testnet\")": {
+      "value": {
+        "amountYocto": "58432331527578699999968",
         "codeHash": "11111111111111111111111111111111",
-        "storageUsage": 182
+        "storageUsage": 758,
+        "blockHeight": 275345827
       }
     },
     "ftMetadata(\"testnet\",\"wrap.testnet\")": {
@@ -99,8 +108,15 @@
         "decimals": 24
       }
     },
-    "storageRegistered(\"testnet\",\"wrap.testnet\",\"hammed-stampdue.testnet\")": {
+    "storageRegistered(\"testnet\",\"wrap.testnet\",\"adelekejr.testnet\")": {
       "value": false
+    },
+    "accountCreated(\"testnet\",\"adelekejr.testnet\")": {
+      "value": {
+        "createdMs": 1651301529639,
+        "indexed": true,
+        "indexedHeight": 270420307
+      }
     },
     "viewAccount(\"testnet\",\"northwind-payro11.testnet\")": {
       "value": null

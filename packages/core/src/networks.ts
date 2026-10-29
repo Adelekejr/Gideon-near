@@ -12,6 +12,8 @@ export interface NetworkConfig {
   accountSuffix: ".near" | ".testnet";
   /** JSON-RPC endpoints, tried in order. Free, no key. */
   rpcUrls: string[];
+  /** Archival JSON-RPC endpoints (state at a past block), used to date accounts the indexer hasn't seen yet. */
+  archivalRpcUrls: string[];
   /** Block explorer for humans. */
   explorer: string;
   /** NearBlocks API base (free tier, about 6 calls per minute). */
@@ -26,6 +28,7 @@ export const NETWORKS: Record<Network, NetworkConfig> = {
     label: "NEAR testnet",
     accountSuffix: ".testnet",
     rpcUrls: ["https://rpc.testnet.fastnear.com", "https://test.rpc.fastnear.com"],
+    archivalRpcUrls: ["https://archival-rpc.testnet.fastnear.com"],
     explorer: "https://testnet.nearblocks.io",
     nearblocksApi: "https://api-testnet.nearblocks.io",
     flagRegistry: null,
@@ -35,6 +38,7 @@ export const NETWORKS: Record<Network, NetworkConfig> = {
     label: "NEAR mainnet",
     accountSuffix: ".near",
     rpcUrls: ["https://rpc.mainnet.fastnear.com", "https://free.rpc.fastnear.com"],
+    archivalRpcUrls: ["https://archival-rpc.mainnet.fastnear.com"],
     explorer: "https://nearblocks.io",
     nearblocksApi: "https://api.nearblocks.io",
     flagRegistry: null,

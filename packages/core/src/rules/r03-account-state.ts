@@ -60,7 +60,7 @@ export async function r03AccountState(ctx: Ctx): Promise<RuleResult> {
   }
 
   const extra = [
-    ...(facts?.createdAt ? [{ label: "Created", value: facts.createdAt.slice(0, 10) }] : []),
+    { label: "Created", value: facts?.createdAt ? facts.createdAt.slice(0, 10) : facts?.chainAgeDays === 0 ? "within the last 24 hours" : facts?.chainAgeDays != null && facts.chainAgeDays < 7 ? `${facts.chainAgeDays} day(s) ago` : facts?.chainAgeDays != null ? "more than 7 days ago" : facts?.created === "after-indexer" ? "recently (newer than our indexer's data)" : "date unavailable" },
     { label: "Balance", value: `${facts?.balanceNear ?? "?"} NEAR` },
   ];
   if (facts?.contract && input.destination === "wallet") {

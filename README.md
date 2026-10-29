@@ -23,6 +23,7 @@ Work began 29 Oct 2026.
 | Wrong token for an Intents deposit | sending wNEAR to a 1Click deposit address that expects USDC | BLOCKED |
 | Lookalike of a saved contact | `northwind-payro11.testnet` instead of `northwind-payroll.testnet` | BLOCKED |
 | A token the exchange may not credit | wNEAR or USDC (NEP-141) sent to an exchange deposit | ATTENTION |
+| A brand-new account | `lifeguard-mvtx9n46.testnet`, created hours before the check: it really exists, but scammers make fresh accounts right before they ask for money | ATTENTION |
 | A fresh Ethereum-style `0x` account | it exists only once someone uses it with an Ethereum key | ATTENTION |
 | A 64-hex implicit account never used | valid, but unfunded: sending creates it, only fine if its owner gave it to you | ATTENTION |
 | A lookup that failed | any source is down or rate-limited | ATTENTION ("couldn't check") |
@@ -42,7 +43,7 @@ npm run verify              # the 8 demo cases, replayed from recorded real resp
 npm run verify -- --live    # the same 8 cases against the live, free APIs
 
 # check one send from the terminal (testnet is the default)
-npm run gideon -- check hammed-stampdue.testnet --amount 1
+npm run gideon -- check adelekejr.testnet --amount 1
 npm run gideon -- check 89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944 \
   --network mainnet --dest exchange --exchange binance --json
 
@@ -72,7 +73,7 @@ CLI exit codes: `0` SAFE, `1` ATTENTION (including "couldn't check"),
 flowchart LR
   U["You or an agent<br/>to, token, amount, destination"] --> E["@gideon/core<br/>check()"]
   E --> C["Classify the input<br/>(named, implicit, 0x, tx hash, Tron, ...)"]
-  C --> R["Rules R1 to R10"]
+  C --> R["Rules R1 to R11"]
   R <-->|"read-only lookups"| S["@gideon/sources"]
   S --> RPC["NEAR RPC (FastNEAR)"]
   S --> NB["NearBlocks API"]
@@ -103,6 +104,7 @@ browser, straight against the public APIs) and your own code
 | R8 Exchange | Will this exchange credit this token? Never BLOCKED from registry data alone. | `packages/core/data/exchanges.json` |
 | R9 Clipboard | Is what was pasted what you copied? | the extension (copies made on the same page) |
 | R10 Community flags | Has anyone flagged this account as a scam or poisoning address? ATTENTION at most, never BLOCKED. | `get_flags` view call on the flag registry contract (off until it's deployed) |
+| R11 Account age | How new is the account? Created under 24 hours ago: ATTENTION "Brand-new account, created today. It really exists on NEAR (checked live)." Under 7 days: ATTENTION "New account (created N days ago)". Exists on chain but newer than the indexer's data: dated from archival chain state (did it exist 1 day / 7 days ago?), or, if that lookup fails, ATTENTION "Created recently (newer than our indexer's data)". If no date can be read at all it says "Creation date unavailable" and the verdict doesn't change. Runs in every flow, the wallet flow included (answers are cached). | NearBlocks `/v1/account` (creation date and indexer height), archival NEAR RPC `view_account` at a past block |
 
 How a verdict is reached:
 
@@ -432,6 +434,16 @@ The website deploys as a static site; `vercel.json` builds it with
   minute, and TronGrid and the public RPCs can rate-limit or go down. When
   that happens Gideon says "couldn't check", not safe. Use the paid RPC
   adapter if you need more.
+- **Account age depends on an indexer that can lag.** NearBlocks' free
+  testnet indexer was about 4.9 million blocks (roughly a month) behind the
+  chain in October 2026. An account it hasn't reached is dated from archival
+  RPC state instead (FastNEAR's free archival endpoint, which the extension
+  also needs host access to); the block for "1 day ago" / "7 days ago" is
+  estimated from the average block time, so an account created within minutes
+  of either boundary can land on the other side. If the indexer knows an
+  account but has no date, Gideon says "Creation date unavailable" and does
+  not call it new. Known dates are cached for the session, other answers for
+  a minute. A new account is ATTENTION, never BLOCKED: new doesn't mean scam.
 - **Exchange data is a starter list.** Only the generic rule ("most exchanges
   credit native NEAR only") is confirmed from a public source. Per-exchange
   entries are marked unverified, and R8 never blocks on them.

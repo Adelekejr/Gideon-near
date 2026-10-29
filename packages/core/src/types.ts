@@ -116,8 +116,23 @@ export interface AccountFacts {
   balanceNear?: string;
   /** True when the account runs contract code. */
   contract?: boolean;
-  /** When the account was created (ISO date), if a free indexer answered. Info only. */
+  /** When the account was created (ISO date), if a free indexer answered. */
   createdAt?: string;
+  /**
+   * How sure Gideon is about the creation date:
+   * "known" = indexer date; "after-indexer" = exists on chain but newer than the indexer's data;
+   * "unavailable" = no date (indexer down, or no record and no sign it's behind).
+   */
+  created?: "known" | "after-indexer" | "unavailable";
+  /** Blocks between the indexer's last processed block and the live chain, when both are known. */
+  indexerLagBlocks?: number;
+  /** The indexer's last processed block, when known. */
+  indexedHeight?: number;
+  /**
+   * For accounts newer than the indexer: whole days since creation, read from archival chain
+   * state (0 = within 24 hours). 7 means "already existed 7 days ago" (not new).
+   */
+  chainAgeDays?: number;
   /** One plain sentence for the UI, e.g. "Account exists on NEAR testnet. Created 30 Apr 2022. Holds 180.65 NEAR." */
   summary: string;
 }
@@ -145,6 +160,18 @@ export interface AccountInfo {
   amountYocto: string;
   codeHash: string;
   storageUsage: number;
+  /** Chain height the RPC answered at (used to tell when an indexer is behind). */
+  blockHeight?: number;
+}
+
+/** What an indexer knows about when an account was created. */
+export interface AccountCreation {
+  /** Creation time (ms since epoch), or null when the indexer has no date. */
+  createdMs: number | null;
+  /** True when the indexer has a row for this account at all (even without a date). */
+  indexed: boolean;
+  /** The last block the indexer has processed, when it says. */
+  indexedHeight?: number | null;
 }
 
 export interface ForeignTx {
@@ -219,10 +246,15 @@ export interface Sources {
   /** `get_flags` view call on the registry. null = the registry account or contract doesn't exist. */
   communityFlags(network: Network, registry: string, accountId: string): Promise<CommunityFlag[] | null>;
   /**
-   * Optional, info only: when the account was created (ms since epoch), from an indexer.
-   * null = unknown. Never used to decide a verdict; existence always comes from viewAccount.
+   * Optional: when the account was created, from an indexer. A bare number is ms since epoch;
+   * null = unknown. Existence always comes from viewAccount; the date only feeds R11 (account age).
    */
-  accountCreated?(network: Network, accountId: string): Promise<number | null>;
+  accountCreated?(network: Network, accountId: string): Promise<number | AccountCreation | null>;
+  /**
+   * Optional: did the account already exist at this time (ms since epoch)? Read from archival
+   * RPC state. Used only to date accounts the indexer hasn't caught up with. null = unknown.
+   */
+  accountExistedAt?(network: Network, accountId: string, atMs: number): Promise<boolean | null>;
 }
 
 /** One report in the community flag registry (contracts/flag-registry). */

@@ -15,7 +15,7 @@ const color = { SAFE: 32, ATTENTION: 33, BLOCKED: 31 };
 
 const contacts = [{ account: "northwind-payroll.testnet", label: "Northwind payroll" }];
 const queue = [
-  { memo: "Rent for October", recipient: "hammed-stampdue.testnet", amount: "1", destination: "wallet" },
+  { memo: "Rent for October", recipient: "adelekejr.testnet", amount: "1", destination: "wallet" },
   { memo: "Refund, customer pasted an Ethereum address", recipient: "0x94a0abA1283aF69Cb260b7e0Ea0366Dca0dd3cd8", amount: "5" },
   { memo: "Payroll run (from an emailed invoice)", recipient: "northwind-payro11.testnet", amount: "40", address_book: contacts },
   { memo: "Vendor invoice", recipient: "alice.near", amount: "1" },

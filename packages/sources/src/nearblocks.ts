@@ -1,9 +1,11 @@
-import type { NearTx, Network, Transfer } from "@gideon/core";
+import type { AccountCreation, NearTx, Network, Transfer } from "@gideon/core";
 import { NETWORKS } from "@gideon/core";
 import { json, request, SourceError, type HttpOptions } from "./http.js";
 
 /** NearBlocks free API (no key, about 6 calls/minute). */
 export class NearBlocks {
+  /** Creation lookups, cached: a known date never changes; "no record yet" is re-asked after a minute. */
+  private created = new Map<string, { at: number; value: Promise<AccountCreation> }>();
   constructor(private o: HttpOptions = {}) {}
 
   private async get<T>(network: Network, path: string): Promise<{ status: number; body: T | null }> {
@@ -26,13 +28,30 @@ export class NearBlocks {
     }));
   }
 
-  /** Creation time (ms since epoch) of an account, or null when NearBlocks doesn't know it. Info only. */
-  async accountCreated(network: Network, accountId: string): Promise<number | null> {
-    const { body } = await this.get<{ account?: { created?: { block_timestamp?: number | string | null } }[] }>(network, `/v1/account/${encodeURIComponent(accountId)}`);
-    const ns = body?.account?.[0]?.created?.block_timestamp;
-    if (ns == null) return null;
-    const ms = Math.round(Number(ns) / 1e6);
-    return Number.isFinite(ms) && ms > 0 ? ms : null;
+  /**
+   * When an account was created, plus whether NearBlocks has indexed it at all and how far its
+   * data goes (its `block_height`), so the engine can tell "too new for the indexer" from "unknown".
+   */
+  async accountCreated(network: Network, accountId: string): Promise<AccountCreation> {
+    const key = `${network}:${accountId}`;
+    const hit = this.created.get(key);
+    if (hit && Date.now() - hit.at < 60_000) return hit.value;
+    const value = this.readCreated(network, accountId);
+    this.created.set(key, { at: Date.now(), value });
+    value.then((v) => { if (v.createdMs) this.created.set(key, { at: Infinity, value }); },
+      () => this.created.delete(key)); // never cache a failure
+    return value;
+  }
+
+  private async readCreated(network: Network, accountId: string): Promise<AccountCreation> {
+    type Row = { account_id?: string; created?: { block_timestamp?: number | string | null } | null; block_height?: string | number };
+    const { body } = await this.get<{ account?: Row[] }>(network, `/v1/account/${encodeURIComponent(accountId)}`);
+    const row = body?.account?.[0];
+    const height = Number(row?.block_height);
+    const indexedHeight = Number.isFinite(height) && height > 0 ? height : null;
+    const ns = row?.created?.block_timestamp;
+    const ms = ns == null ? NaN : Math.round(Number(ns) / 1e6);
+    return { createdMs: Number.isFinite(ms) && ms > 0 ? ms : null, indexed: !!row?.account_id, indexedHeight };
   }
 
   async nearTx(network: Network, hash: string): Promise<NearTx | null> {

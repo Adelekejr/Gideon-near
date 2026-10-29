@@ -81,23 +81,83 @@ async function readFacts(ctx: Ctx, sources: Sources): Promise<AccountFacts | nul
   const balanceNear = yoctoToNear(r.value.amountYocto);
   const contract = !!r.value.codeHash && r.value.codeHash !== NO_CODE;
   let createdAt: string | undefined;
-  // Creation date is info only. Skip it when R7 reads the sender's history, so both fit in NearBlocks' free budget.
-  if (sources.accountCreated && !input.from) {
+  let created: AccountFacts["created"] = "unavailable";
+  let indexerLagBlocks: number | undefined;
+  let indexedHeight: number | undefined;
+  // Always look up the creation date (also in the wallet flow): a brand-new recipient is a scam signal.
+  // Live sources cache it, so repeat checks don't spend NearBlocks' free budget.
+  if (sources.accountCreated) {
     const t0 = Date.now();
     const key = `nearblocks-${net}:created:${id}`;
     try {
-      const ms = await sources.accountCreated(net, id);
+      const raw = await sources.accountCreated(net, id);
       ctx.calls.push({ source: key, ok: true, ms: Date.now() - t0, optional: true });
-      if (ms) createdAt = new Date(ms).toISOString();
+      const info = typeof raw === "number" ? { createdMs: raw, indexed: true } : raw;
+      if (info?.createdMs) {
+        createdAt = new Date(info.createdMs).toISOString();
+        created = "known";
+      } else if (info && !info.indexed && info.indexedHeight && r.value.blockHeight) {
+        // The indexer has never seen this account, yet the live chain has it: it was created
+        // after the indexer's last block. Accounts the indexer does know (even without a date) never land here.
+        indexedHeight = info.indexedHeight;
+        indexerLagBlocks = Math.max(0, r.value.blockHeight - info.indexedHeight);
+        created = "after-indexer";
+      }
     } catch (e) {
       ctx.calls.push({ source: key, ok: false, ms: Date.now() - t0, optional: true, error: e instanceof Error ? e.message : String(e) });
     }
   }
+  let chainAgeDays: number | undefined;
+  if (created === "after-indexer" && sources.accountExistedAt) chainAgeDays = await chainAge(ctx, sources, id);
   const parts = [`Account exists on ${where}.`];
   if (createdAt) parts.push(`Created ${fmtDate(Date.parse(createdAt))}.`);
+  else if (chainAgeDays === 0) parts.push("Created in the last 24 hours.");
+  else if (chainAgeDays != null && chainAgeDays < 7) parts.push(`Created ${chainAgeDays} day${chainAgeDays === 1 ? "" : "s"} ago.`);
+  else if (chainAgeDays != null) parts.push("Created more than 7 days ago.");
+  else if (created === "after-indexer") parts.push("Created recently (newer than our indexer's data).");
+  else parts.push("Creation date unavailable.");
   parts.push(`Holds ${balanceNear} NEAR.`);
   if (contract) parts.push("Runs contract code.");
-  return { id, network: net, exists: true, balanceNear, contract, ...(createdAt ? { createdAt } : {}), summary: parts.join(" ") };
+  return { id, network: net, exists: true, balanceNear, contract, ...(createdAt ? { createdAt } : {}), created,
+    ...(indexedHeight != null ? { indexedHeight, indexerLagBlocks } : {}), ...(chainAgeDays != null ? { chainAgeDays } : {}), summary: parts.join(" ") };
+}
+
+const DAY = 86_400_000;
+
+/**
+ * Date an account the indexer hasn't reached yet, from archival chain state:
+ * did it exist 1 day ago? 7 days ago? Then narrow down the day. Returns whole days
+ * since creation (0 = within 24h, 7 = already existed a week ago), or undefined when unknown.
+ */
+async function chainAge(ctx: Ctx, sources: Sources, id: string): Promise<number | undefined> {
+  const net = ctx.input.network;
+  const existed = async (days: number): Promise<boolean | null> => {
+    const t0 = Date.now();
+    const key = `archival-rpc-${net}:existed:${id}@-${days}d`;
+    try {
+      const v = await sources.accountExistedAt!(net, id, ctx.now - days * DAY);
+      ctx.calls.push({ source: key, ok: true, ms: Date.now() - t0, optional: true });
+      return v;
+    } catch (e) {
+      ctx.calls.push({ source: key, ok: false, ms: Date.now() - t0, optional: true, error: e instanceof Error ? e.message : String(e) });
+      return null;
+    }
+  };
+  const d1 = await existed(1);
+  if (d1 === null) return undefined;
+  if (!d1) return 0;
+  const d7 = await existed(7);
+  if (d7 === null) return undefined;
+  if (d7) return 7;
+  // Existed 1 day ago, not 7: binary search the day (at most 3 more lookups).
+  let lo = 1, hi = 7;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    const e = await existed(mid);
+    if (e === null) return lo;
+    if (e) lo = mid; else hi = mid;
+  }
+  return lo;
 }
 
 export function yoctoToNear(yocto: string | number): string {
