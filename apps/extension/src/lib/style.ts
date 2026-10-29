@@ -10,19 +10,20 @@ export const STYLE = `
 /* stopper */
 .gs{--arw:var(--n-ink);--wall:var(--signal);--ok:var(--safe);overflow:hidden;display:block;flex:none}
 .gs.t-warn{--wall:var(--amber)}.gs.t-idle{--wall:var(--amber)}
+.gs.idle .gs-wall{animation:gs-pulse 1.1s ease-in-out infinite alternate}
 .gs-arw{fill:var(--arw)}
-.gs-wall{fill:var(--wall);transform-box:fill-box;transform-origin:50% 100%}
-.gs-hit{stroke:var(--wall);stroke-width:4;stroke-linecap:square;fill:none;opacity:0}
+.gs-g{fill:none;stroke:var(--arw);stroke-width:13}
+.gs-wall{fill:var(--wall)}
+.gs-hit{stroke:var(--wall);stroke-width:3;stroke-linecap:square;fill:none;opacity:0}
 .gs.block .gs-arw{animation:gs-ab 3.6s infinite}.gs.block .gs-wall{animation:gs-wb 3.6s infinite}.gs.block .gs-hit{animation:gs-hb 3.6s infinite}
 .gs.safe .gs-arw{animation:gs-as 3.6s infinite}.gs.safe .gs-wall{animation:gs-ws 3.6s infinite}
-.gs.idle .gs-wall{animation:gs-pulse 1.1s ease-in-out infinite alternate}
-@keyframes gs-ab{0%{transform:translateX(-80px);opacity:0;animation-timing-function:cubic-bezier(.55,0,.9,.5)}10%{opacity:1}36%{transform:translateX(10px);animation-timing-function:cubic-bezier(.1,.9,.3,1)}50%{transform:translateX(-30px)}58%{transform:translateX(-18px)}64%,90%{transform:translateX(-22px);opacity:1}100%{transform:translateX(-22px);opacity:0}}
-@keyframes gs-wb{0%,36%{transform:translateX(0)}39%{transform:translateX(6px)}43%{transform:translateX(-5px)}47%{transform:translateX(4px)}51%{transform:translateX(-2px)}55%,100%{transform:translateX(0)}}
-@keyframes gs-hb{0%,35%{opacity:0}38%{opacity:1}54%,100%{opacity:0}}
-@keyframes gs-as{0%{transform:translateX(-80px);opacity:0;animation-timing-function:cubic-bezier(.3,0,.4,1)}10%{opacity:1}30%,44%{transform:translateX(-4px);animation-timing-function:cubic-bezier(.5,0,.75,0)}72%{transform:translateX(110px);opacity:1}76%,100%{transform:translateX(120px);opacity:0}}
-@keyframes gs-ws{0%,26%{transform:translateY(0);fill:var(--wall)}32%{transform:translateY(0);fill:var(--ok)}44%,76%{transform:translateY(-82px);fill:var(--ok);animation-timing-function:cubic-bezier(.6,0,.4,1)}90%,100%{transform:translateY(0);fill:var(--wall)}}
+@keyframes gs-ab{0%{transform:translateX(-30px);opacity:0;animation-timing-function:cubic-bezier(.55,0,.9,.5)}10%{opacity:1}34%{transform:translateX(6px);animation-timing-function:cubic-bezier(.1,.9,.3,1)}48%{transform:translateX(-12px)}56%{transform:translateX(-4px)}62%,90%{transform:translateX(-6px);opacity:1}100%{transform:translateX(-6px);opacity:0}}
+@keyframes gs-wb{0%,34%{transform:translateX(0)}37%{transform:translateX(2.5px)}41%{transform:translateX(-2px)}45%{transform:translateX(1.5px)}49%{transform:translateX(-.8px)}53%,100%{transform:translateX(0)}}
+@keyframes gs-hb{0%,33%{opacity:0}36%{opacity:1}52%,100%{opacity:0}}
+@keyframes gs-as{0%{transform:translateX(-30px);opacity:0;fill:var(--arw);animation-timing-function:cubic-bezier(.3,0,.4,1)}10%{opacity:1}26%{transform:translateX(0);fill:var(--arw)}36%,42%{transform:translateX(0);fill:var(--ok);animation-timing-function:cubic-bezier(.5,0,.75,0)}66%{transform:translateX(64px);opacity:1;fill:var(--ok)}68%,100%{transform:translateX(64px);opacity:0;fill:var(--ok)}}
+@keyframes gs-ws{0%,26%{transform:translateY(0)}40%,74%{transform:translateY(22px);animation-timing-function:cubic-bezier(.6,0,.4,1)}88%,100%{transform:translateY(0)}}
 @keyframes gs-pulse{from{opacity:.45}to{opacity:1}}
-@media (prefers-reduced-motion:reduce){.gs *{animation:none!important}.gs.block .gs-arw{transform:translateX(-22px)}.gs.block .gs-hit{opacity:1}.gs.safe .gs-wall{fill:var(--ok);transform:translateY(-50px)}}
+@media (prefers-reduced-motion:reduce){.gs *{animation:none!important}.gs.block .gs-arw{transform:translateX(-6px)}.gs.block .gs-hit{opacity:1}.gs.safe .gs-wall{transform:translateY(22px)}.gs.safe .gs-arw{fill:var(--ok)}}
 /* verdict card (the night-watch warning) */
 .gw{background:var(--n-bg);color:var(--n-ink);border:1.5px solid var(--amber);border-radius:8px;overflow:hidden;box-shadow:0 18px 50px -14px rgba(0,0,0,.6)}
 .gw.t-block{border-color:var(--signal);box-shadow:0 18px 50px -14px rgba(255,77,26,.55)}
@@ -33,7 +34,7 @@ export const STYLE = `
 .t-block .gh{background:var(--signal);color:#fff}.t-block .gh .gs{--arw:#16120A;--wall:#fff}
 .t-warn .gh{background:var(--amber);color:#16120A}.t-warn .gh .gs{--arw:#16120A;--wall:#16120A}
 .t-safe .gh{background:var(--safe);color:#0C0B09}.t-safe .gh .gs{--arw:#0C0B09;--wall:#0C0B09;--ok:#0C0B09}
-.gh .gs{width:54px;height:24px}
+.gh .gs{width:24px;height:24px}
 .gh b{font-weight:800;font-stretch:125%;font-size:12px;letter-spacing:.02em}
 .gh span{margin-left:auto;font:700 10.5px var(--mono);letter-spacing:.1em}
 .gb{padding:12px 14px}

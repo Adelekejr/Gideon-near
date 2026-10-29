@@ -23,7 +23,7 @@
 .contacts .add .btn{height:38px}
 .hidden{display:none!important}
 .loading{padding:48px 0;display:flex;gap:24px;align-items:center}
-.loading .gs{width:200px;height:auto}
+.loading .gs{width:84px;height:auto}
 .receipt{font-family:var(--mono);font-size:12px;word-break:break-all;line-height:1.7;margin-top:10px}
 .notice{font-family:var(--mono);font-size:12px;color:var(--ink-2);border:1px dashed var(--line);padding:10px 12px;border-radius:var(--r1);margin-top:12px}
 

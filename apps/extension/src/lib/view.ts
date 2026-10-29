@@ -40,16 +40,21 @@ export function accountLine(r: CheckResult): string {
   return `<div class="ga"><b>account →</b> ${esc(v)}</div>`;
 }
 
+/** Brand mark: the Arrow G. */
 export const LOGO =
-  '<svg viewBox="0 0 88 88" aria-hidden="true"><rect x="4" y="38" width="44" height="12" fill="currentColor"/><path d="M44 24 L66 44 L44 64 Z" fill="currentColor"/><rect x="71" y="10" width="11" height="68" fill="#FF4D1A"/></svg>';
+  '<svg viewBox="0 0 100 100" aria-hidden="true"><rect x="78" y="29" width="13" height="21" fill="#FF4D1A"/><rect x="28" y="33.5" width="25" height="13" fill="currentColor"/><path d="M52 26 L72 40 L52 54 Z" fill="currentColor"/><path d="M68.28 20.74 A34.5 34.5 0 1 0 84.5 50" fill="none" stroke="currentColor" stroke-width="13"/></svg>';
 
-/** The animated mark: the arrow bounces off the wall when blocked; the wall lifts when safe. */
+/** The animated Arrow G: blocked = the arrow bounces off the wall; safe = the wall slides away and the arrow leaves. */
+let gsN = 0;
 export function stopper(tone: Tone): string {
   const state = tone === "block" ? "block" : tone === "safe" ? "safe" : "idle";
-  return `<svg class="gs ${state} t-${tone}" viewBox="0 0 200 88" role="img" aria-label="${state === "block" ? "Send stopped" : state === "safe" ? "Send cleared" : "Gideon"}">
-<g class="gs-arw"><rect x="6" y="38" width="112" height="12"/><path d="M114 24 L136 44 L114 64 Z"/></g>
-<g class="gs-hit"><path d="M140 18 l-7 -9 M140 70 l-7 9 M128 14 l-2 -10 M128 74 l-2 10"/></g>
-<rect class="gs-wall" x="146" y="10" width="11" height="68"/></svg>`;
+  const id = `gsc${(++gsN).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  return `<svg class="gs ${state} t-${tone}" viewBox="0 0 100 100" role="img" aria-label="${state === "block" ? "Send stopped" : state === "safe" ? "Send cleared" : "Gideon"}">
+<defs><clipPath id="${id}"><rect x="70" y="0" width="30" height="50"/></clipPath></defs>
+<g clip-path="url(#${id})"><rect class="gs-wall" x="78" y="29" width="13" height="21"/></g>
+<g class="gs-arw"><rect x="28" y="33.5" width="25" height="13"/><path d="M52 26 L72 40 L52 54 Z"/></g>
+<path class="gs-g" d="M68.28 20.74 A34.5 34.5 0 1 0 84.5 50"/>
+<path class="gs-hit" d="M75 27 l-5 -5 M75 52 l-5 5 M84 25 v-6"/></svg>`;
 }
 
 function findingLine(f: Finding): string {
