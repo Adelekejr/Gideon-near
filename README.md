@@ -47,6 +47,11 @@ npm run build:web           # static build in apps/web/dist
 # the Chrome extension
 npm run build:extension     # unpacked build in apps/extension/dist
 npm run zip:extension       # apps/extension/gideon-extension-0.1.0.zip
+npm run zip:firefox -w @gideon/extension   # Firefox / Firefox for Android build (see "Phones")
+
+# the MCP server for AI agents (see "AI agents (MCP server)")
+npm run demo:agent          # a scripted agent asks Gideon before each payout
+npm run mcp                 # the stdio server itself, for an MCP host to launch
 
 # the community flag registry contract (Rust; see "Community flag registry")
 cd contracts/flag-registry && cargo test
@@ -145,6 +150,62 @@ More: [popup](shots/extension-popup.png),
 Playwright's Chromium on the local test page `apps/extension/test-page/withdraw.html`
 (`node apps/extension/scripts/screenshots.mjs`).
 
+
+## Phones (Android)
+
+The extension isn't on the Chrome Web Store and doesn't need to be. Some
+Android browsers load extensions from a file. None of these has been tested on
+a real phone yet; the steps come from each browser's docs or user reports,
+linked below.
+
+Build the files on a computer and copy them to the phone:
+
+- `npm run zip:extension`: `apps/extension/gideon-extension-0.1.0.zip` (Chromium browsers)
+- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.1.0.zip` (Firefox)
+
+**Mises Browser** (Chromium). Menu → **Extensions** → turn on
+**Developer mode** → **+ (from .zip/.crx/.user.js)** → pick
+`gideon-extension-0.1.0.zip`. Keep it zipped. Mises unpacks it into its cache,
+so clearing the browser's cache or data removes it; install again if so.
+([steps](https://github.com/lukman754/Mentari-Unpam),
+[Play listing](https://play.google.com/store/apps/details?id=site.mises.browser_stable),
+[no load-from-folder](https://github.com/mises-id/mises-browser-core/issues/332))
+
+**Quetta** (Chromium). Settings → **Extensions** → **Developer mode** →
+**from .zip/.crx/.user.js** → pick the same zip. One release dropped
+sideloaded extensions (fixed in 1.8.2).
+
+**Yandex Browser.** Officially it installs from the Chrome Web Store and
+Opera add-ons. For testing: unzip `gideon-extension-0.1.0.zip` into a phone
+folder, open `browser://extensions`, turn on **Developer mode**, tap **Load
+unpacked extension** and pick `manifest.json` in that folder. Users reported
+in 2020 that newer builds stopped loading unpacked extensions, so this may not
+work on your version.
+([Yandex help](https://yandex.com/support/browser-mobile-android-phone/en/personal-settings/extensions),
+[yandex/browser-extensions](https://github.com/yandex/browser-extensions))
+
+**Microsoft Edge.** Stable Edge for Android only offers a short curated list.
+Edge Canary: Settings → About → tap the build number 5 times → **Developer
+options** → **Extension install by id** (Edge Add-ons IDs only; Gideon has
+none) or, on newer Canary builds, install from a `.crx`. Not a practical route
+today.
+
+**Firefox for Android (142+, Android 10+).** Firefox only installs signed
+add-ons. Signing is free on [addons.mozilla.org](https://addons.mozilla.org)
+(listed, or unlisted "on your own" self-distribution) but needs a Mozilla
+account, so this repo ships the unsigned build only. Once you have the signed
+`.xpi`: Settings → **About Firefox** → tap the Firefox logo 5 times → back to
+Settings → **Install extension from file** → pick the `.xpi`. Developers can
+also load the unsigned build temporarily over USB with
+`npx web-ext run --target=firefox-android -s apps/extension/dist-firefox`.
+([self-distributed install](https://extensionworkshop.com/documentation/publish/install-self-distributed/),
+[data consent](https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/))
+
+The Firefox build uses a background script instead of a service worker, adds
+an add-on id and declares its data use (`websiteContent`,
+`financialAndPaymentInfo`: the pasted address is looked up on the public APIs
+listed above). `web-ext lint` passes with 0 errors.
+
 ## Check, then send (website)
 
 `send.html` (**Send** in the top bar) connects a NEAR wallet with
@@ -185,6 +246,70 @@ sent. The same script asserts the gating (SAFE sends, ATTENTION needs the
 confirm, BLOCKED never sends, one transfer for the checked amount):
 `npm run build:web && node apps/web/scripts/send-screenshots.mjs` (needs
 `playwright-core` and its Chromium).
+
+## AI agents (MCP server)
+
+`packages/mcp` is a real [Model Context Protocol](https://modelcontextprotocol.io)
+server (stdio, built on the official TypeScript MCP SDK). It runs the same
+`@gideon/core` engine and free sources as the CLI, so an AI agent that is
+about to pay someone can ask Gideon first.
+
+| Tool | What it does |
+| --- | --- |
+| `gideon_check` | `recipient`, `network`, and optionally `amount`, `token`, `token_contract`, `destination`, `exchange`, `sender`, `address_book`. Returns `verdict`, `agent_action`, `reasons`, `fix` steps, `couldnt_check`, a sha256 receipt (ed25519-signed if `GIDEON_RECEIPT_KEY` is set) and the full result, as text and as structured output. |
+| `gideon_explain` | Plain-language explanation of a verdict. Pass a `gideon_check` result (its receipt is verified first; an edited result is refused) or the same fields as `gideon_check`. Uses the NEAR AI adapter only if `NEARAI_API_KEY` is set; otherwise built-in text. It never changes the verdict. |
+| `gideon_flags` | Community flags for an account from the flag registry (R10). With no registry set it says `COULD_NOT_CHECK`, never "no flags". |
+
+The rule for agents. The server also sends this to the host as its instructions:
+
+| Verdict | `agent_action` | What the agent must do |
+| --- | --- | --- |
+| BLOCKED | `DO_NOT_SEND` | Don't send. Tell the human why and show the fix steps. Don't retry with the same details. |
+| ATTENTION | `ASK_HUMAN` | Stop and ask a human before sending. This includes "couldn't check": a failed lookup is never treated as safe. |
+| SAFE | `SEND` | OK to go ahead. A human or wallet still signs; Gideon holds no keys. |
+
+**Claude Desktop.** Run `npm install` in the repo, then add this to
+`claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`,
+Windows: `%APPDATA%\Claude\`) and restart Claude:
+
+```json
+{
+  "mcpServers": {
+    "gideon": {
+      "command": "node",
+      "args": ["/absolute/path/to/gideon/packages/mcp/dist/index.js"],
+      "env": { "GIDEON_NETWORK": "testnet" }
+    }
+  }
+}
+```
+
+**Cursor.** The same `mcpServers` block goes in `.cursor/mcp.json` (one
+project) or `~/.cursor/mcp.json` (all projects). Any other MCP host that can
+start a stdio server works the same way.
+
+Environment (all optional): `GIDEON_NETWORK` (default network, `testnet`),
+`GIDEON_FLAG_REGISTRY`, `GIDEON_RECEIPT_KEY`, `NEARAI_API_KEY` /
+`NEARAI_MODEL`, `NEARBLOCKS_API_KEY`, and `GIDEON_REPLAY=demo/fixtures.json`
+to answer from recorded responses with no network.
+
+**Demo, no AI key needed.** `npm run demo:agent` starts the server over stdio
+and runs a scripted payments agent with four payouts on testnet. It sends the
+rent (SAFE, simulated), holds a refund to an Ethereum address for a human
+(ATTENTION), and stops the whole run on a lookalike of a saved payroll contact
+(BLOCKED), so the fourth payout is never attempted. It exits `2`. Add
+`-- --offline` to replay recorded answers. Nothing is ever signed.
+
+![The demo agent stops its payout run on BLOCKED](shots/mcp-demo-agent.png)
+
+More: [a raw `gideon_check` result over MCP](shots/mcp-gideon-check.png)
+(live mainnet), and the website's [Agents page](shots/desktop-agents.png).
+The chat on that page is scripted and labelled as an illustration; the Gideon
+results in it come from the real engine, live.
+
+Tests: `packages/mcp/test/mcp.test.ts` drives the server with the MCP client
+SDK, in memory and over stdio (all 8 demo cases), plus an older-protocol
+handshake and the demo's stop-on-BLOCKED exit code.
 
 ## Community flag registry (contract)
 
@@ -264,12 +389,12 @@ variables) to turn one on.
 packages/core      rule engine, verdicts, receipts, network config, token and exchange data
 packages/sources   free, no-key data sources, plus replay for offline tests
 packages/cli       the gideon command
-apps/web           the website (Vite, static): Checker, Send (check, then send), Extension preview, Agents preview
-apps/extension     Chrome MV3 extension: popup, in-page warning, clipboard check, address book
+apps/web           the website (Vite, static): Checker, Send (check, then send), Extension preview, Agents
+apps/extension     MV3 extension (Chromium, plus a Firefox build): popup, in-page warning, clipboard check, address book
 contracts/flag-registry  Rust contract for community flags (R10)
-packages/mcp       MCP server scaffold for AI agents (README only; not built yet)
+packages/mcp       MCP server for AI agents (gideon_check, gideon_explain, gideon_flags) and the demo agent
 demo               the 8 real cases and their recorded responses
-shots              screenshots of the website, the Send flow and the extension
+shots              screenshots of the website, the Send flow, the extension and the agent demo
 ```
 
 The website deploys as a static site; `vercel.json` builds it with
@@ -285,10 +410,15 @@ The website deploys as a static site; `vercel.json` builds it with
   credit native NEAR only") is confirmed from a public source. Per-exchange
   entries are marked unverified, and R8 never blocks on them.
 - **Intents checks are mainnet only**, because 1Click has no testnet.
-- **The MCP server is not built yet.** The website's Agents page shows the
-  planned behaviour with the real engine running live.
-- **The extension is Chrome-only and unpacked.** It is not on the Chrome Web
-  Store and has no Firefox build. It was tested in Playwright's Chromium on a
+- **The MCP server trusts the agent to follow its rule.** It returns
+  `DO_NOT_SEND` or `ASK_HUMAN`; it can't stop an agent that ignores them.
+  It was tested with the MCP client SDK and the scripted demo, not yet inside
+  Claude Desktop or Cursor.
+- **The extension is unpacked, not in any store.** It is not on the Chrome Web
+  Store. The Firefox build is unsigned, so release Firefox (desktop and
+  Android) won't install it until it's signed on addons.mozilla.org. It loaded
+  as a temporary add-on in desktop Firefox; no phone browser has been tried.
+  It was tested in Playwright's Chromium on a
   local test page, not yet on real wallet or exchange sites, whose fields may
   be labelled in ways it doesn't recognise.
 - **The extension only knows the address.** It doesn't read the token,
@@ -329,7 +459,9 @@ The website deploys as a static site; `vercel.json` builds it with
 
 - **Code:** TypeScript, Vite (website and extension bundles), Vitest and
   happy-dom (tests), `@noble/hashes` and `@noble/ed25519` (receipts),
-  Playwright (screenshots and the Send-page mock-wallet test).
+  Playwright (screenshots and the Send-page mock-wallet test), the official
+  MCP TypeScript SDK (`@modelcontextprotocol/server`, `/client`) and zod
+  (agent tools), `web-ext` (Firefox build lint).
 - **NEAR:** NEAR Connect (`@hot-labs/near-connect`, wallet selector on the
   Send page). The flag registry uses Rust, `near-sdk`, `cargo-near`, and
   `near-sandbox` + `near-api` for its sandbox test. Fonts: Archivo and JetBrains Mono (SIL Open
