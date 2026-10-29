@@ -1,6 +1,13 @@
 import type { AccountFacts, CheckInput, Classification, Asset, Destination, Sources, SourceCall } from "./types.js";
 import { networkOfName } from "./classify.js";
 import { NETWORKS } from "./networks.js";
+import { withTimeout } from "./time.js";
+
+/** Time limits for one check (all optional; see CheckOptions). */
+export interface CtxLimits {
+  sourceTimeoutMs?: number;
+  optionalBudgetMs?: number;
+}
 
 export type Settled<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -16,6 +23,7 @@ export interface Ctx {
   registry: string | null;
   /** The recipient account's live facts (memoized; shares the view_account call with R3/R4). */
   accountFacts(): Promise<AccountFacts | null>;
+  limits: CtxLimits;
 }
 
 /** Recipient kinds that are NEAR accounts Gideon looks up on chain. */
@@ -26,7 +34,7 @@ export function fmtDate(ms: number): string {
   return new Date(ms).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" });
 }
 
-export function makeCtx(input: Ctx["input"], c: Classification, sources: Sources, now = Date.now(), registry: string | null = null): Ctx {
+export function makeCtx(input: Ctx["input"], c: Classification, sources: Sources, now = Date.now(), registry: string | null = null, limits: CtxLimits = {}): Ctx {
   const memo = new Map<string, Promise<Settled<unknown>>>();
   const calls: SourceCall[] = [];
   let facts: Promise<AccountFacts | null> | null = null;
@@ -36,6 +44,7 @@ export function makeCtx(input: Ctx["input"], c: Classification, sources: Sources
     calls,
     now,
     registry,
+    limits,
     accountFacts() {
       return (facts ??= readFacts(ctx, sources));
     },
@@ -45,7 +54,7 @@ export function makeCtx(input: Ctx["input"], c: Classification, sources: Sources
         const t0 = Date.now();
         memo.set(
           k,
-          fn(sources).then(
+          withTimeout(Promise.resolve().then(() => fn(sources)), limits.sourceTimeoutMs, source).then(
             (value) => { calls.push({ source: k, ok: true, ms: Date.now() - t0 }); return { ok: true as const, value }; },
             (e: unknown) => {
               const error = e instanceof Error ? e.message : String(e);
@@ -86,11 +95,14 @@ async function readFacts(ctx: Ctx, sources: Sources): Promise<AccountFacts | nul
   let indexedHeight: number | undefined;
   // Always look up the creation date (also in the wallet flow): a brand-new recipient is a scam signal.
   // Live sources cache it, so repeat checks don't spend NearBlocks' free budget.
+  // Info-only lookups share one small time budget; when it runs out the date reads "unavailable".
+  const budget = ctx.limits.optionalBudgetMs ?? ctx.limits.sourceTimeoutMs;
+  const until = budget != null && budget > 0 ? Date.now() + budget : Infinity;
   if (sources.accountCreated) {
     const t0 = Date.now();
     const key = `nearblocks-${net}:created:${id}`;
     try {
-      const raw = await sources.accountCreated(net, id);
+      const raw = await withTimeout(sources.accountCreated(net, id), left(until, ctx.limits.sourceTimeoutMs), "creation date lookup");
       ctx.calls.push({ source: key, ok: true, ms: Date.now() - t0, optional: true });
       const info = typeof raw === "number" ? { createdMs: raw, indexed: true } : raw;
       if (info?.createdMs) {
@@ -108,7 +120,7 @@ async function readFacts(ctx: Ctx, sources: Sources): Promise<AccountFacts | nul
     }
   }
   let chainAgeDays: number | undefined;
-  if (created === "after-indexer" && sources.accountExistedAt) chainAgeDays = await chainAge(ctx, sources, id);
+  if (created === "after-indexer" && sources.accountExistedAt && Date.now() < until) chainAgeDays = await chainAge(ctx, sources, id, until);
   const parts = [`Account exists on ${where}.`];
   if (createdAt) parts.push(`Created ${fmtDate(Date.parse(createdAt))}.`);
   else if (chainAgeDays === 0) parts.push("Created in the last 24 hours.");
@@ -124,18 +136,26 @@ async function readFacts(ctx: Ctx, sources: Sources): Promise<AccountFacts | nul
 
 const DAY = 86_400_000;
 
+/** Time left before `until`, capped by the per-source limit. undefined = no limit. */
+function left(until: number, cap?: number): number | undefined {
+  const rest = until === Infinity ? undefined : Math.max(1, until - Date.now());
+  if (rest == null) return cap;
+  return cap == null ? rest : Math.min(rest, cap);
+}
+
 /**
  * Date an account the indexer hasn't reached yet, from archival chain state:
  * did it exist 1 day ago? 7 days ago? Then narrow down the day. Returns whole days
  * since creation (0 = within 24h, 7 = already existed a week ago), or undefined when unknown.
  */
-async function chainAge(ctx: Ctx, sources: Sources, id: string): Promise<number | undefined> {
+async function chainAge(ctx: Ctx, sources: Sources, id: string, until = Infinity): Promise<number | undefined> {
   const net = ctx.input.network;
   const existed = async (days: number): Promise<boolean | null> => {
     const t0 = Date.now();
     const key = `archival-rpc-${net}:existed:${id}@-${days}d`;
+    if (t0 >= until) return null; // out of time: stop dating, the verdict doesn't wait for it
     try {
-      const v = await sources.accountExistedAt!(net, id, ctx.now - days * DAY);
+      const v = await withTimeout(sources.accountExistedAt!(net, id, ctx.now - days * DAY), left(until, ctx.limits.sourceTimeoutMs), "archival lookup");
       ctx.calls.push({ source: key, ok: true, ms: Date.now() - t0, optional: true });
       return v;
     } catch (e) {

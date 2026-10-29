@@ -8,3 +8,4 @@ export { canonicalJson, resultDigest, makeReceipt, verifyReceipt, newReceiptKey,
 export { builtInExplainer, explain, type Explainer } from "./adapters.js";
 export { RULES } from "./rules/index.js";
 export { yoctoToNear, fmtDate } from "./context.js";
+export { withTimeout, TimeoutError } from "./time.js";

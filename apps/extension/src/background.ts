@@ -4,21 +4,33 @@ import { load, type LastCheck } from "./lib/settings.js";
 import type { CheckRequest, CheckResponse, NetUsed } from "./lib/messages.js";
 import { resolveNetwork } from "./lib/resolve.js";
 import { titleOf } from "./lib/view.js";
+import { cachedSources, TtlCache } from "./lib/cache.js";
+import { LIMITS } from "./lib/limits.js";
+import { cacheable, checkKey } from "./lib/runcache.js";
 
 /**
  * The engine runs here, in the extension's service worker, so lookups go from the
  * extension to the public APIs listed in host_permissions, never through the page.
+ * Every check is time-limited (LIMITS): the in-page card must always resolve, even on a slow phone.
  */
-const sources = liveSources({ timeoutMs: 8000 });
+const sources = cachedSources(liveSources({ timeoutMs: LIMITS.requestMs }), LIMITS.cacheMs);
+const results = new TtlCache<CheckResult>(LIMITS.cacheMs);
 
 export async function runRequest(req: CheckRequest): Promise<{ result: CheckResult; net: NetUsed }> {
+  const t0 = Date.now();
   const { settings, contacts, stats } = await load();
   // A network in the request is a choice made in the popup; otherwise Auto or the manual setting decides.
   const net: NetUsed = req.input.network
     ? { network: req.input.network, source: "manual", why: settings.networkMode === "auto" ? "from the token you picked" : "set by you in Gideon", sure: true }
-    : await resolveNetwork(settings.networkMode, req.page, req.input.to, sources);
+    : await resolveNetwork(settings.networkMode, req.page, req.input.to, sources, LIMITS.sourceMs);
   const input = { ...req.input, network: net.network, addressBook: contacts };
-  const result = await check(input, sources);
+  // Same address, network and inputs within a few minutes (or already running): reuse the answer.
+  const result = await results.wrap(checkKey(input), () =>
+    check(input, sources, {
+      deadlineMs: Math.max(1500, LIMITS.totalMs - (Date.now() - t0)),
+      sourceTimeoutMs: LIMITS.sourceMs,
+      optionalBudgetMs: LIMITS.optionalMs,
+    }), cacheable);
   const last: LastCheck = {
     host: req.host,
     net: `${net.network} · ${net.why}`,

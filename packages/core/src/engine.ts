@@ -2,6 +2,7 @@ import { classify } from "./classify.js";
 import { makeCtx } from "./context.js";
 import { NETWORKS } from "./networks.js";
 import { makeReceipt } from "./receipt.js";
+import { fmtSeconds } from "./time.js";
 import { HEADLINE_ORDER, RULES } from "./rules/index.js";
 import type { CheckInput, CheckOptions, CheckResult, Finding, Sources, Verdict } from "./types.js";
 
@@ -41,11 +42,23 @@ export async function check(rawInput: CheckInput, sources: Sources, opts: CheckO
   };
   const c = classify(input.to);
   const registry = opts.flagRegistry !== undefined ? opts.flagRegistry || null : NETWORKS[input.network]?.flagRegistry ?? null;
-  const ctx = makeCtx(input, c, sources, now, registry);
+  const ctx = makeCtx(input, c, sources, now, registry, { sourceTimeoutMs: opts.sourceTimeoutMs, optionalBudgetMs: opts.optionalBudgetMs });
+
+  // One hard limit for the whole check: whatever hasn't answered by then can't be called safe.
+  const TIMED_OUT = Symbol("timed-out");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = opts.deadlineMs != null && opts.deadlineMs > 0
+    ? new Promise<typeof TIMED_OUT>((res) => { timer = setTimeout(() => res(TIMED_OUT), Math.max(0, opts.deadlineMs! - (Date.now() - t0))); })
+    : null;
+  const inTime = <T>(p: Promise<T>): Promise<T | typeof TIMED_OUT> => (deadline ? Promise.race([p, deadline]) : p);
 
   const settled = await Promise.all(RULES.map(async (r) => {
     try {
-      const out = await r.run(ctx);
+      const out = await inTime(Promise.resolve().then(() => r.run(ctx)));
+      if (out === TIMED_OUT) {
+        return [{ rule: r.id, code: "TIMED_OUT", status: "COULD_NOT_CHECK", title: `Couldn't check in time: ${r.name}`,
+          detail: `This check didn't finish within ${fmtSeconds(opts.deadlineMs!)} (a data source was slow), so Gideon won't call this send safe. Try again in a moment.` } as Finding];
+      }
       return out == null ? [] : Array.isArray(out) ? out : [out];
     } catch (e) {
       // A bug in a rule must never turn into "safe".
@@ -54,7 +67,9 @@ export async function check(rawInput: CheckInput, sources: Sources, opts: CheckO
     }
   }));
   const findings = settled.flat();
-  const account = await ctx.accountFacts().catch(() => null);
+  const facts = await inTime(ctx.accountFacts().catch(() => null));
+  clearTimeout(timer);
+  const account = facts === TIMED_OUT ? null : facts;
   // Last line of defence: nothing is SAFE unless a live lookup found the account.
   if (verdictOf(findings) === "SAFE" && !(account?.exists === true && findings.some((x) => x.status === "PASS" && EXISTS_CODES.has(x.code)))) {
     findings.push({ rule: "R3", code: "EXISTENCE_UNCONFIRMED", status: "COULD_NOT_CHECK", title: "Couldn't confirm the account exists",

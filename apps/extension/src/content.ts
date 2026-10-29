@@ -3,12 +3,14 @@ import { ClipboardWatch, copyTampered } from "./lib/clipboard.js";
 import { findSendButtons, isRecipientField, isTextField, shouldCheck, type Field } from "./lib/detect.js";
 import { card, checking, failed, tamperCard, toneOf } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
-import { sendCheck } from "./lib/messages.js";
+import { sendCheck, type CheckResponse } from "./lib/messages.js";
 import { collectSignals, pageHint, recipientScope } from "./lib/network.js";
 import { placement } from "./lib/place.js";
 import { asShift, loadShift, themeOf, type Shift } from "./lib/shift.js";
 import { playAll } from "./lib/motion.js";
 import type { CheckResult, Contact } from "@gideon/core";
+import { LIMITS } from "./lib/limits.js";
+import { missingOptional } from "./lib/runcache.js";
 
 /*
  * Gideon content script. It only reacts to text you paste or type into a field that
@@ -46,6 +48,8 @@ interface Panel {
   host: HTMLElement;
   root: ShadowRoot;
   field: Field | null;
+  /** The value being checked or shown for `field`. */
+  value: string;
   seq: number;
   held: HTMLElement[];
   prevOutline: string;
@@ -81,7 +85,7 @@ function getPanel(): Panel {
   root.append(style, div);
   root.addEventListener("click", onPanelClick);
   document.documentElement.appendChild(host);
-  panel = { host, root, field: null, seq: 0, held: [], prevOutline: "" };
+  panel = { host, root, field: null, value: "", seq: 0, held: [], prevOutline: "" };
   return panel;
 }
 
@@ -121,7 +125,7 @@ window.addEventListener("resize", schedulePlace, { passive: true });
 window.visualViewport?.addEventListener("resize", schedulePlace, { passive: true });
 window.visualViewport?.addEventListener("scroll", schedulePlace, { passive: true });
 
-function show(field: Field | null, html: string, tone: keyof typeof COLORS): void {
+function show(field: Field | null, html: string, tone: keyof typeof COLORS, animate = true): void {
   const p = getPanel();
   if (p.field && p.field !== field) restoreOutline(p);
   if (field && p.field !== field) p.prevOutline = field.style.outline;
@@ -136,7 +140,7 @@ function show(field: Field | null, html: string, tone: keyof typeof COLORS): voi
   }
   place();
   schedulePlace(); // again once the card has its real height
-  playAll(box);
+  if (animate) playAll(box);
 }
 
 function restoreOutline(p: Panel): void {
@@ -152,6 +156,7 @@ function hide(): void {
   release(p);
   restoreOutline(p);
   p.field = null;
+  p.value = "";
   p.seq++;
   p.host.style.display = "none";
 }
@@ -243,33 +248,58 @@ function escAttr(s: string): string {
 
 /* ---------- running a check ---------- */
 
-async function run(field: Field, value: string, copied: string | null): Promise<void> {
+/** True when this exact value is already being checked, or its card is showing, for this field. */
+function alreadyChecking(field: Field, value: string): boolean {
+  const p = panel;
+  return !!p && p.field === field && p.value === value && p.host.style.display !== "none";
+}
+
+async function run(field: Field, value: string, copied: string | null, force = false): Promise<void> {
+  // Wallets re-render and fire input events without the address changing; don't restart the check.
+  if (!force && alreadyChecking(field, value)) return;
   const p = getPanel();
   const seq = ++p.seq;
   release(p);
   show(field, checking(value), "idle");
   p.seq = seq;
+  p.value = value;
   let page;
   try {
     page = settings.networkMode === "auto" ? pageHint(location.href, collectSignals(document, recipientScope(field))) : undefined;
   } catch {
     page = undefined;
   }
-  const res = await sendCheck({
+  const req = {
     input: { to: value, ...(copied ? { clipboard: { copied } } : {}) },
     host: location.host,
     ...(page ? { page } : {}),
-  }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+  };
+  const res = await sendCheck(req, LIMITS.pageWaitMs);
   if (p.seq !== seq || p.field !== field) return; // a newer check replaced this one
-  if (!res || !res.ok) {
-    show(field, failed(res?.error ?? "The extension didn't answer."), "warn");
+  if (!res.ok) {
+    show(field, failed(res.error), "warn");
     return;
   }
+  render(p, field, res);
+  // The verdict is already showing. If only the creation date missed the time limit, ask once
+  // more in a moment (the worker remembers the account) and fill it in quietly.
+  if (missingOptional(res.result)) {
+    setTimeout(async () => {
+      if (p.seq !== seq || p.field !== field) return;
+      const again = await sendCheck(req, LIMITS.pageWaitMs);
+      if (p.seq !== seq || p.field !== field || !again.ok) return;
+      render(p, field, again, false);
+    }, LIMITS.refillAfterMs);
+  }
+}
+
+function render(p: Panel, field: Field, res: Extract<CheckResponse, { ok: true }>, animate = true): void {
   const r = res.result;
   const tone = toneOf(r);
   const held = r.verdict === "BLOCKED" && settings.holdSend;
   if (held) hold(p, field);
-  show(field, card(r, { held, actions: actionsFor(r, held), ...(res.net ? { net: res.net } : {}) }), tone);
+  else release(p);
+  show(field, card(r, { held, actions: actionsFor(r, held), ...(res.net ? { net: res.net } : {}) }), tone, animate);
 }
 
 /* ---------- events ---------- */
@@ -336,5 +366,5 @@ document.addEventListener("input", (e) => {
     const v = field.value.trim();
     if (shouldCheck(field, v)) void run(field, v, null);
     else if (panel?.field === field) hide();
-  }, 700));
+  }, LIMITS.debounceMs));
 }, true);

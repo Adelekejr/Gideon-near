@@ -49,6 +49,18 @@ export interface CheckOptions {
   receiptKey?: string;
   /** Community flag registry contract for R10. Overrides the network default; "" turns R10 off. */
   flagRegistry?: string;
+  /**
+   * Hard limit for the whole check, in ms. A rule still waiting when it runs out reports
+   * COULD_NOT_CHECK (never PASS), so a slow source can't hang a check or turn into "safe". Off by default.
+   */
+  deadlineMs?: number;
+  /** Limit for any one source lookup, in ms (covers endpoint fallbacks too). Off by default. */
+  sourceTimeoutMs?: number;
+  /**
+   * Total time info-only lookups (creation date, archival dating) may add after the account is
+   * found. When it runs out the date reads "unavailable"; the verdict never waits on it. Defaults to sourceTimeoutMs.
+   */
+  optionalBudgetMs?: number;
 }
 
 export interface Evidence {

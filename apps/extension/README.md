@@ -8,7 +8,7 @@ engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 ```bash
 npm install
 npm run build:extension      # → apps/extension/dist
-npm run zip:extension        # → apps/extension/gideon-extension-0.2.1.zip
+npm run zip:extension        # → apps/extension/gideon-extension-0.2.2.zip
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
@@ -34,6 +34,21 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 | `scripts/screenshots.mjs` | Loads `dist/` into Playwright's Chromium and takes the screenshots in `/shots`. Needs `playwright-core` and `npx playwright install chromium`. |
 
 Tests are in `test/` and run with the root `npm test`.
+
+## What changed in 0.2.2
+
+- The in-page card can no longer sit on "Checking" for long. Every check now has hard time limits:
+  6 s for the whole check (network guess included), 3 s for any one lookup (2 s per endpoint, so
+  the backup RPC still gets a turn), and 1.5 s for info-only lookups (creation date, archival
+  dating). Anything that misses its limit reads "Couldn't check in time", never "safe".
+- The creation date never holds up the verdict. If it's slow, the card shows the verdict with
+  "Creation date unavailable" and quietly fills the date in a moment later.
+- The page stops waiting for the extension after 8 s (or at once if the worker was stopped)
+  and says so, instead of spinning.
+- Account lookups and finished checks are remembered for 3 minutes per account and network, and
+  identical checks in flight share one lookup. Failures and "not found" are never remembered.
+- Typing still waits 700 ms after you stop; a wallet re-rendering the field with the same
+  address no longer restarts the check.
 
 ## What changed in 0.2.1
 
