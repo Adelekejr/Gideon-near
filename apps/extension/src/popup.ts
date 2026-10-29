@@ -1,9 +1,11 @@
 import { exchangesFor, tokensFor, type CheckInput, type Contact, type Network } from "@gideon/core";
 import { addContact, load, removeContact, saveContacts, saveSettings, type LastCheck, type Settings } from "./lib/settings.js";
 import { sendCheck, type CheckRequest } from "./lib/messages.js";
-import { card, esc, failed, LOGO, short } from "./lib/view.js";
+import { card, checking, esc, failed, LOGO, short } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
 import { POPUP_STYLE } from "./lib/popup-style.js";
+import { asShift, loadShift, saveShift, SHIFTS, SHIFT_NAMES, themeOf, type Shift } from "./lib/shift.js";
+import { playAll } from "./lib/motion.js";
 
 const css = document.createElement("style");
 css.textContent = STYLE + STYLE_WARN_FIX + POPUP_STYLE;
@@ -17,6 +19,40 @@ const exSel = $<HTMLSelectElement>("exchange");
 let contacts: Contact[] = [];
 
 $("logo").innerHTML = LOGO;
+
+/* ---------- colour shift (same four as the website, plus AUTO) ---------- */
+const app = $("app");
+const rail = $("shiftrail");
+rail.innerHTML = SHIFTS.map(([s, t]) => `<button type="button" role="radio" data-s="${s}" aria-checked="false" title="${s === "auto" ? "Follows this device's clock: Day from 06:00, Night Watch from 18:30" : SHIFT_NAMES[s as Exclude<Shift, "auto">]}">${t}</button>`).join("");
+function applyShift(s: Shift): void {
+  const t = themeOf(s);
+  app.dataset.theme = t;
+  app.dataset.shift = s;
+  document.documentElement.dataset.theme = t;
+  rail.querySelectorAll("button").forEach((b) => { b.setAttribute("aria-checked", String(b.dataset.s === s)); b.tabIndex = b.dataset.s === s ? 0 : -1; });
+  $("autonote").textContent = s === "auto" ? `Auto → ${SHIFT_NAMES[t]}\n${t === "night" ? "day from 06:00" : "night from 18:30"}` : SHIFT_NAMES[t];
+  $("autonote").style.whiteSpace = "pre";
+  try { localStorage.setItem("gideon:shift", s); } catch { /* fine */ }
+}
+let cached: Shift = "auto";
+try { cached = asShift(localStorage.getItem("gideon:shift")); } catch { /* fine */ }
+applyShift(cached);
+void loadShift().then((s) => { if (s !== cached) applyShift(s); });
+rail.addEventListener("click", (e) => {
+  const b = (e.target as HTMLElement).closest("button");
+  if (!b) return;
+  const s = asShift(b.dataset.s);
+  applyShift(s);
+  void saveShift(s);
+});
+rail.addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+  const list = SHIFTS.map(([s]) => s);
+  const cur = list.indexOf(asShift(app.dataset.shift ?? rail.querySelector('[aria-checked="true"]')?.getAttribute("data-s")));
+  const next = list[(cur + (e.key === "ArrowRight" ? 1 : list.length - 1)) % list.length]!;
+  applyShift(next); void saveShift(next);
+  (rail.querySelector(`[data-s="${next}"]`) as HTMLElement).focus();
+});
 $("ver").textContent = `v${chrome.runtime.getManifest().version}`;
 
 function fillForNetwork(n: Network): void {
@@ -103,11 +139,13 @@ $<HTMLFormElement>("f").addEventListener("submit", async (e) => {
   };
   const go = $<HTMLButtonElement>("go");
   go.disabled = true;
-  go.firstChild!.textContent = "Checking live data ";
+  go.firstChild!.textContent = "Checking live NEAR data… ";
+  $("result").innerHTML = checking(to);
   const res = await sendCheck({ input, host: "" }).catch((err: unknown) => ({ ok: false as const, error: String(err) }));
   go.disabled = false;
   go.firstChild!.textContent = "Check this send ";
   $("result").innerHTML = res?.ok ? card(res.result) : failed(res?.error ?? "The extension didn't answer.");
+  playAll($("result"));
   const s = await load();
   $("sChecked").textContent = String(s.stats.checked);
   $("sStopped").textContent = String(s.stats.stopped);

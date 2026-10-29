@@ -4,6 +4,8 @@ import { findSendButtons, isRecipientField, isTextField, shouldCheck, type Field
 import { card, checking, failed, tamperCard, toneOf } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
 import { sendCheck } from "./lib/messages.js";
+import { asShift, loadShift, themeOf, type Shift } from "./lib/shift.js";
+import { playAll } from "./lib/motion.js";
 import type { CheckResult, Contact } from "@gideon/core";
 
 /*
@@ -16,6 +18,8 @@ import type { CheckResult, Contact } from "@gideon/core";
 let settings: Settings = withDefaults({}).settings;
 let contacts: Contact[] = [];
 const watch = new ClipboardWatch();
+let shift: Shift = "auto";
+void loadShift().then((v) => (shift = v));
 
 void load().then((s) => {
   settings = s.settings;
@@ -23,12 +27,13 @@ void load().then((s) => {
 });
 chrome.storage.onChanged.addListener((ch) => {
   if (ch.settings) settings = withDefaults({ settings: ch.settings.newValue }).settings;
+  if (ch.shift) shift = asShift(ch.shift.newValue);
   if (ch.contacts) contacts = withDefaults({ contacts: ch.contacts.newValue }).contacts;
 });
 
 /* ---------- the warning panel, in a shadow root so the page can't restyle it ---------- */
 
-const COLORS = { block: "#FF4D1A", warn: "#FFB547", safe: "#3FCF7F", idle: "#857F71" } as const;
+const COLORS = { block: "#FF4D1A", warn: "#F4B400", safe: "#2DB36F", idle: "#8F8878" } as const;
 
 interface Panel {
   host: HTMLElement;
@@ -48,8 +53,8 @@ function addFonts(): void {
   try {
     const s = document.createElement("style");
     s.id = "gideon-fonts";
-    s.textContent = `@font-face{font-family:'Gideon Archivo';src:url(${chrome.runtime.getURL("fonts/Archivo.woff2")}) format('woff2');font-weight:400 900;font-stretch:100% 125%}
-@font-face{font-family:'Gideon Mono';src:url(${chrome.runtime.getURL("fonts/JetBrainsMono.woff2")}) format('woff2');font-weight:400 700}`;
+    s.textContent = `@font-face{font-family:'Gideon Archivo';src:url(${chrome.runtime.getURL("fonts/Archivo.woff2")}) format('woff2');font-weight:100 900;font-stretch:62% 125%}
+@font-face{font-family:'Gideon Mono';src:url(${chrome.runtime.getURL("fonts/JetBrainsMono.woff2")}) format('woff2');font-weight:100 800}`;
     (document.head ?? document.documentElement).appendChild(s);
   } catch {
     /* system fonts are fine */
@@ -111,13 +116,16 @@ function show(field: Field | null, html: string, tone: keyof typeof COLORS): voi
   if (p.field && p.field !== field) restoreOutline(p);
   if (field && p.field !== field) p.prevOutline = field.style.outline;
   p.field = field;
-  content(p).innerHTML = html;
+  const box = content(p);
+  box.dataset.theme = themeOf(shift);
+  box.innerHTML = html;
   p.host.style.display = "block";
   if (field) {
     field.style.outline = `2px solid ${COLORS[tone]}`;
     field.style.outlineOffset = "1px";
   }
   place();
+  playAll(box);
 }
 
 function restoreOutline(p: Panel): void {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Gideon</title>
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="light dark">
 
 </head>
 <body>
@@ -12,6 +12,11 @@
     <span class="logo" id="logo"></span><b class="word">GIDEON</b>
     <label class="net"><span class="dot"></span><select id="net" aria-label="Network"><option value="testnet">testnet</option><option value="mainnet">mainnet</option></select></label>
   </header>
+
+  <div class="shifts">
+    <div class="rail" role="radiogroup" aria-label="Colour shift" id="shiftrail"></div>
+    <span class="autonote" id="autonote" aria-live="polite"></span>
+  </div>
 
   <form id="f" class="sec" autocomplete="off">
     <div class="lab">CHECK A SEND BEFORE YOU SIGN</div>
@@ -29,7 +34,7 @@
       </select>
       <select id="exchange" class="in hidden" aria-label="Exchange"></select>
     </div>
-    <button class="go" id="go" type="submit">Check this send <span>▌</span></button>
+    <button class="go" id="go" type="submit">Check this send <span class="ar">→</span></button>
   </form>
 
   <div id="result" class="sec res" aria-live="polite"></div>
@@ -63,7 +68,10 @@
     </div>
   </details>
 
-  <footer class="foot"><span>read-only · no keys · free public APIs</span><span id="ver"></span></footer>
+  <footer class="foot">
+    <span class="built">Built on <img class="near on-dark" src="brand/near-logo-white.svg" alt="NEAR"><img class="near on-light" src="brand/near-logo-black.svg" alt="NEAR"></span>
+    <span>read-only · no keys · <span id="ver"></span></span>
+  </footer>
 </div>
 <script src="popup.js"></script>
 </body>

@@ -1,7 +1,8 @@
 // Loads dist/ into Playwright's Chromium, runs it against test-page/withdraw.html and
 // saves screenshots. Not part of the build: needs `npm i -D playwright-core` and
 // `npx playwright install chromium` (branded Chrome 137+ ignores --load-extension).
-//   node scripts/screenshots.mjs [all|block|safe|hijack|popup] [outDir]
+//   node scripts/screenshots.mjs [all|block|attention|safe|hijack|offline|popup] [outDir] [day|night|plan|signal]
+// With a shift, it is saved first and added to every file name (extension-popup-day.png).
 import { chromium } from "playwright-core";
 import { createServer } from "node:http";
 import { mkdirSync, mkdtempSync, readFileSync } from "node:fs";
@@ -28,6 +29,9 @@ if (!sw) sw = await ctx.waitForEvent("serviceworker", { timeout: 15000 });
 const id = new URL(sw.url()).host;
 console.log("extension id", id);
 const which = process.argv[2] ?? "all";
+const SHIFT = process.argv[4];
+const sfx = SHIFT ? `-${SHIFT}` : "";
+if (SHIFT) await sw.evaluate((s) => chrome.storage.local.set({ shift: s }), SHIFT);
 const page = await ctx.newPage();
 const base = "http://127.0.0.1:8765/withdraw.html";
 
@@ -46,7 +50,7 @@ async function waitVerdict(p) {
 }
 async function clip(p, name) {
   const box = await p.locator("main").boundingBox();
-  await p.screenshot({ path: `${OUT}/${name}.png`, clip: { x: box.x - 20, y: box.y - 20, width: box.width + 40, height: Math.min(720, box.height + 300) } });
+  await p.screenshot({ path: `${OUT}/${name}${sfx}.png`, clip: { x: box.x - 20, y: box.y - 20, width: box.width + 40, height: Math.min(720, box.height + 300) } });
   console.log("shot", name, await p.evaluate(() => document.getElementById("send").disabled));
 }
 
@@ -56,8 +60,14 @@ if (which === "all" || which === "block") {
   console.log("value", await page.inputValue("#addr"));
   await clip(page, "extension-warning-blocked");
 }
+if (which === "all" || which === "attention") {
+  // A 0x address never used on NEAR: Gideon holds it for review (amber), it doesn't block.
+  await page.goto(base + "?src=0x94a0abA1283aF69Cb260b7e0Ea0366Dca0dd3cd8");
+  await copyFromBox(page); await pasteInto(page); await waitVerdict(page);
+  await clip(page, "extension-warning-attention");
+}
 if (which === "all" || which === "safe") {
-  await page.goto(base);
+  await page.goto(base + "?src=adelekejr.testnet"); // an established account (new ones get R11's ATTENTION)
   await copyFromBox(page); await pasteInto(page); await waitVerdict(page);
   await clip(page, "extension-warning-safe");
 }
@@ -84,15 +94,18 @@ if (which === "all" || which === "popup") {
   await pp.goto(`chrome-extension://${id}/popup.html`);
   await pp.evaluate(() => chrome.storage.local.set({ contacts: [{ account: "northwind-payroll.testnet", label: "Northwind payroll" }, { account: "hammed-stampdue.testnet", label: "Me" }] }));
   await pp.reload();
-  await pp.fill("#to", "northwind-payro11.testnet");
-  await pp.fill("#amount", "40");
-  await pp.click("#go");
-  await pp.waitForSelector("#result .gw", { timeout: 20000 });
-  await pp.waitForTimeout(1500);
-  const h = await pp.evaluate(() => document.getElementById("app").scrollHeight);
-  await pp.setViewportSize({ width: 380, height: h });
-  await pp.screenshot({ path: `${OUT}/extension-popup.png`, fullPage: true });
-  console.log("popup result", await pp.textContent("#result .gt"));
+  for (const [to, name] of [["northwind-payro11.testnet", "extension-popup"], ["adelekejr.testnet", "extension-popup-safe"]]) {
+    await pp.setViewportSize({ width: 380, height: 900 });
+    await pp.fill("#to", to);
+    await pp.fill("#amount", "40");
+    await pp.click("#go");
+    await pp.waitForSelector("#result .gw:not(.t-idle)", { timeout: 20000 });
+    await pp.waitForTimeout(1500); // the Arrow G finishes in under 1.2 s
+    const h = await pp.evaluate(() => document.getElementById("app").scrollHeight);
+    await pp.setViewportSize({ width: 380, height: h });
+    await pp.screenshot({ path: `${OUT}/${name}${sfx}.png`, fullPage: true });
+    console.log("popup result", await pp.textContent("#result .gt"));
+  }
 }
 await ctx.close();
 server.close();
