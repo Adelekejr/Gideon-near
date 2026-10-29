@@ -6,7 +6,9 @@
   "description": "Gideon for Chrome: checks a NEAR address the moment you paste it.",
   "scripts": {
     "build": "node build.mjs",
-    "zip": "node build.mjs --zip"
+    "zip": "node build.mjs --zip",
+    "build:firefox": "node build.mjs --firefox",
+    "zip:firefox": "node build.mjs --firefox --zip"
   },
   "dependencies": {
     "@gideon/core": "0.1.0",

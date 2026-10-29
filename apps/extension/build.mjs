@@ -1,4 +1,5 @@
 // Builds the extension into dist/ (Load unpacked) and, with --zip, gideon-extension-<version>.zip.
+// --firefox builds the Firefox (desktop + Android) variant into dist-firefox/ and gideon-extension-firefox-<version>.zip.
 import { build } from "vite";
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -7,7 +8,8 @@ import { deflateRawSync } from "node:zlib";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "../..");
-const dist = join(here, "dist");
+const firefox = process.argv.includes("--firefox");
+const dist = join(here, firefox ? "dist-firefox" : "dist");
 const alias = {
   "@gideon/core": join(root, "packages/core/src/index.ts"),
   "@gideon/sources": join(root, "packages/sources/src/index.ts"),
@@ -33,7 +35,8 @@ for (const name of ["background", "content", "popup"]) {
 }
 await cp(join(here, "static"), dist, { recursive: true });
 await cp(join(here, "popup.html"), join(dist, "popup.html"));
-await cp(join(here, "manifest.json"), join(dist, "manifest.json"));
+const manifest = JSON.parse(await readFile(join(here, "manifest.json"), "utf8"));
+await writeFile(join(dist, "manifest.json"), JSON.stringify(firefox ? forFirefox(manifest) : manifest, null, 2) + "\n");
 
 const files = await walk(dist);
 let bytes = 0;
@@ -41,10 +44,32 @@ for (const f of files) bytes += (await stat(f)).size;
 console.log(`built ${relative(root, dist)}: ${files.length} files, ${(bytes / 1024).toFixed(0)} KB`);
 
 if (process.argv.includes("--zip")) {
-  const { version } = JSON.parse(await readFile(join(here, "manifest.json"), "utf8"));
-  const out = join(here, `gideon-extension-${version}.zip`);
+  const out = join(here, `gideon-extension-${firefox ? "firefox-" : ""}${manifest.version}.zip`);
   await writeFile(out, zip(await Promise.all(files.map(async (f) => ({ name: relative(dist, f).split("\\").join("/"), data: await readFile(f) })))));
   console.log(`zipped ${relative(root, out)} (${((await stat(out)).size / 1024).toFixed(0)} KB)`);
+}
+
+/**
+ * Firefox MV3 differences: an event-page background (background.scripts, no service_worker),
+ * an add-on ID (required to sign), and the data-collection declaration AMO requires.
+ * Gideon sends the recipient you paste on a page and related transaction lookups to the
+ * public APIs in host_permissions, so it declares websiteContent and financialAndPaymentInfo.
+ * Firefox 140 (desktop) / 142 (Android) are the first with the built-in data consent screen.
+ */
+function forFirefox(m) {
+  const { minimum_chrome_version: _drop, ...rest } = m;
+  return {
+    ...rest,
+    background: { scripts: ["background.js"] },
+    browser_specific_settings: {
+      gecko: {
+        id: "gideon-near@adelekejr.github.io",
+        strict_min_version: "140.0",
+        data_collection_permissions: { required: ["websiteContent", "financialAndPaymentInfo"] },
+      },
+      gecko_android: { strict_min_version: "142.0" },
+    },
+  };
 }
 
 async function walk(dir) {
