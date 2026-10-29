@@ -1,3 +1,5 @@
+<p><img src="apps/web/public/brand/gideon-lockup-light.svg" alt="Gideon" width="320"></p>
+
 # Gideon
 
 **A pre-send safety check for NEAR.** Paste the address, token and
@@ -15,15 +17,19 @@ Work began 29 Oct 2026.
 
 | Mistake | Example | Verdict |
 | --- | --- | --- |
+| An account that doesn't exist | `adelekejrx.testnet` (typo), or a name that only exists on the other network | BLOCKED |
 | A transaction hash pasted as an account | a Tron tx hash looks like a 64-hex NEAR implicit account, and wallets accept it | BLOCKED |
 | Wrong network | a `.near` name while sending on testnet, or a Tron `T…` address | BLOCKED |
 | Wrong token for an Intents deposit | sending wNEAR to a 1Click deposit address that expects USDC | BLOCKED |
 | Lookalike of a saved contact | `northwind-payro11.testnet` instead of `northwind-payroll.testnet` | BLOCKED |
 | A token the exchange may not credit | wNEAR or USDC (NEP-141) sent to an exchange deposit | ATTENTION |
 | A fresh Ethereum-style `0x` account | it exists only once someone uses it with an Ethereum key | ATTENTION |
+| A 64-hex implicit account never used | valid, but unfunded: sending creates it, only fine if its owner gave it to you | ATTENTION |
 | A lookup that failed | any source is down or rate-limited | ATTENTION ("couldn't check") |
 
 All the examples above are real cases in [`demo/cases.json`](demo/cases.json).
+
+![Gideon blocks a typo: adelekejrx.testnet doesn't exist on NEAR testnet](shots/desktop-check-blocked-nonexistent.png)
 
 ## Quickstart
 
@@ -89,7 +95,7 @@ browser, straight against the public APIs) and your own code
 | --- | --- | --- |
 | R1 Format & network | Is it a valid NEAR account, and for the network you chose? Catches `.near` on testnet, Tron and Bitcoin addresses. | local |
 | R2 Pasted hash | Is this 64-hex string really a Tron, Ethereum, Bitcoin or NEAR transaction hash? | TronGrid, Ethereum RPC, mempool.space, NEAR RPC |
-| R3 Account on chain | Does the account exist? Is it new, or a contract? | NEAR RPC |
+| R3 Account on chain | Does the account exist on the network you chose? A name that doesn't exist is BLOCKED, with close matches from your contacts and history. Shows when it was created and what it holds. | NEAR RPC `view_account`, NearBlocks (creation date, info only) |
 | R4 Ethereum-style account | A `0x` + 40 hex address used on NEAR: in use, or never used? | NEAR RPC |
 | R5 Token | Is the token real, not a lookalike, and is the receiver registered with it? | NEAR RPC, token list |
 | R6 Intents deposit | For a 1Click deposit address: does the token match what it expects, is it still open? | 1Click `/v0/status` (mainnet) |
@@ -102,9 +108,15 @@ How a verdict is reached:
 
 - Any rule that says **BLOCKED** makes the verdict BLOCKED.
 - Otherwise, any **ATTENTION**, or any lookup that failed, makes it ATTENTION.
-- **SAFE** only when every rule that applies passed on live data.
+- **SAFE** only when every rule that applies passed on live data **and** a
+  live `view_account` lookup on the selected network found the account. The
+  engine enforces this last: a result with no confirmed account can't be SAFE.
 - A failed lookup is reported as **"couldn't check"** with the error. It is
   never treated as safe.
+
+Every result also carries the account facts it was based on, for example
+`Account exists on NEAR testnet. Created 30 Apr 2022. Holds 180.6479 NEAR.`
+The website, Send page, extension, CLI and MCP server all show them.
 
 Every result carries a receipt: a sha256 over the exact input, findings and
 verdict. With `GIDEON_RECEIPT_KEY` set, it's also ed25519-signed and
@@ -382,6 +394,20 @@ variables) to turn one on.
 | Paid or private NEAR RPC | `GIDEON_RPC_URL_MAINNET`, `GIDEON_RPC_URL_TESTNET`, `GIDEON_RPC_API_KEY` | used instead of the free FastNEAR endpoints |
 | NEAR AI explainer | `NEARAI_API_KEY`, `NEARAI_MODEL` (default `z-ai/glm-5.2`) | rewrites the reason in plainer words through NEAR AI Cloud. It only rephrases: it can never change the verdict, and if it fails the built-in text is used. |
 | Signed receipts | `GIDEON_RECEIPT_KEY` (make one with `npm run gideon -- keygen`) | receipts are ed25519-signed as well as hashed |
+
+## Brand
+
+The mark is the **Arrow G**: the G's crossbar is the send arrow, and its
+vermilion spur is the wall. In the site and extension it moves. When a send is
+BLOCKED, the arrow hits the wall and bounces back. When it's SAFE, the wall
+slides down into the G and the arrow leaves through the opening. The wordmark
+is Archivo 800 at 125% width. The lockup SVGs are in
+[`apps/web/public/brand/`](apps/web/public/brand/), and the favicon is
+[`apps/web/public/favicon.svg`](apps/web/public/favicon.svg).
+
+| Light | Dark |
+| --- | --- |
+| ![Gideon lockup, light](shots/brand-lockup-light.png) | ![Gideon lockup, dark](shots/brand-lockup-dark.png) |
 
 ## Repo layout
 
