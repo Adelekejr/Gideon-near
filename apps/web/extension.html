@@ -1,107 +1,69 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gideon · extension preview</title>
+<!doctype html><html lang="en" data-shift="auto" data-theme="day"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gideon · extension preview</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/brand/apple-touch-icon.png"><meta property="og:title" content="Gideon · extension preview"><meta property="og:description" content="Gideon checks a NEAR send before it leaves: wrong network, wrong token, a pasted hash, a lookalike or an account that doesn't exist."><meta property="og:image" content="/brand/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image">
-<style>
-.top{display:flex;justify-content:space-between;align-items:end;padding:44px 0 26px}
-.stage{display:grid;grid-template-columns:1fr 372px;gap:32px;align-items:start}
-/* browser frame */
-.browser{border:1px solid var(--ink);border-radius:var(--r2);overflow:hidden;background:#fff;box-shadow:8px 8px 0 var(--ink)}
-.bar{height:44px;background:#ECEAE4;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 14px}
-.bar i{width:10px;height:10px;border-radius:50%;background:#CFCBC0}
-.bar .url{flex:1;margin:0 14px;height:28px;background:#fff;border-radius:14px;font:12px var(--mono);color:#666;display:flex;align-items:center;padding:0 12px}
-.bar .ext{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--line);position:relative;cursor:pointer}
-.bar .ext svg{width:18px;height:18px;color:var(--ink)}
-.bar .ext b{position:absolute;top:-5px;right:-5px;background:var(--signal);color:#fff;font:700 9px var(--mono);padding:1px 4px;border-radius:2px;display:none}
-.bar .ext.on b{display:block}
-/* generic exchange (deliberately NOT Gideon styling) */
-.nw{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1d2433;background:#F5F7FB;padding:0 0 40px}
-.nw .hdr{display:flex;align-items:center;gap:26px;padding:14px 28px;background:#fff;border-bottom:1px solid #E3E7EF;font-size:14px;color:#5a6476}
-.nw .hdr .lg{font-weight:700;color:#1d2433;display:flex;align-items:center;gap:8px;font-size:15px}
-.nw .hdr .lg i{width:20px;height:20px;border-radius:50%;background:conic-gradient(#3C6FF5 0 50%,#8EA9F8 0)}
-.nw .panel{max-width:540px;margin:28px auto 0;background:#fff;border:1px solid #E3E7EF;border-radius:12px;padding:26px 28px}
-.nw h3{font-size:20px;font-weight:650;margin-bottom:18px}
-.nw label{display:block;font-size:13px;color:#5a6476;margin:14px 0 6px}
-.nw .in{border:1px solid #D5DBE6;border-radius:8px;height:44px;display:flex;align-items:center;padding:0 12px;font-size:14px;background:#fff;gap:8px}
-.nw .in input{border:0;outline:0;flex:1;font:13px ui-monospace,Menlo,monospace;background:transparent;color:#1d2433;min-width:0}
-.nw .in .paste{color:#3C6FF5;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
-.nw .coin{width:22px;height:22px;border-radius:50%;background:#1d2433;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:700}
-.nw .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.nw .sub{display:flex;justify-content:space-between;font-size:12.5px;color:#7a8396;margin-top:16px}
-.nw .wd{margin-top:18px;height:46px;border:0;border-radius:8px;background:#3C6FF5;color:#fff;font-size:15px;font-weight:600;width:100%;cursor:pointer}
-.nw .wd:disabled{background:#B9C2D3;cursor:not-allowed}
-.nw .in.flag{border-color:var(--signal);box-shadow:0 0 0 3px rgba(255,77,26,.18)}
-/* Gideon in-page warning */
-.gw{display:none;margin-top:10px;font-family:var(--display);border:1.5px solid var(--ink);border-radius:var(--r1);background:var(--paper);overflow:hidden;box-shadow:4px 4px 0 var(--ink)}
-.gw.show{display:block;animation:pop .22s ease-out}
-@keyframes pop{from{transform:translateY(-6px);opacity:0}to{transform:none;opacity:1}}
-.gw .gh{display:flex;align-items:center;gap:10px;background:var(--signal);color:#fff;padding:8px 12px}
-.gw .gh .gs{width:24px;height:24px;--arw:var(--ink);--wall:#fff;--ok:#fff}.gw.ok{border-color:var(--safe);box-shadow:4px 4px 0 var(--safe)}.gw.ok .gh{background:var(--safe)}.gw.ok .gh .gs{--wall:#fff;--arw:#fff}
-.popup .lh .gs{width:22px;height:22px;--arw:var(--ink)}
-.gw .gh b{font-weight:800;font-stretch:125%;font-size:12px;letter-spacing:.02em}
-.gw .gh span{margin-left:auto;font:700 10.5px var(--mono);letter-spacing:.1em}
-.gw .gb{padding:12px 14px;color:var(--ink)}
-.gw .gt{font-weight:800;font-stretch:108%;font-size:16px;letter-spacing:-.2px;line-height:1.2}
-.gw .gr{font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.45}
-.gw .gf{font:12px var(--mono);margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
-.gw .gf b{color:var(--signal-ink)}
-.gw .ga{display:flex;gap:8px;margin-top:10px}
-.gw .ga button{font:500 12px var(--mono);height:30px;padding:0 10px;border-radius:2px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer}
-.gw .ga button.g{background:transparent;color:var(--ink-2);border-color:var(--line)}
-/* popup */
-.popwrap .label{margin-bottom:10px;display:block}
-.popup{width:372px;border:1px solid var(--ink);border-radius:var(--r2);background:var(--paper);overflow:hidden;box-shadow:8px 8px 0 var(--ink)}
-.popup .ph{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
-.popup .ph svg{width:24px;height:24px}
-.popup .ph b{font-weight:800;font-stretch:125%;font-size:15px}
-.popup .ph .pill{margin-left:auto;font-size:9.5px;padding:3px 7px}
-.popup .site{padding:12px 16px;font:12px var(--mono);color:var(--ink-2);display:flex;justify-content:space-between;border-bottom:1px solid var(--line-soft)}
-.popup .last{margin:14px 16px;border:1px solid var(--ink);border-radius:var(--r1);background:#fff}
-.popup .last .lh{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line-soft)}
-.popup .last .lb{padding:12px}
-.popup .last .addr{font-size:12.5px;line-height:1.6}
-.popup .stats{display:grid;grid-template-columns:repeat(3,1fr);margin:0 16px;border:1px solid var(--line);background:var(--surface)}
-.popup .stats div{padding:10px 12px;border-right:1px solid var(--line)}
-.popup .stats div:last-child{border:0}
-.popup .stats b{display:block;font-weight:800;font-stretch:112%;font-size:22px;letter-spacing:-.5px}
-.popup .tog{margin:14px 16px 0;display:flex;flex-direction:column}
-.popup .tog div{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--line-soft);font-size:13px}
-.sw{width:30px;height:16px;background:var(--ink);border-radius:2px;position:relative}
-.sw:after{content:"";position:absolute;right:2px;top:2px;width:12px;height:12px;background:var(--paper);border-radius:1px}
-.popup .pf{display:flex;gap:8px;padding:14px 16px;border-top:1px solid var(--line);margin-top:14px;background:var(--surface)}
-.popup .pf .btn{flex:1;justify-content:center;height:36px;font-size:12px}
-.hint{font:12px var(--mono);color:var(--muted);margin-top:14px}
-</style></head><body>
+<meta name="theme-color" content="#F2F0EB">
+<link rel="preload" href="/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/jbm.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+/* Runs before first paint: apply the saved shift so there is no flash. AUTO = Day from 06:00, Night Watch from 18:30 (device clock). */
+(function(){var BG={day:"#F2F0EB",night:"#0C0B09",plan:"#10283F",signal:"#FFFFFF"},s="auto";
+try{s=localStorage.getItem("gideon:shift")||"auto"}catch(e){}
+if(!/^(day|night|plan|signal|auto)$/.test(s))s="auto";
+var d=new Date(),m=d.getHours()*60+d.getMinutes(),t=s==="auto"?((m>=1110||m<360)?"night":"day"):s,r=document.documentElement;
+r.setAttribute("data-shift",s);r.setAttribute("data-theme",t);
+var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute("content",BG[t]);})();
+</script>
+</head><body>
 <div id="nav" data-on="Extension"></div>
 <main class="wrap">
-<div class="top"><div><span class="sec-n">EXTENSION DEMO</span><h1 class="h1" style="margin-top:10px">It checks the moment<br>you paste.</h1></div>
-<div style="display:flex;gap:10px"><button class="btn" id="sim">Simulate paste: Tron tx hash <span class="wall"></span></button><button class="btn ghost" id="sim2">Paste correct address</button></div></div>
-<div class="stage">
- <div><div class="browser">
-  <div class="bar"><i></i><i></i><i></i><div class="url">northwind.example/wallet/withdraw/NEAR</div><div class="ext" id="ext"><span class="logo-slot"></span><b>1</b></div></div>
+<section class="shead">
+ <div><span class="eyebrow">Browser extension · v0.2.0 · Chrome, Brave, Edge, Firefox</span>
+  <h1 class="h1">It checks the moment you paste.</h1>
+  <p class="lead">On NEAR wallet and exchange pages, Gideon watches the recipient field. Paste a wrong, poisoned or lookalike address and a warning card appears right under it, the Send button is held, and the Arrow G shows you why. Same rules as the checker, read-only, no keys.</p></div>
+ <div class="xtry"><span class="label">Try a paste</span>
+  <button class="btn" id="sim" type="button">A Tron tx hash <span class="ar">→</span></button>
+  <button class="btn ghost" id="sim3" type="button">A poisoned lookalike</button>
+  <button class="btn ghost" id="sim4" type="button">A brand-new 0x address</button>
+  <button class="btn ghost" id="sim2" type="button">The correct account</button></div>
+</section>
+<div class="xgrid">
+ <div><div class="browser" aria-label="Example exchange page">
+  <div class="bar"><i></i><i></i><i></i><div class="url">northwind.example/wallet/withdraw/NEAR</div><div class="ext" id="ext" title="Gideon extension"><span class="logo-slot"></span><b>1</b></div></div>
   <div class="nw">
-   <div class="hdr"><span class="lg"><i></i>Northwind</span><span>Markets</span><span>Trade</span><span style="color:#1d2433;font-weight:600">Wallet</span><span style="margin-left:auto">Balance 412.80 NEAR</span></div>
-   <div class="panel">
+   <div class="hdr"><span class="lg"><i></i>Northwind</span><span>Markets</span><span>Trade</span><span class="cur">Wallet</span><span class="bal">Balance 412.80 NEAR</span></div>
+   <div class="nwp">
     <h3>Withdraw crypto</h3>
-    <div class="two"><div><label>Coin</label><div class="in"><span class="coin">N</span>NEAR</div></div><div><label>Network</label><div class="in">NEAR Protocol</div></div></div>
-    <label>Withdrawal address</label>
+    <div class="two2"><div><label>Coin</label><div class="in"><span class="coin">N</span>NEAR</div></div><div><label>Network</label><div class="in">NEAR Protocol</div></div></div>
+    <label for="addr">Withdrawal address</label>
     <div class="in" id="inbox"><input id="addr" placeholder="Paste NEAR address" spellcheck="false"><span class="paste" id="pbtn">Paste</span></div>
-    <div class="gw" id="gw"></div>
-    <label>Amount</label><div class="in"><input value="25" style="font-family:inherit;font-size:14px"><span style="color:#7a8396;font-size:13px">NEAR</span></div>
+    <div id="gw" class="gwhost"></div>
+    <label>Amount</label><div class="in"><input value="25" aria-label="Amount"><span class="u">NEAR</span></div>
     <div class="sub"><span>Network fee 0.01 NEAR</span><span>You receive 24.99 NEAR</span></div>
-    <button class="wd" id="wd">Withdraw</button>
+    <button class="wd" id="wd" type="button">Withdraw</button>
    </div>
   </div>
- </div><p class="hint">“Northwind” is a made-up exchange page. The checks are real: every paste runs the Gideon engine live on NEAR testnet. The real Chrome extension is in <span class="mono">apps/extension</span> (Load unpacked; see the README). Try pasting your own value too.</p></div>
- <div class="popwrap"><span class="label">Extension popup · preview</span>
-  <div class="popup">
-   <div class="ph"><span class="logo-slot"></span><b>GIDEON</b><span class="pill"><i></i>testnet</span></div>
-   <div class="site"><span>northwind.example</span><span style="color:var(--safe)">● watching</span></div>
-   <div class="last" id="plast"><div class="lh"><span class="label">Last paste</span><span class="chip skip" style="color:var(--muted)">waiting…</span></div><div class="lb"><div class="small">Paste an address on this page and Gideon checks it here.</div></div></div>
-   <div class="stats"><div><span class="label">Checked</span><b id="sc">0</b></div><div><span class="label">Stopped</span><b id="ss" style="color:var(--signal-ink)">0</b></div><div><span class="label">Saved</span><b id="sv">0</b></div></div>
-   <div class="tog"><div>Check addresses on paste<span class="sw"></span></div><div>Hold Send button when blocked<span class="sw"></span></div><div>Warn on lookalike addresses<span class="sw"></span></div></div>
-   <div class="pf"><a class="btn sm ghost" href="index.html">Open checker</a><a class="btn sm" href="index.html#contacts">Address book</a></div>
-  </div></div>
+ </div><p class="small" style="margin-top:12px">“Northwind” is a made-up exchange page. The checks are real: every paste runs the Gideon engine live on NEAR testnet, and the card under the field is the extension’s own card code. Try pasting your own value too.</p></div>
+ <div class="popcol"><span class="label">Extension popup · preview</span><div id="pop"></div>
+  <p class="small" style="margin-top:12px">The popup’s shift picker follows this site: AUTO is Day from 06:00 and Night Watch from 18:30 on your clock; Blueprint and Signal Box are manual.</p></div>
 </div>
-<footer><span>GIDEON · extension preview · live engine</span><span>reads the page locally · never touches your keys</span></footer>
+
+<section class="blk"><div class="sec-hd"><div><span class="lbl">01 / On the page</span><h2 class="rv">What it does on a page.</h2></div></div>
+ <ol class="how">
+  <li class="rv"><h3>Checks on paste</h3><p>Recipient fields on NEAR wallets and exchanges: named .near/.testnet accounts, 64-character implicit accounts and 0x addresses.</p></li>
+  <li class="rv"><h3>Holds the Send button</h3><p>While a check says BLOCKED the page’s Send or Withdraw button stays held. ATTENTION warns but lets you decide.</p></li>
+  <li class="rv"><h3>Watches the clipboard</h3><p>If a page swaps what you copied for a lookalike, Gideon says so at the moment you paste (rule R9).</p></li>
+ </ol>
+</section>
+<section class="blk"><div class="sec-hd"><div><span class="lbl">02 / Install</span><h2 class="rv">Install it.</h2></div></div>
+ <div class="two">
+  <div class="panel rv"><div class="hd"><span class="lbl">Chrome · Brave · Edge</span><span class="lbl">MV3</span></div><div class="code" style="border:0;border-radius:0">npm run zip:extension
+<span class="c"># chrome://extensions → Developer mode → Load unpacked</span>
+<span class="c"># → apps/extension/dist  (or gideon-extension-0.2.0.zip)</span></div></div>
+  <div class="panel rv"><div class="hd"><span class="lbl">Firefox</span><span class="lbl">MV3</span></div><div class="code" style="border:0;border-radius:0">npm run zip:extension
+<span class="c"># about:debugging → This Firefox → Load Temporary Add-on</span>
+<span class="c"># → gideon-extension-firefox-0.2.0.zip</span></div></div>
+ </div>
+ <p class="small" style="margin-top:14px">Permissions: <code>storage</code> only. It reads the page you are on locally and asks public NEAR RPC for account state. It never touches keys and can’t move funds.</p>
+</section>
 </main>
 <script type="module" src="/src/extension.ts"></script>
 </body></html>

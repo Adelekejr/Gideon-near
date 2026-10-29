@@ -1,7 +1,8 @@
 import { exchangesFor, tokensFor, type Network } from "@gideon/core";
-import { initChrome, stopper, esc } from "./chrome";
+import { initChrome, stopper, esc, playVerdict, verdictState, tearSlip, LOGO } from "./chrome";
+import type { CheckResult } from "@gideon/core";
 import { getNetwork, getContacts, saveContacts } from "./state";
-import { CASES, CASE_LABELS } from "./run";
+import { CASES, CASE_LABELS, runCheck } from "./run";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const assetSel = $<HTMLSelectElement>("asset"), destSel = $<HTMLSelectElement>("dest"), exSel = $<HTMLSelectElement>("exchange");
@@ -9,7 +10,7 @@ const assetSel = $<HTMLSelectElement>("asset"), destSel = $<HTMLSelectElement>("
 function fillForNetwork() {
   const net: Network = getNetwork();
   $("netchip").textContent = net;
-  $("netchip").className = "chip " + (net === "mainnet" ? "warn" : "idle");
+  $("netchip").className = "chip idle";
   $<HTMLInputElement>("net").value = net;
   $<HTMLInputElement>("to").placeholder = `name.${net === "mainnet" ? "near" : "testnet"}, 64-character account or 0x…`;
   $<HTMLInputElement>("from").placeholder = `you.${net === "mainnet" ? "near" : "testnet"}`;
@@ -64,15 +65,48 @@ for (const c of CASES) {
   a.className = "try"; tries.appendChild(a);
 }
 
-/* hero loop: two real results from demo/cases.json */
-const HL: [ "block" | "safe", string][] = [
-  ["block", "send 120 NEAR → 89a46…126944<br><b>■ stopped</b> · Tron transaction hash, not an account<br>funds moved: 0"],
-  ["safe", "send 10 NEAR → hammed-stampdue.testnet<br><b class=\"ok\">● cleared</b> · account exists, every check passed<br>receipt sha256 attached"],
-];
-let hi = 0;
-function hero() { const [s, l] = HL[hi % 2]; $("hs").innerHTML = stopper(s); $("hlog").innerHTML = l; hi++; }
-hero();
-if (!matchMedia("(prefers-reduced-motion: reduce)").matches && location.hash !== "#static") setInterval(hero, 3600);
+/* hero stage: each button runs the REAL engine on a stable case and the Arrow G plays the verdict it returns */
+const CHIP: Record<string, string> = { BLOCKED: "Blocked", ATTENTION: "Look again", SAFE: "Safe to send" };
+const stage = $("hs"), hlog = $("hlog");
+const runBtns = Array.from(document.querySelectorAll<HTMLButtonElement>("#motif [data-case]"));
+let stageBusy = false;
+async function runStage(id: string) {
+  const c = CASES.find((x) => x.id === id); if (!c || stageBusy) return;
+  stageBusy = true;
+  runBtns.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.case === id)));
+  stage.innerHTML = stopper("idle");
+  hlog.innerHTML = `<span class="mute">Checking on NEAR ${esc(c.input.network)}…</span><br><span class="who">${esc(c.input.to)}</span>`;
+  let r: CheckResult, recorded = false;
+  try {
+    r = await runCheck(structuredClone(c.input));
+    if (r.sources.some((s) => !s.ok && !s.optional)) throw new Error("source failed");
+  } catch {
+    r = await runCheck(structuredClone(c.input), true); recorded = true;
+  }
+  const st = verdictState(r.verdict);
+  hlog.innerHTML = `<span class="who">${esc(r.input.amount ?? "")} ${esc(r.input.asset.symbol)} → ${esc(r.input.to)}</span><br><span class="chip ${st}">${CHIP[r.verdict] ?? r.verdict}</span><br>${esc(r.headline?.title ?? (r.account?.summary || "Account exists. Every check passed."))}<br><span class="mute">${recorded ? "recorded answer (network unreachable)" : `live · ${r.ms} ms`} · <a href="check.html?example=${esc(id)}" style="text-decoration:underline">full report</a></span>`;
+  await playVerdict(stage.querySelector(".gs"), st);
+  stageBusy = false;
+}
+runBtns.forEach((b) => b.addEventListener("click", () => void runStage(b.dataset.case!)));
+stage.innerHTML = stopper("idle");
+hlog.innerHTML = `<span class="mute">Pick a send below. Gideon checks it for real and the arrow shows the verdict.</span>`;
+if (!/nostage/.test(location.hash)) void runStage("lookalike");
+
+/* receipt slip: a real result, replayed from recorded data so it never changes */
+async function slip() {
+  const c = CASES.find((x) => x.id === "lookalike"); if (!c) return;
+  const r = await runCheck(structuredClone(c.input), true);
+  const RN: Record<string, string> = { R1: "format", R2: "pasted hash", R3: "account", R5: "token", R7: "lookalike", R11: "account age" };
+  const rows = r.findings.filter((f) => f.status !== "SKIPPED" && RN[f.rule]).slice(0, 6)
+    .map((f) => `<div class="rule"><span>${RN[f.rule]}</span><span class="dots"></span><span>${f.status === "PASS" ? "ok" : f.status === "BLOCKED" ? "BLOCK" : f.status === "ATTENTION" ? "look" : "n/c"}</span></div>`).join("");
+  $("slipbody").innerHTML = `<h4>${LOGO}GIDEON</h4><div class="sub">Pre-send receipt · NEAR ${esc(r.input.network)}</div><hr>
+<div class="kv"><span>to</span><span>${esc(r.input.to)}</span><span>amount</span><span>${esc(r.input.amount ?? "")} ${esc(r.input.asset.symbol)}</span><span>engine</span><span>${esc(r.engine)}</span></div><hr>${rows}<hr>
+<div class="vd"><span>VERDICT</span><span class="chip ${verdictState(r.verdict)}">${CHIP[r.verdict] ?? r.verdict}</span></div><p style="margin-top:8px">${esc(r.headline?.title ?? "")}</p><hr>
+<div class="hash">sha256 ${esc(r.receipt.sha256)}</div><div class="bars"></div>`;
+  tearSlip($("slip"), r.receipt.sha256);
+}
+void slip();
 
 initChrome("Checker", fillForNetwork);
 fillForNetwork();

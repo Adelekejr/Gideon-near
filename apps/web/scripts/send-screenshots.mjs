@@ -46,7 +46,9 @@ const browser = await chromium.launch({ ...(process.env.CHROME_PATH ? { executab
 const page = await browser.newPage({ viewport: { width: 1360, height: 900 } });
 await page.addInitScript(MOCK_WALLET, { me: ME });
 await page.route((u) => /fastnear\.com$/.test(u.hostname), async (route) => {
-  const p = JSON.parse(route.request().postData() ?? "{}").params ?? {};
+  const body = JSON.parse(route.request().postData() ?? "{}");
+  if (body.method === "block") return route.continue(); // the live watch log reads the block height
+  const p = body.params ?? {};
   if (p.request_type === "view_account") {
     return route.fulfill({ json: ACCOUNTS.has(p.account_id)
       ? { jsonrpc: "2.0", id: "gideon", result: { amount: "5000000000000000000000000", code_hash: "11111111111111111111111111111111", storage_usage: 182 } }
@@ -58,7 +60,7 @@ await page.route((u) => u.hostname === "api-testnet.nearblocks.io", (route) =>
   route.fulfill({ json: { txns: route.request().url().includes(`/account/${ME}/`) ? HISTORY : [] } }));
 
 const sendBtn = () => page.locator("#send");
-const shot = async (name) => { await page.waitForTimeout(400); await page.screenshot({ path: join(OUT, name), fullPage: true }); console.log("saved", name); };
+const shot = async (name) => { await page.waitForTimeout(1300); /* let the Arrow G finish */ await page.screenshot({ path: join(OUT, name), fullPage: true }); console.log("saved", name); };
 async function checkFor(to, amount = "2.5") {
   await page.fill("#to", to);
   await page.fill("#amount", amount);

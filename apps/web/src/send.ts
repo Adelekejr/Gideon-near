@@ -1,6 +1,6 @@
 import type { CheckResult, Finding, Status } from "@gideon/core";
 import { NETWORKS, explorerTxUrl } from "@gideon/core";
-import { initChrome, stopper, esc, footer } from "./chrome";
+import { initChrome, stopper, esc, footer, playVerdict, recordWatch } from "./chrome";
 import { runCheck } from "./run";
 import { getContacts } from "./state";
 import { gate, nearToYocto, sendKey, sendNetwork, type GateKind } from "./sendgate";
@@ -18,6 +18,7 @@ let confirmed = false;
 let sending = false;
 let sent: { key: string; hash?: string } | null = null;
 let sendError: string | null = null;
+let lastPlayed: string | null = null;
 
 initChrome("Send", () => note(`The site’s network switch doesn’t change sending. This page signs on NEAR ${NET} (set by VITE_GIDEON_SEND_NETWORK).`));
 $("netbadge").className = `netbadge ${NET}`;
@@ -49,6 +50,7 @@ async function doCheck() {
     const book = getContacts();
     const result = await runCheck({ to: to(), network: NET, amount: amount(), asset: { symbol: "NEAR" }, destination: "wallet", from: who.accountId, ...(book.length ? { addressBook: book } : {}) });
     checked = { key: k, result };
+    recordWatch(result.input.to, result.verdict, NET);
   } catch (e) {
     checked = null;
     checkError = e instanceof Error ? e.message : String(e);
@@ -134,26 +136,29 @@ function update() {
   if (r && ["safe", "attention", "blocked"].includes(g.kind)) {
     const report = new URLSearchParams({ to: target, amount: amt, from: who?.accountId ?? "", net: NET, dest: "wallet" });
     body = `<div class="meta"><span>NEAR ${esc(NET)}</span><span>${r.ms} ms</span><span>${r.sources.length} lookups</span><span>verdict ${esc(r.verdict)}</span></div>${findingsList(r)}
-     <p class="note" style="margin-top:12px"><a href="check.html?${esc(report.toString())}" target="_blank" rel="noopener">Full report ↗</a></p>`;
+     <p class="vnote" style="margin-top:12px"><a href="check.html?${esc(report.toString())}" target="_blank" rel="noopener">Full report ↗</a></p>`;
   }
-  if (g.kind === "sent" && sent?.hash) body = `<p class="note" style="margin-top:14px">Transaction <a href="${esc(explorerTxUrl(NET, sent.hash))}" target="_blank" rel="noopener">${esc(sent.hash)} ↗</a></p>`;
+  if (g.kind === "sent" && sent?.hash) body = `<p class="vnote" style="margin-top:14px">Transaction <a href="${esc(explorerTxUrl(NET, sent.hash))}" target="_blank" rel="noopener">${esc(sent.hash)} ↗</a></p>`;
 
   const sendLabel = { safe: "Send", attention: "Send anyway", blocked: "Send blocked", sending: "Waiting for wallet…", sent: "Sent" } as Record<string, string>;
-  const btnCls = g.kind === "blocked" ? "block" : g.kind === "attention" ? "warn" : "safe";
+  const btnCls = g.kind === "blocked" ? "block" : g.kind === "attention" ? "warn" : g.kind === "safe" || g.kind === "sent" || g.kind === "sending" ? "safe" : "";
   const label = sendLabel[g.kind] ? `${sendLabel[g.kind]}${["safe", "attention"].includes(g.kind) ? ` ${esc(amt)} NEAR` : ""}` : "Send (check first)";
   const go = `<div class="go">
    ${g.showConfirm ? `<label class="confirm"><input type="checkbox" id="ok"${confirmed ? " checked" : ""}><span>I read why Gideon flagged this and I still want to send ${esc(amt)} NEAR to <b class="mono">${esc(target)}</b>.</span></label>` : ""}
    <button class="btn sendbtn ${btnCls}" id="send" type="button"${g.canSend ? "" : " disabled"}>${label}</button>
-   ${g.kind === "blocked" ? `<p class="note">Blocked sends can’t be overridden here. Fix the address and check again.</p>` : ""}
-   ${sendError ? `<p class="note" style="color:#FF8A63">Not sent: ${esc(sendError)}</p>` : ""}
-   ${noteText ? `<p class="note">${esc(noteText)}</p>` : ""}
+   ${g.kind === "blocked" ? `<p class="vnote">Blocked sends can’t be overridden here. Fix the address and check again.</p>` : ""}
+   ${sendError ? `<p class="vnote" style="color:var(--ink)"><b>Not sent:</b> ${esc(sendError)}</p>` : ""}
+   ${noteText ? `<p class="vnote">${esc(noteText)}</p>` : ""}
   </div>`;
 
   const el = $("gate");
-  el.className = `verdict ${vk === "idle" ? "" : vk} crop${el.classList.contains("zn") ? " zn" : ""}`;
-  el.querySelectorAll(":scope > .l, :scope > .r").forEach((n) => n.remove());
-  el.insertAdjacentHTML("beforeend", `<div class="l"><div>${chip}</div><h2 class="h2">${esc(title)}</h2><p class="why">${why}</p>${body}${go}</div>
-   <div class="r">${stopper(vk === "safe" ? "safe" : vk === "idle" ? "idle" : "block")}<span class="tag">GIDEON · ${tag}</span></div>`);
+  el.className = `verdict ${vk === "idle" ? "" : vk}`;
+  // The Arrow G plays once per new check result; later re-renders (ticking the box, sending) show the final pose.
+  const playKey = r && ["safe", "attention", "blocked"].includes(g.kind) ? `${checked!.key}|${r.checkedAt}` : null;
+  const fresh = playKey !== null && playKey !== lastPlayed;
+  el.innerHTML = `<div class="l"><div class="tagline">${chip}</div><h2 class="h2">${esc(title)}</h2><p class="why">${why}</p>${body}${go}</div>
+   <div class="vstage">${stopper(fresh ? "idle" : vk)}<span class="cap">GIDEON · ${tag}</span></div>`;
+  if (fresh) { lastPlayed = playKey; void playVerdict(el.querySelector(".vstage .gs"), vk); }
   $("ok")?.addEventListener("change", (e) => { confirmed = (e.target as HTMLInputElement).checked; update(); });
   $("send")?.addEventListener("click", () => void doSend());
 }

@@ -1,5 +1,5 @@
 import type { CheckResult } from "@gideon/core";
-import { initChrome, stopper, esc } from "./chrome";
+import { initChrome, stopper, esc, playVerdict, verdictState, STATIC } from "./chrome";
 import { runCheck, CASES } from "./run";
 
 initChrome("Agents");
@@ -10,11 +10,11 @@ const GOOD = CASES.find((c) => c.id === "safe")!.input.to;
 const cut = (s: string) => (s.length > 30 ? `${s.slice(0, 12)}…${s.slice(-6)}` : s);
 
 function toolOut(r: CheckResult | Error) {
-  if (r instanceof Error) return `<pre>{ error: <span class="bad">"${esc(r.message)}"</span> }  <span class="k">// treat as not checked</span></pre>`;
-  const cls = r.verdict === "SAFE" ? "good" : "bad";
+  if (r instanceof Error) return `<pre>{ error: <span class="vw">"${esc(r.message)}"</span> }  <span class="k">// treat as not checked</span></pre><div class="v" data-s="warn"></div>`;
+  const cls = { block: "vb", warn: "vw", safe: "vs", idle: "vw" }[verdictState(r.verdict)];
   const h = r.headline;
   return `<pre>{ verdict: <span class="${cls}">"${r.verdict}"</span>${h ? `, code: <span class="${cls}">"${esc(h.code)}"</span>,\n  title: "${esc(h.title)}"` : `,\n  checks: ${r.findings.filter((f) => f.status !== "SKIPPED").length}, sources: ${r.sources.length}`},
-  agent_action: <span class="${cls}">"${r.verdict === "SAFE" ? "SEND" : r.verdict === "ATTENTION" ? "ASK_HUMAN" : "DO_NOT_SEND"}"</span>, receipt: "${r.receipt.sha256.slice(0, 12)}…" }</pre><div class="v" data-s="${r.verdict === "SAFE" ? "safe" : "block"}"></div>`;
+  agent_action: <span class="${cls}">"${r.verdict === "SAFE" ? "SEND" : r.verdict === "ATTENTION" ? "ASK_HUMAN" : "DO_NOT_SEND"}"</span>, receipt: "${r.receipt.sha256.slice(0, 12)}…" }</pre><div class="v" data-s="${verdictState(r.verdict)}"></div>`;
 }
 
 let tm: number[] = [];
@@ -41,12 +41,23 @@ async function play() {
     ["agent", "Agent", cleared ? `Cleared. Handing 25 NEAR to ${GOOD} to the wallet for signing, with the receipt attached.` : "Still not cleared. I’ll wait."],
   ];
   tl.innerHTML = S.map(([c, w, t]) => `<div class="ln ${c}"><span class="who">${w}</span><div>${t}</div></div>`).join("");
-  tl.querySelectorAll<HTMLElement>(".v").forEach((v) => (v.innerHTML = stopper(v.dataset.s as "safe" | "block") + `<span style="color:${v.dataset.s === "safe" ? "#6FD39A" : "#FF8A63"};font-size:11px;letter-spacing:.1em">${v.dataset.s === "safe" ? "PASSED" : "BOUNCED"}</span>`));
-  const lines = [...tl.children];
-  const still = matchMedia("(prefers-reduced-motion: reduce)").matches || location.hash === "#static";
+  const WORD = { block: ["vb", "Bounced"], warn: ["vw", "Held"], safe: ["vs", "Passed"], idle: ["vw", ""] } as const;
+  tl.querySelectorAll<HTMLElement>(".v").forEach((v) => {
+    const st = v.dataset.s as keyof typeof WORD;
+    v.innerHTML = stopper("idle") + `<span class="vl ${WORD[st][0]}">${WORD[st][1]}</span>`;
+  });
+  const lines = [...tl.children] as HTMLElement[];
+  const still = STATIC;
+  const verdictOf = (x: CheckResult | Error) => (x instanceof Error ? "warn" : verdictState(x.verdict));
   lines.forEach((l, i) => {
-    const go = () => { l.classList.add("on"); if (i === 3) tbs.innerHTML = stopper("block"); if (i === 7) tbs.innerHTML = stopper(cleared ? "safe" : "block"); };
-    still ? go() : tm.push(window.setTimeout(go, 300 + i * 1000));
+    const go = () => {
+      l.classList.add("on");
+      // The Arrow G plays the real result the moment Gideon's answer lands in the chat.
+      const v = l.querySelector<HTMLElement>(".v");
+      if (v) void playVerdict(v.querySelector(".gs"), v.dataset.s as "block" | "warn" | "safe");
+      if (i === 3 || i === 7) { tbs.innerHTML = stopper("idle"); void playVerdict(tbs.querySelector(".gs"), verdictOf(i === 3 ? a : b)); }
+    };
+    still ? go() : tm.push(window.setTimeout(go, 300 + i * 900));
   });
 }
 $("replay").onclick = play;

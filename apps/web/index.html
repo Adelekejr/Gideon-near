@@ -1,85 +1,120 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gideon · check before it leaves</title>
+<!doctype html><html lang="en" data-shift="auto" data-theme="day"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gideon · check before it leaves</title>
 <meta name="description" content="Gideon checks a NEAR send before you sign it: transaction hashes pasted as accounts, wrong networks, unfunded accounts, exchange token rules, lookalike addresses and NEAR Intents deposits.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/brand/apple-touch-icon.png"><meta property="og:title" content="Gideon · check before it leaves"><meta property="og:description" content="Gideon checks a NEAR send before it leaves: wrong network, wrong token, a pasted hash, a lookalike or an account that doesn't exist."><meta property="og:image" content="/brand/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image">
-<style>
-.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:64px;padding:72px 0 64px;align-items:start}
-.hero .h-hero{margin:22px 0 24px}
-.hero .h-hero em{font-style:normal;position:relative;padding-right:30px}
-.hero .h-hero em:after{content:"";position:absolute;right:0;top:8%;width:14px;height:84%;background:var(--signal)}
-.motif{margin-top:40px;display:flex;gap:28px;align-items:center}
-.motif #hs{width:132px;flex-shrink:0}.motif .gs{width:132px;height:auto}.motif .log b.ok{color:var(--safe)}.motif .log{min-height:66px}
-.motif .log{font-family:var(--mono);font-size:12px;color:var(--ink-2);line-height:1.8}
-.motif .log b{color:var(--signal-ink)}
-.checker{padding:28px}
-.checker .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
-.checker .go{width:100%;justify-content:center;margin-top:18px;height:54px;font-size:15px}
-.tries{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
-.tries button{font-family:var(--mono);font-size:11.5px;border:1px dashed var(--line);background:transparent;padding:6px 9px;border-radius:var(--r1);cursor:pointer;color:var(--ink-2)}
-.tries button:hover{border-color:var(--ink);color:var(--ink)}
-.chead{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
-.catches{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--ink);background:var(--surface)}
-.catches>div{padding:22px;border-right:1px solid var(--line)}
-.catches>div:last-child{border-right:0}
-.catches .n{font-family:var(--mono);font-size:12px;color:var(--signal-ink)}
-.catches .ex{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;word-break:break-all}
-.ways{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:28px}
-.way{padding:22px;min-height:220px;display:flex;flex-direction:column;gap:10px}
-.way .tag{font-family:var(--mono);font-size:11px;color:var(--muted)}
-.code{background:var(--night);color:#E9E6DE;border-radius:var(--r2);padding:22px;font-family:var(--mono);font-size:13px;line-height:1.75}
-.code .k{color:#FF8A63}.code .s{color:#B7E4C7}.code .c{color:#8C8A82}
-.agents{display:grid;grid-template-columns:.9fr 1.1fr;gap:48px;align-items:center;margin-top:96px}
-</style></head><body>
+<meta name="theme-color" content="#F2F0EB">
+<link rel="preload" href="/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/jbm.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+/* Runs before first paint: apply the saved shift so there is no flash. AUTO = Day from 06:00, Night Watch from 18:30 (device clock). */
+(function(){var BG={day:"#F2F0EB",night:"#0C0B09",plan:"#10283F",signal:"#FFFFFF"},s="auto";
+try{s=localStorage.getItem("gideon:shift")||"auto"}catch(e){}
+if(!/^(day|night|plan|signal|auto)$/.test(s))s="auto";
+var d=new Date(),m=d.getHours()*60+d.getMinutes(),t=s==="auto"?((m>=1110||m<360)?"night":"day"):s,r=document.documentElement;
+r.setAttribute("data-shift",s);r.setAttribute("data-theme",t);
+var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute("content",BG[t]);})();
+</script>
+</head><body>
 <div id="nav" data-on="Checker"></div>
-<main class="wrap">
-<section class="hero">
- <div>
-  <div class="kicker">Pre-send check · NEAR</div>
-  <h1 class="h-hero">Check it<br>before it <em>leaves.</em></h1>
-  <p class="lead">Gideon reads the address, token and destination you’re about to send to, and stops the mistakes wallets let through: a transaction hash pasted as an account, the wrong network, the wrong token for an exchange or an Intents deposit, or a lookalike address.</p>
-  <div class="motif" id="motif"><div id="hs"></div><div class="log" id="hlog"></div></div>
- </div>
- <form class="card checker crop" id="f" action="check.html" autocomplete="off">
-  <div class="chead"><span class="label">Gideon check</span><span class="chip idle" id="netchip">testnet</span></div>
-  <div class="field"><label class="label" for="to">Send to</label><input class="input" id="to" name="to" placeholder="name.testnet, 64-character account or 0x…" spellcheck="false" required></div>
-  <div class="row">
-   <div class="field"><label class="label" for="asset">Token</label><select class="select" id="asset"></select></div>
-   <div class="field"><label class="label" for="dest">Going to</label><select class="select" name="dest" id="dest"><option value="unknown">Not sure</option><option value="wallet">A wallet / person</option><option value="exchange">An exchange deposit</option><option value="intents">A swap deposit (NEAR Intents)</option></select></div>
+<main>
+<section class="hero wrap">
+ <div class="hero-top">
+  <div>
+   <div class="eyebrow"><span class="bar"></span><span class="lbl">Pre-send check · NEAR</span></div>
+   <h1 class="mega"><span class="ln"><span>Check it</span></span><span class="ln"><span>before it</span></span><span class="ln"><span><em>leaves.</em></span></span></h1>
+   <p class="lead">Paste where the money is going. Gideon checks that the address is real, on the right network and right for the token, and that it isn’t a poisoned lookalike of someone you pay. It stops the mistake before your wallet signs.</p>
   </div>
-  <div class="row">
-   <div class="field"><label class="label" for="amount">Amount (optional)</label><input class="input" id="amount" name="amount" inputmode="decimal" placeholder="25"></div>
-   <div class="field" id="exf"><label class="label" for="exchange">Exchange</label><select class="select" name="exchange" id="exchange"></select></div>
-   <div class="field" id="ctf"><label class="label" for="contract">Token contract</label><input class="input" id="contract" name="contract" placeholder="token.near" spellcheck="false"></div>
+  <div class="panel livestage crop" id="motif" aria-label="Live check">
+   <div class="hd"><span class="lbl">Live check · real engine</span><span class="chip idle" id="stagenet">testnet</span></div>
+   <div class="bd"><div id="hs"></div><div class="vline" id="hlog" aria-live="polite"></div></div>
+   <div class="runs" role="group" aria-label="Run a real check">
+    <button type="button" data-case="lookalike" aria-pressed="false">Poisoned<small>northwind-payro11</small></button>
+    <button type="button" data-case="evm-address" aria-pressed="false">0x address<small>never used on NEAR</small></button>
+    <button type="button" data-case="safe" aria-pressed="false">Real account<small>adelekejr.testnet</small></button>
+   </div>
+   <div class="ft" id="stagefoot">Each button runs the real checker against NEAR testnet. If the network is down it replays a recorded answer and says so.</div>
   </div>
-  <div class="field" style="margin-top:14px"><label class="label" for="from">Your account (optional, for lookalike checks)</label><input class="input" id="from" name="from" placeholder="you.testnet" spellcheck="false"></div>
-  <input type="hidden" name="asset" id="assetSym"><input type="hidden" name="net" id="net">
-  <button class="btn go" type="submit">Check this send <span class="wall"></span></button>
-  <details class="contacts" id="contacts"><summary class="label">Saved contacts (<span id="ccount">0</span>) · stored only in this browser</summary>
-   <ul id="clist"></ul>
-   <div class="add"><input class="input" id="cacc" placeholder="account" spellcheck="false"><input class="input" id="clab" placeholder="label"><button class="btn sm ghost" type="button" id="cadd">Save</button></div>
-  </details>
-  <div class="tries" id="tries"><span class="label" style="width:100%;margin-bottom:2px">Try a real-world mistake (live data)</span></div>
- </form>
-</section>
-<section id="check">
- <div class="catches">
-  <div><div class="n">01</div><div class="h3">Hash as address</div><p class="small">A 64-character transaction ID looks like a NEAR implicit account. Wallets accept it. Gideon looks it up on Tron, Ethereum, Bitcoin and NEAR.</p><div class="ex">89a46298…f4126944</div></div>
-  <div><div class="n">02</div><div class="h3">Wrong network</div><p class="small">A Tron or Bitcoin address, a .near name on testnet, or an EVM address no one has used on NEAR.</p><div class="ex">TR7NHqje…otSzgjLj6t</div></div>
-  <div><div class="n">03</div><div class="h3">Wrong token</div><p class="small">wNEAR sent to an exchange that credits native NEAR, or USDC sent to an Intents deposit made for another token.</p><div class="ex">wNEAR → exchange deposit</div></div>
-  <div><div class="n">04</div><div class="h3">Lookalike address</div><p class="small">One or two characters off a saved contact, or a dust sender copying someone in your history.</p><div class="ex">northwind-payro<span style="background:var(--signal);color:#fff">11</span>.testnet</div></div>
+ </div>
+ <ul class="types" aria-label="What Gideon checks">
+  <li><span class="lbl">01 · Named</span><b>.near and .testnet accounts</b><code>payroll.near · adelekejr.testnet</code></li>
+  <li><span class="lbl">02 · Implicit</span><b>64-character accounts</b><code>9f2c41e07ab35d8c…a3f50c62d17e9b04</code></li>
+  <li><span class="lbl">03 · Ethereum-style</span><b>0x addresses on NEAR</b><code>0x94a0abA1…Dca0dd3cd8</code></li>
+  <li><span class="lbl">04 · Poisoned</span><b>Lookalikes of who you pay</b><code>northwind-payro<span class="x">11</span>.testnet</code></li>
+ </ul>
+ <div class="hero-low" id="check">
+  <div class="exhibit">
+   <div class="eyebrow"><span class="bar"></span><span class="lbl">Exhibit A · example</span></div>
+   <div class="art">
+    <span class="lbl">You pay</span><div class="addr saved">northwind-payroll.testnet</div>
+    <span class="lbl">Pasted from history</span><div class="addr">northwind-payro<span class="x">11</span>.testnet</div>
+   </div>
+   <p class="callout">Two characters off. A scammer sends you dust from a lookalike so it sits in your history, then waits for you to copy it. <b>Gideon compares every send with your saved contacts and blocks the copy.</b></p>
+   <p class="small" style="margin-top:16px">Also caught: a transaction hash pasted as an address, a Tron or Bitcoin address, a <span class="mono">.near</span> name on testnet, an account that doesn’t exist, wNEAR to an exchange that only credits NEAR, the wrong token for an Intents deposit, and accounts created minutes ago.</p>
+  </div>
+  <form class="panel checker crop" id="f" action="check.html" autocomplete="off">
+   <div class="chead"><span class="lbl">Check a send</span><span class="chip idle" id="netchip">testnet</span></div>
+   <div class="field"><label class="label" for="to">Send to</label><input class="input" id="to" name="to" placeholder="name.testnet, 64-character account or 0x…" spellcheck="false" required></div>
+   <div class="row">
+    <div class="field"><label class="label" for="asset">Token</label><select class="select" id="asset"></select></div>
+    <div class="field"><label class="label" for="dest">Going to</label><select class="select" name="dest" id="dest"><option value="unknown">Not sure</option><option value="wallet">A wallet / person</option><option value="exchange">An exchange deposit</option><option value="intents">A swap deposit (NEAR Intents)</option></select></div>
+   </div>
+   <div class="row">
+    <div class="field"><label class="label" for="amount">Amount (optional)</label><input class="input" id="amount" name="amount" inputmode="decimal" placeholder="25"></div>
+    <div class="field" id="exf"><label class="label" for="exchange">Exchange</label><select class="select" name="exchange" id="exchange"></select></div>
+    <div class="field" id="ctf"><label class="label" for="contract">Token contract</label><input class="input" id="contract" name="contract" placeholder="token.near" spellcheck="false"></div>
+   </div>
+   <div class="field" style="margin-top:14px"><label class="label" for="from">Your account (optional, for lookalike checks)</label><input class="input" id="from" name="from" placeholder="you.testnet" spellcheck="false"></div>
+   <input type="hidden" name="asset" id="assetSym"><input type="hidden" name="net" id="net">
+   <button class="btn go" type="submit">Check this send <span class="ar">→</span></button>
+   <details class="contacts" id="contacts"><summary class="label">Saved contacts (<span id="ccount">0</span>) · stored only in this browser</summary>
+    <ul id="clist"></ul>
+    <div class="add"><input class="input" id="cacc" placeholder="account" spellcheck="false"><input class="input" id="clab" placeholder="label"><button class="btn sm ghost" type="button" id="cadd">Save</button></div>
+   </details>
+   <div class="tries" id="tries"><span class="label" style="width:100%;margin-bottom:4px">Try a real-world mistake (live data)</span></div>
+  </form>
  </div>
 </section>
-<section style="margin-top:96px">
- <span class="sec-n">02 / FOUR WAYS IN</span><h2 class="h1" style="margin-top:12px">One engine. Wherever you send.</h2>
- <div class="ways">
-  <div class="card way"><span class="tag">WEBSITE · LIVE</span><div class="h3">Paste &amp; check</div><p class="small">This page. Runs the same rule engine as the CLI, in your browser, against free public NEAR, Tron, Ethereum and Bitcoin APIs.</p></div>
-  <div class="card way"><span class="tag">CLI · LIVE</span><div class="h3">From a terminal</div><p class="small"><span class="mono">npm run gideon -- check &lt;to&gt;</span>. Exit code 0 safe, 1 look again, 2 blocked, so scripts can stop a send.</p></div>
-  <div class="card way"><span class="tag">BROWSER EXTENSION · LOAD UNPACKED</span><div class="h3">Watches your paste</div><p class="small">Checks the address the moment you paste it on a withdrawal page and holds the Send button if it’s wrong.</p><a class="btn sm ghost" href="extension.html" style="margin-top:auto;align-self:flex-start">See the preview →</a></div>
-  <div class="card way"><span class="tag">AGENT TOOL · PREVIEW</span><div class="h3">For AI agents</div><p class="small">Agents that pay ask Gideon first and get a yes, or a no with the reason and a receipt.</p><a class="btn sm ghost" href="agents.html" style="margin-top:auto;align-self:flex-start">For agents →</a></div>
+
+<section class="blk wrap" id="stops">
+ <div class="sec-hd"><div><span class="lbl">01 / The ledger</span><h2 class="rv">What Gideon stops.</h2></div><p class="rv">Every rule reads public chain data at the moment you check. If a lookup fails, the answer is “couldn’t check”. It is never “safe”.</p></div>
+ <ol class="ledger">
+  <li class="rv"><span class="n">01</span><h3>An account that doesn’t exist</h3><p>Named accounts are looked up live. A name nobody created can’t receive funds the way you expect.</p><code>not found on testnet</code><span class="chip block">Blocked</span></li>
+  <li class="rv"><span class="n">02</span><h3>A poisoned lookalike</h3><p>One or two characters off a saved contact, or a dust sender copying someone in your history.</p><code>northwind-payro11.testnet</code><span class="chip block">Blocked</span></li>
+  <li class="rv"><span class="n">03</span><h3>A transaction hash pasted as an address</h3><p>A 64-character hash looks exactly like an implicit account. Gideon looks it up on Tron, Ethereum, Bitcoin and NEAR.</p><code>89a46298…f4126944</code><span class="chip block">Blocked</span></li>
+  <li class="rv"><span class="n">04</span><h3>The wrong network</h3><p>A Tron or Bitcoin address, or a .near name while you’re sending on testnet.</p><code>TR7NHqje…otSzgjLj6t</code><span class="chip block">Blocked</span></li>
+  <li class="rv"><span class="n">05</span><h3>The wrong token for an Intents deposit</h3><p>A NEAR Intents deposit address made for one token, sent another.</p><code>USDC → USDT deposit</code><span class="chip block">Blocked</span></li>
+  <li class="rv"><span class="n">06</span><h3>A token the exchange may not credit</h3><p>wNEAR to a deposit address that only credits native NEAR.</p><code>wNEAR → exchange</code><span class="chip warn">Attention</span></li>
+  <li class="rv"><span class="n">07</span><h3>A brand-new account</h3><p>Created today or in the last week. Fresh accounts are a common scam tool, so Gideon asks you to look again.</p><code>created today</code><span class="chip warn">Attention</span></li>
+  <li class="rv"><span class="n">08</span><h3>An unused implicit or 0x account</h3><p>Valid, but nobody has ever used it on NEAR. Check you have the right one.</p><code>0x94a0abA1…Dca0dd3cd8</code><span class="chip warn">Attention</span></li>
+ </ol>
+ <p class="ledger-note">Vermilion means blocked. Nothing else on this site uses it.</p>
+</section>
+
+<section class="blk wrap">
+ <div class="rcpt">
+  <div>
+   <div class="sec-hd" style="grid-template-columns:1fr;margin-bottom:0"><div><span class="lbl">02 / Proof</span><h2 class="rv">Every check leaves a receipt.</h2></div></div>
+   <p class="lead rv" style="margin-top:20px">A sha256 over exactly what was checked and what came back. With a signing key it’s also ed25519-signed, so a wallet or agent can prove it checked before it sent.</p>
+   <ul>
+    <li class="rv"><span class="lbl">What</span><span>Address, network, token, destination and amount, as you entered them.</span></li>
+    <li class="rv"><span class="lbl">Against</span><span>Every source asked, how long it took, and whether it answered.</span></li>
+    <li class="rv"><span class="lbl">Result</span><span>Each rule’s status, the verdict and the hash. Copy it as JSON from any result page.</span></li>
+   </ul>
+  </div>
+  <div class="slipwrap rv"><div class="slip" id="slip" aria-label="Example receipt"><span class="stamp">Recorded example</span><div id="slipbody"></div></div></div>
  </div>
 </section>
-<section class="agents" id="agents">
- <div><span class="sec-n">03 / ONE CALL</span><h2 class="h1" style="margin:12px 0 16px">Every check leaves a receipt.</h2><p class="lead">Each result carries a sha256 receipt over exactly what was checked. With a signing key it’s also ed25519-signed, so a wallet or agent can prove it checked before it sent.</p></div>
- <pre class="code"><span class="c">// before the send</span>
+
+<section class="blk wrap" id="agents">
+ <div class="sec-hd"><div><span class="lbl">03 / Four doors</span><h2 class="rv">One engine, wherever you send.</h2></div><p class="rv">The site, the CLI, the browser extension and the agent tool all run the same rules, so the answer never depends on where you asked.</p></div>
+ <div class="surfs">
+  <a class="surf rv" href="#check"><span class="lbl">Website · live</span><h3>Paste &amp; check</h3><p>This page. The rule engine runs in your browser against free public NEAR, Tron, Ethereum and Bitcoin APIs.</p><span class="go">Check a send <span class="ar">→</span></span></a>
+  <a class="surf rv" href="send.html"><span class="lbl">Send · live</span><h3>Check, then send</h3><p>Connect a NEAR wallet. Send unlocks only after the check: safe goes, attention needs your tick, blocked never sends.</p><span class="go">Open Send <span class="ar">→</span></span></a>
+  <a class="surf rv" href="extension.html"><span class="lbl">Extension · load unpacked</span><h3>In your wallet</h3><p>Checks the address you paste on NEAR wallet and exchange pages and holds Send if it’s wrong.</p><span class="go">See it work <span class="ar">→</span></span></a>
+  <a class="surf rv" href="agents.html"><span class="lbl">Agents · MCP</span><h3>For AI agents</h3><p>Agents that pay ask Gideon first and get a yes, or a no with the reason and a receipt.</p><span class="go">For agents <span class="ar">→</span></span></a>
+ </div>
+ <div class="onecall">
+  <div><span class="sec-n">From code</span><h3 class="h2" style="margin-top:12px">One call before the send.</h3><p class="small" style="margin-top:12px;font-size:15px">CLI exit codes: 0 safe, 1 look again, 2 blocked, so scripts can stop a send.</p></div>
+  <pre class="code rv"><span class="c">// before the send</span>
 <span class="k">import</span> { check } <span class="k">from</span> <span class="s">"@gideon/core"</span>
 <span class="k">import</span> { liveSources } <span class="k">from</span> <span class="s">"@gideon/sources"</span>
 
@@ -88,10 +123,9 @@
   destination: <span class="s">"exchange"</span>, exchange: <span class="s">"binance"</span>
 }, liveSources())
 <span class="c">// → verdict "BLOCKED", headline.code "TX_HASH_AS_ACCOUNT"</span>
-<span class="c">//   "This is a Tron transaction hash, not an account"</span>
 <span class="k">if</span> (r.verdict !== <span class="s">"SAFE"</span>) <span class="k">return</span> r.headline</pre>
+ </div>
 </section>
-<footer><span>GIDEON · NEAR pre-send checker · started 29 Oct 2026</span><span>no keys · no custody · read-only checks · MIT</span></footer>
 </main>
 <script type="module" src="/src/home.ts"></script>
 </body></html>
