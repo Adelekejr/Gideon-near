@@ -38,20 +38,20 @@
 <main class="wrap">
 <section class="ahero">
  <div>
-  <div class="kicker">Agent tool · preview</div>
+  <div class="kicker">Agent tool · MCP server</div>
   <h1 class="h-hero">Agents send fast. Gideon checks first.</h1>
-  <p class="lead">An AI agent that pays copies whatever address it’s given. With Gideon in the loop, the agent checks every send before it signs. If the answer is no, it gets the reason in plain words and what to ask for instead.</p>
+  <p class="lead">An AI agent that pays copies whatever address it’s given. With Gideon’s MCP server in the loop, the agent calls <span class="mono">gideon_check</span> before every send. BLOCKED means don’t send. ATTENTION means ask a human. The reason and the fix come back in plain words.</p>
   <div class="facts">
-   <div><span>Today</span><span><b class="mono" style="font-weight:500">check()</b> from <span class="mono">@gideon/core</span>, or the CLI with <span class="mono">--json</span></span></div>
+   <div><span>Today</span><span>MCP server <span class="mono">gideon-mcp</span> (stdio) with <span class="mono">gideon_check</span>, <span class="mono">gideon_explain</span>, <span class="mono">gideon_flags</span>. Also <span class="mono">check()</span> from <span class="mono">@gideon/core</span> and the CLI.</span></div>
    <div><span>Returns</span><span>SAFE, ATTENTION or BLOCKED, with a reason code, a fix and a sha256 receipt (ed25519-signed with a key)</span></div>
-   <div><span>Next</span><span>An MCP server in <span class="mono">packages/mcp</span> (scaffold only, not built yet)</span></div>
+   <div><span>Agent rule</span><span>SAFE → send · ATTENTION → ask a human · BLOCKED → do not send. The server tells the agent this when it connects, and every result has an <span class="mono">agent_action</span> field.</span></div>
    <div><span>Custody</span><span>None. Gideon never sees keys and can’t move funds.</span></div>
   </div>
  </div>
  <div class="term" id="term">
   <div class="tb"><i></i><i></i><i></i><span>agent · treasury-bot · NEAR testnet</span><span id="tbs"></span></div>
   <div class="body" id="tl"></div>
-  <div class="ft"><span id="tft">scripted chat · live Gideon results</span><button id="replay">↺ replay</button></div>
+  <div class="ft"><span id="tft">illustration: scripted chat · live Gideon results</span><button id="replay">↺ replay</button></div>
  </div>
 </section>
 
@@ -63,35 +63,44 @@
  </div>
 </section>
 
-<section style="margin-top:72px"><span class="sec-n">02 / USE IT NOW</span><h2 class="h1" style="margin-top:12px">From code or a shell.</h2>
+<section style="margin-top:72px"><span class="sec-n">02 / USE IT NOW</span><h2 class="h1" style="margin-top:12px">Plug it into your agent.</h2>
  <div class="codes">
-  <div><div class="cap"><span class="label">shell · works today</span><span class="label">exit 2 = blocked</span></div><div class="code"><span class="c"># from the repo root</span>
-npm install
-npm run gideon -- check \
-  89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944 \
-  --network mainnet --dest exchange --exchange binance --json
-
-<span class="c"># exit codes: 0 SAFE · 1 ATTENTION · 2 BLOCKED</span>
-<span class="c"># GIDEON_NETWORK=mainnet switches the default</span></div></div>
-  <div><div class="cap"><span class="label">result (trimmed)</span><span class="label">BLOCKED</span></div><div class="code" id="sample">{
+  <div><div class="cap"><span class="label">Claude Desktop · Cursor · any MCP host</span><span class="label">stdio</span></div><div class="code"><span class="c"># build once: npm install (from the repo root)</span>
+{
+  <span class="s">"mcpServers"</span>: {
+    <span class="s">"gideon"</span>: {
+      <span class="s">"command"</span>: <span class="s">"node"</span>,
+      <span class="s">"args"</span>: [<span class="s">"/path/to/gideon/packages/mcp/dist/index.js"</span>],
+      <span class="s">"env"</span>: { <span class="s">"GIDEON_NETWORK"</span>: <span class="s">"testnet"</span> }
+    }
+  }
+}
+<span class="c"># Claude Desktop: claude_desktop_config.json</span>
+<span class="c"># Cursor: .cursor/mcp.json or ~/.cursor/mcp.json</span></div></div>
+  <div><div class="cap"><span class="label">gideon_check result (trimmed)</span><span class="label">BLOCKED</span></div><div class="code" id="sample">{
   <span class="s">"verdict"</span>: <span class="k">"BLOCKED"</span>,
-  <span class="s">"headline"</span>: {
-    <span class="s">"code"</span>: <span class="s">"TX_HASH_AS_ACCOUNT"</span>,
-    <span class="s">"title"</span>: <span class="s">"This is a Tron transaction hash,
-              not an account"</span>,
-    <span class="s">"fix"</span>: [<span class="s">"Don't send. Nothing has left
-             your wallet."</span>, …]
-  },
+  <span class="s">"agent_action"</span>: <span class="k">"DO_NOT_SEND"</span>,
+  <span class="s">"headline"</span>: <span class="s">"This is a Tron transaction hash,
+               not an account. …"</span>,
+  <span class="s">"fix"</span>: [<span class="s">"Don't send. Nothing has left
+           your wallet."</span>, …],
+  <span class="s">"couldnt_check"</span>: [],
   <span class="s">"receipt"</span>: { <span class="s">"sha256"</span>: <span class="s">"…"</span> }
 }</div></div>
  </div>
+ <div class="codes" style="grid-template-columns:1fr">
+  <div><div class="cap"><span class="label">try it without an AI key</span><span class="label">exit 2 = stopped on BLOCKED</span></div><div class="code"><span class="c"># a scripted payments agent that asks Gideon over MCP before each payout</span>
+npm run demo:agent              <span class="c"># live testnet lookups (free public APIs)</span>
+npm run demo:agent -- --offline <span class="c"># recorded answers, no network</span>
+<span class="c"># it never signs: "sent" means "would send"</span></div></div>
+ </div>
  <table class="tools">
-  <tr><td>check_send(to, token, amount, network, destination?)</td><td>Planned MCP tool. Wraps <span class="mono">check()</span>: verdict, reason code, fix and receipt.</td></tr>
-  <tr><td>explain(result)</td><td>Plain-words explanation. Built-in text by default; a NEAR AI model can rephrase it if you add a key. It can never change the verdict.</td></tr>
-  <tr><td>verify_receipt(result)</td><td>Works today in the CLI: <span class="mono">gideon verify-receipt result.json</span>.</td></tr>
+  <tr><td>gideon_check(recipient, network?, amount?, token?, token_contract?, destination?, exchange?, sender?, address_book?)</td><td>Runs every Gideon rule. Returns verdict, <span class="mono">agent_action</span> (SEND / ASK_HUMAN / DO_NOT_SEND), reasons, fix steps, what couldn’t be checked, and a sha256 receipt (ed25519-signed if you set a key).</td></tr>
+  <tr><td>gideon_explain(result | same fields as check)</td><td>Plain-words explanation. Built-in text by default; a NEAR AI model rephrases it only if <span class="mono">NEARAI_API_KEY</span> is set. It never changes the verdict, and it refuses a result whose receipt doesn’t match.</td></tr>
+  <tr><td>gideon_flags(account, network?, registry?)</td><td>Community reports from the flag registry contract. With no registry set it says COULD_NOT_CHECK, never “no flags”.</td></tr>
  </table>
 </section>
-<footer><span>GIDEON · agents preview</span><span>no keys · no custody · nothing leaves until it’s right</span></footer>
+<footer><span>GIDEON · for agents</span><span>no keys · no custody · nothing leaves until it’s right</span></footer>
 </main>
 <script type="module" src="/src/agents.ts"></script>
 </body></html>
