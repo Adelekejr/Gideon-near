@@ -1,0 +1,43 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gideon · result</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+.verdict{margin-top:40px;border:1px solid var(--ink);border-radius:var(--r2);display:grid;grid-template-columns:1fr 300px;overflow:hidden;background:var(--surface)}
+.verdict .l{padding:32px 36px}
+.verdict .r{display:flex;align-items:center;justify-content:center;padding:24px;border-left:1px solid var(--ink)}
+.verdict .r{background:var(--night);position:relative}
+.verdict .r .gs{width:230px;height:auto;--arw:var(--paper)}
+.verdict .r .tag{position:absolute;left:14px;bottom:12px;font:11px var(--mono);letter-spacing:.1em;color:#8C8A82}
+.verdict.block .r .tag b{color:#FF8A63;font-weight:500}.verdict.safe .r .tag b{color:#6FD39A;font-weight:500}.verdict.warn .r .tag b{color:var(--warn);font-weight:500}
+.verdict.warn .gs{--wall:var(--warn)}
+.verdict .h1{margin:14px 0 10px;max-width:760px}
+.verdict .meta{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:18px}
+.grid{display:grid;grid-template-columns:1.25fr .75fr;gap:24px;margin-top:24px}
+.blk{padding:26px}
+.blk + .blk{margin-top:24px}
+.addrbox{border:1px dashed var(--line);padding:16px 18px;margin-top:12px;background:#fff;border-radius:var(--r1)}
+.addrbox .addr{font-size:17px}
+.addrbox .seg{background:var(--signal-soft);box-shadow:inset 0 -2px 0 var(--signal)}
+.anno{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.anno span{font-family:var(--mono);font-size:11.5px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--r1);background:var(--surface);color:var(--ink-2)}
+.anno span.bad{border-color:var(--signal);color:var(--signal-ink)}
+.why{font-size:17px;line-height:1.6;color:var(--ink-2);margin-top:12px;max-width:640px}
+.evidence{margin-top:14px;font-family:var(--mono);font-size:12.5px;padding:12px 14px;background:var(--night);color:#E9E6DE;border-radius:var(--r1)}
+.evidence b{color:#FF8A63;font-weight:500}
+ol.fix{list-style:none;margin-top:14px;counter-reset:f}
+ol.fix li{counter-increment:f;display:grid;grid-template-columns:40px 1fr;gap:8px;padding:14px 0;border-top:1px solid var(--line-soft);font-size:16px}
+ol.fix li:before{content:counter(f,decimal-leading-zero);font-family:var(--mono);font-size:13px;color:var(--signal-ink);padding-top:2px}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+td{padding:11px 0;border-top:1px solid var(--line-soft);vertical-align:top;font-size:13.5px}
+td:first-child{width:118px;font-weight:600}
+td:last-child{width:90px;text-align:right}
+td .small{display:block;font-family:var(--mono);font-size:11.5px;line-height:1.5;color:var(--ink-2)}
+.st{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.08em;padding:3px 6px;border-radius:2px}
+.st.block{background:var(--signal);color:#fff}.st.warn{background:var(--warn-soft);color:var(--warn-ink)}.st.safe{background:var(--safe-soft);color:var(--safe)}.st.skip{color:var(--muted);border:1px solid var(--line)}
+.actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.cmp{display:grid;grid-template-columns:70px 1fr;gap:6px 12px;align-items:baseline;margin-top:12px}
+.cmp .addr{font-size:14.5px}
+</style></head><body>
+<div id="nav" data-on="Checker"></div>
+<main class="wrap" id="out"><div class="loading" id="loading"></div></main>
+<script type="module" src="/src/check.ts"></script>
+</body></html>
