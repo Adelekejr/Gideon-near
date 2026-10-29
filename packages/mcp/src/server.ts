@@ -59,6 +59,12 @@ const checkOutput = z.object({
   recipient: z.string(),
   network: z.enum(["testnet", "mainnet"]),
   headline: z.string().nullable(),
+  account: z.object({
+    exists: z.boolean().nullable().describe("true = found on chain, false = not found, null = couldn't check"),
+    summary: z.string(),
+    balance_near: z.string().optional(),
+    created: z.string().optional(),
+  }).nullable().describe("Live account lookup on the selected network. Null when the recipient isn't a NEAR account."),
   reasons: z.array(reason),
   fix: z.array(z.string()),
   couldnt_check: z.array(z.string()),
@@ -75,6 +81,11 @@ export function summarize(r: CheckResult) {
     recipient: r.input.to,
     network: r.input.network,
     headline: r.headline ? `${r.headline.title}. ${r.headline.detail}` : null,
+    account: r.account
+      ? { exists: r.account.exists, summary: r.account.summary,
+          ...(r.account.balanceNear !== undefined ? { balance_near: r.account.balanceNear } : {}),
+          ...(r.account.createdAt ? { created: r.account.createdAt } : {}) }
+      : null,
     reasons: shown.map((f) => ({ rule: f.rule, status: f.status, code: f.code, title: f.title, detail: f.detail })),
     fix: r.headline?.fix ?? [],
     couldnt_check: r.findings.filter((f) => f.status === "COULD_NOT_CHECK").map((f) => `${f.rule}: ${f.detail}`),
@@ -85,6 +96,7 @@ export function summarize(r: CheckResult) {
 
 function asText(s: ReturnType<typeof summarize>): string {
   const lines = [`${s.verdict} → ${s.agent_action}`, s.agent_instruction, `Recipient: ${s.recipient} (${s.network})`];
+  if (s.account) lines.push(`Account: ${s.account.summary}`);
   if (s.headline) lines.push(`Why: ${s.headline}`);
   for (const x of s.reasons) lines.push(`- ${x.rule} ${x.status}: ${x.title}`);
   s.fix.forEach((f, i) => lines.push(`Fix ${i + 1}: ${f}`));

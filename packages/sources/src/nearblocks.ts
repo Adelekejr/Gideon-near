@@ -26,6 +26,15 @@ export class NearBlocks {
     }));
   }
 
+  /** Creation time (ms since epoch) of an account, or null when NearBlocks doesn't know it. Info only. */
+  async accountCreated(network: Network, accountId: string): Promise<number | null> {
+    const { body } = await this.get<{ account?: { created?: { block_timestamp?: number | string | null } }[] }>(network, `/v1/account/${encodeURIComponent(accountId)}`);
+    const ns = body?.account?.[0]?.created?.block_timestamp;
+    if (ns == null) return null;
+    const ms = Math.round(Number(ns) / 1e6);
+    return Number.isFinite(ms) && ms > 0 ? ms : null;
+  }
+
   async nearTx(network: Network, hash: string): Promise<NearTx | null> {
     const { body } = await this.get<{ txns?: any[] }>(network, `/v1/txns/${encodeURIComponent(hash)}`);
     const t = body?.txns?.[0];

@@ -2,6 +2,7 @@ import { check, type CheckResult } from "@gideon/core";
 import { liveSources } from "@gideon/sources";
 import { load, type LastCheck } from "./lib/settings.js";
 import type { CheckRequest, CheckResponse } from "./lib/messages.js";
+import { titleOf } from "./lib/view.js";
 
 /**
  * The engine runs here, in the extension's service worker, so lookups go from the
@@ -18,7 +19,7 @@ export async function runRequest(req: CheckRequest): Promise<CheckResult> {
     to: result.input.to,
     verdict: result.verdict,
     couldNotCheck: result.headline?.status === "COULD_NOT_CHECK",
-    title: result.headline?.title ?? "Every check that applies passed",
+    title: titleOf(result),
     at: result.checkedAt,
   };
   await chrome.storage.local.set({

@@ -17,10 +17,12 @@ export async function r07Lookalike(ctx: Ctx): Promise<RuleResult> {
   const saved = book.find((b) => b.account === to);
   if (saved) return f("R7", "PASS", "SAVED_CONTACT", `Saved contact${saved.label ? `: ${saved.label}` : ""}`, "Exact match with your address book.");
 
+  /** The live lookup is shared with R3, so this costs no extra call. */
+  const missing = async () => ((await ctx.accountFacts())?.exists === false ? ` And ${to} doesn't exist on NEAR ${input.network}, so anything sent there would fail or be lost.` : "");
   for (const b of book) {
     if (lookalike(to, b.account)) {
       return f("R7", "BLOCKED", "LOOKALIKE_OF_CONTACT", `Looks like ${b.label ?? b.account}, but it isn't`,
-        `You pasted ${to}. Your saved contact is ${b.account}. They differ by a few characters, which is how address-poisoning and typo scams work.`,
+        `You pasted ${to}. Your saved contact is ${b.account}. They differ by a few characters, which is how address-poisoning and typo scams work.${await missing()}`,
         { fix: [`Send to your saved contact ${b.account} instead.`, "If the receiver really changed accounts, confirm it with them another way."],
           evidence: [{ label: "You pasted", value: to }, { label: "Saved contact", value: b.account }] });
     }
@@ -52,7 +54,7 @@ export async function r07Lookalike(ctx: Ctx): Promise<RuleResult> {
           evidence: [...ev, { label: "Dust transfer", value: short(dust.hash), url: explorerTxUrl(input.network, dust.hash) }] });
     }
     return f("R7", "ATTENTION", "LOOKALIKE_OF_HISTORY", `Looks like ${cp.length <= 40 ? cp : short(cp, 12, 6)} from your history`,
-      `${to} is very close to ${cp}, an account you've transacted with. Make sure you didn't copy the wrong one.`,
+      `${to} is very close to ${cp}, an account you've transacted with. Make sure you didn't copy the wrong one.${await missing()}`,
       { fix: ["Compare every character, or send from your address book."], evidence: ev });
   }
   return f("R7", "PASS", "NO_LOOKALIKE", "No lookalike found",

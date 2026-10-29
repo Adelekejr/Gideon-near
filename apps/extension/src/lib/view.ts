@@ -23,12 +23,21 @@ export function statusLabel(r: CheckResult, held = false): string {
 
 export function titleOf(r: CheckResult): string {
   if (r.headline) return r.headline.title;
-  return "Every check that applies passed on live data";
+  return r.account?.exists ? "Account exists. Nothing wrong found." : "Every check that applies passed on live data";
 }
 
 export function detailOf(r: CheckResult): string {
   if (r.headline) return r.headline.detail;
-  return "Gideon read the account from public chain data and found nothing wrong.";
+  return r.account?.exists ? `${r.account.summary} No other check found a problem.` : "Gideon read the account from public chain data and found nothing wrong.";
+}
+
+/** One line of live account facts, shown on every card: exists or not, created, balance. */
+export function accountLine(r: CheckResult): string {
+  const a = r.account;
+  if (!a) return "";
+  const v = a.exists === true ? `exists · ${a.createdAt ? `created ${a.createdAt.slice(0, 10)} · ` : ""}${a.balanceNear} NEAR`
+    : a.exists === false ? `not found on ${a.network}` : "couldn't check";
+  return `<div class="ga"><b>account →</b> ${esc(v)}</div>`;
 }
 
 export const LOGO =
@@ -80,6 +89,7 @@ export function card(r: CheckResult, o: CardOptions = {}): string {
 <div class="gt">${esc(titleOf(r))}</div>
 <div class="gr">${esc(detailOf(r))}</div>
 ${h ? findingLine(h) : ""}
+${accountLine(r)}
 ${fix ? `<div class="gf"><b>fix →</b> ${esc(fix)}</div>` : ""}
 <details class="more"><summary>Details · ${r.findings.filter((f) => f.status !== "SKIPPED").length} checks · ${esc(r.input.network)} · ${r.ms} ms</summary>${findingsList(r)}</details>
 ${o.actions ? `<div class="ga">${o.actions}</div>` : ""}

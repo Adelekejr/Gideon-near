@@ -5,6 +5,9 @@ import { makeReceipt } from "./receipt.js";
 import { HEADLINE_ORDER, RULES } from "./rules/index.js";
 import type { CheckInput, CheckOptions, CheckResult, Finding, Sources, Verdict } from "./types.js";
 
+/** Findings that prove, from a live lookup, that the recipient account exists. SAFE needs one. */
+const EXISTS_CODES = new Set(["ACCOUNT_EXISTS", "ETH_IMPLICIT_EXISTS"]);
+
 export const ENGINE_VERSION = "gideon-core/0.1.0";
 
 /** Any BLOCKED → BLOCKED. Otherwise anything ATTENTION or COULD_NOT_CHECK → ATTENTION. Only then SAFE. */
@@ -51,6 +54,12 @@ export async function check(rawInput: CheckInput, sources: Sources, opts: CheckO
     }
   }));
   const findings = settled.flat();
+  const account = await ctx.accountFacts().catch(() => null);
+  // Last line of defence: nothing is SAFE unless a live lookup found the account.
+  if (verdictOf(findings) === "SAFE" && !(account?.exists === true && findings.some((x) => x.status === "PASS" && EXISTS_CODES.has(x.code)))) {
+    findings.push({ rule: "R3", code: "EXISTENCE_UNCONFIRMED", status: "COULD_NOT_CHECK", title: "Couldn't confirm the account exists",
+      detail: "Gideon only calls a send safe after a live lookup finds the receiving account. That lookup didn't confirm it, so check the address another way." });
+  }
   const verdict = verdictOf(findings);
   const base = {
     engine: ENGINE_VERSION,
@@ -59,6 +68,7 @@ export async function check(rawInput: CheckInput, sources: Sources, opts: CheckO
     verdict,
     headline: headlineOf(findings, verdict),
     findings,
+    account,
     sources: ctx.calls.sort((a, b) => a.source.localeCompare(b.source)),
     checkedAt: new Date(now).toISOString(),
     ms: Date.now() - t0,

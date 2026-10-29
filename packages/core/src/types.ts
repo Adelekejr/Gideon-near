@@ -98,8 +98,28 @@ export interface CheckResult {
   sources: SourceCall[];
   checkedAt: string;
   ms: number;
+  /**
+   * What Gideon read about the recipient account itself (null when the input isn't a NEAR account).
+   * `exists: null` means the lookup failed, which never counts as "exists".
+   */
+  account: AccountFacts | null;
   /** R12: sha256 of the canonical result, optionally signed with ed25519. */
   receipt: Receipt;
+}
+
+export interface AccountFacts {
+  id: string;
+  network: Network;
+  /** true = found by a live view_account call, false = not found, null = couldn't check. */
+  exists: boolean | null;
+  /** Native balance in NEAR, when it exists. */
+  balanceNear?: string;
+  /** True when the account runs contract code. */
+  contract?: boolean;
+  /** When the account was created (ISO date), if a free indexer answered. Info only. */
+  createdAt?: string;
+  /** One plain sentence for the UI, e.g. "Account exists on NEAR testnet. Created 30 Apr 2022. Holds 180.65 NEAR." */
+  summary: string;
 }
 
 export interface Receipt {
@@ -115,6 +135,8 @@ export interface SourceCall {
   ok: boolean;
   ms: number;
   error?: string;
+  /** Info-only lookup (e.g. creation date). Its failure never affects the verdict. */
+  optional?: boolean;
 }
 
 /* ---------- facts the engine asks the data sources for ---------- */
@@ -196,6 +218,11 @@ export interface Sources {
   nearTx(network: Network, hash: string): Promise<NearTx | null>;
   /** `get_flags` view call on the registry. null = the registry account or contract doesn't exist. */
   communityFlags(network: Network, registry: string, accountId: string): Promise<CommunityFlag[] | null>;
+  /**
+   * Optional, info only: when the account was created (ms since epoch), from an indexer.
+   * null = unknown. Never used to decide a verdict; existence always comes from viewAccount.
+   */
+  accountCreated?(network: Network, accountId: string): Promise<number | null>;
 }
 
 /** One report in the community flag registry (contracts/flag-registry). */

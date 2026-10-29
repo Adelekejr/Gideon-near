@@ -40,6 +40,7 @@ export const STYLE = `
 .gt{font-weight:800;font-stretch:108%;font-size:16px;letter-spacing:-.2px;line-height:1.2}
 .gr{font-size:13px;color:var(--n-ink-2);margin-top:4px;line-height:1.45}
 .gf{font:12px var(--mono);margin-top:10px;padding-top:10px;border-top:1px dashed var(--n-line);color:var(--n-ink);overflow-wrap:anywhere}
+.ga{font:11.5px var(--mono);margin-top:8px;color:var(--n-muted);overflow-wrap:anywhere}.ga b{font-weight:600}
 .t-block .gf b{color:var(--signal-ink)}.t-warn .gf b{color:var(--amber)}.t-safe .gf b{color:var(--safe)}
 .more{margin-top:10px}
 .more summary{cursor:pointer;font:11.5px var(--mono);color:var(--n-muted)}

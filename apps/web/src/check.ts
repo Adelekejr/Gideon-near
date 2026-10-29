@@ -45,8 +45,10 @@ async function render(r: CheckResult) {
   const cnc = h?.status === "COULD_NOT_CHECK";
   const chip = { block: "BLOCKED", warn: cnc ? "COULDN’T CHECK" : "LOOK AGAIN", safe: "SAFE TO SEND" }[v];
   const tag = { block: "BOUNCED", warn: cnc ? "NOT VERIFIED" : "HELD FOR REVIEW", safe: "PASSED" }[v];
-  const title = h ? h.title : "Looks right. Every check that applies passed on live data.";
-  const why = h ? h.detail : "Gideon read the account, token and destination from public chain data and found nothing wrong.";
+  const title = h ? h.title : r.account?.exists ? "Looks right. The account exists and nothing is wrong." : "Looks right. Every check that applies passed on live data.";
+  const why = h ? h.detail : r.account?.exists ? `${r.account.summary} Every other check that applies passed on live data.` : "Gideon read the account, token and destination from public chain data and found nothing wrong.";
+  const a = r.account;
+  const acct = !a ? "" : `<p class="small acct"><b>Account:</b> ${a.exists === true ? `exists on NEAR ${esc(a.network)}${a.createdAt ? ` · created ${esc(a.createdAt.slice(0, 10))}` : ""} · ${esc(a.balanceNear ?? "?")} NEAR${a.contract ? " · runs a contract" : ""}` : a.exists === false ? `not found on NEAR ${esc(a.network)}` : "couldn’t check whether it exists"}</p>`;
   const fix = h?.fix ?? [];
   const asset = r.input.asset;
   const ex = await explain(r);
@@ -64,7 +66,7 @@ async function render(r: CheckResult) {
 
   const shown = r.findings.filter((f) => f.status !== "SKIPPED");
   const skippedN = r.findings.length - shown.length;
-  const failed = r.sources.filter((s) => !s.ok);
+  const failed = r.sources.filter((s) => !s.ok && !s.optional);
 
   out.innerHTML = `
 ${caseInfo ? `<p class="notice" style="margin-top:28px">Example: ${esc(caseInfo.title)}. ${replay ? "Answered from recorded data (demo/fixtures.json)." : "Checked live just now."}</p>` : ""}
@@ -74,7 +76,7 @@ ${caseInfo ? `<p class="notice" style="margin-top:28px">Example: ${esc(caseInfo.
  <div class="r">${stopper(v === "safe" ? "safe" : "block")}<span class="tag">GIDEON · <b>${tag}</b></span></div></section>
 <div class="grid"><div>
  <div class="card blk"><span class="sec-n">01 / WHAT YOU PASTED</span>${addrBlock}${anno}</div>
- <div class="card blk"><span class="sec-n">02 / ${v === "safe" ? "WHY IT’S FINE" : v === "block" ? "WHY IT’S STOPPED" : "WHY TO LOOK AGAIN"}</span><p class="why">${esc(why)}</p>${h ? evidenceHTML(h) : ""}
+ <div class="card blk"><span class="sec-n">02 / ${v === "safe" ? "WHY IT’S FINE" : v === "block" ? "WHY IT’S STOPPED" : "WHY TO LOOK AGAIN"}</span><p class="why">${esc(why)}</p>${acct}${h ? evidenceHTML(h) : ""}
   ${ex.by !== "built-in" ? `<p class="small" style="margin-top:12px">Plain-words version (${esc(ex.by)}): ${esc(ex.text)}</p>` : ""}</div>
  ${fix.length ? `<div class="card blk"><span class="sec-n">03 / HOW TO FIX IT</span><ol class="fix">${fix.map((f) => `<li>${esc(f)}</li>`).join("")}</ol>
   <div class="actions"><a class="btn" href="index.html">Check another address <span class="wall"></span></a><button class="btn ghost" id="copyfix">Copy fix steps</button></div></div>`
@@ -85,7 +87,7 @@ ${caseInfo ? `<p class="notice" style="margin-top:28px">Example: ${esc(caseInfo.
   <table>${shown.map((f) => `<tr><td>${esc(RULE_NAMES[f.rule] ?? f.rule)}</td><td><span class="small">${esc(f.title)}</span></td><td><span class="st ${ST[f.status][0]}">${ST[f.status][1]}</span></td></tr>`).join("")}</table>
   <details class="more"><summary>Details for every rule</summary>${r.findings.map((f) => `<p class="small" style="margin-top:10px"><b class="mono">${esc(f.rule)} ${esc(f.code)}</b> · ${esc(f.detail)}</p>${evidenceHTML(f)}`).join("")}</details></div>
  <div class="card blk"><span class="sec-n">SOURCES ASKED</span>
-  <table class="srcs">${r.sources.map((s) => `<tr><td>${esc(s.source.length > 48 ? s.source.slice(0, 34) + "…" + s.source.slice(-8) : s.source)}</td><td><span class="small">${s.ok ? `${s.ms} ms` : esc(s.error ?? "failed")}</span></td><td><span class="st ${s.ok ? "safe" : "cnc"}">${s.ok ? "OK" : "FAILED"}</span></td></tr>`).join("") || `<tr><td colspan="3"><span class="small">None needed: the format alone decided it.</span></td></tr>`}</table>
+  <table class="srcs">${r.sources.map((s) => `<tr><td>${esc(s.source.length > 48 ? s.source.slice(0, 34) + "…" + s.source.slice(-8) : s.source)}</td><td><span class="small">${s.ok ? `${s.ms} ms` : esc(s.error ?? "failed")}</span></td><td><span class="st ${s.ok ? "safe" : "cnc"}">${s.ok ? "OK" : s.optional ? "SKIPPED" : "FAILED"}</span></td></tr>`).join("") || `<tr><td colspan="3"><span class="small">None needed: the format alone decided it.</span></td></tr>`}</table>
   ${failed.length ? `<p class="small" style="margin-top:10px">A failed source never counts as safe. Those rules show “couldn’t check”.</p>` : ""}</div>
  <div class="card blk"><span class="sec-n">RECEIPT</span><div class="receipt">sha256 ${esc(r.receipt.sha256)}<br><span class="small mono">verdict=${esc(r.verdict)} · ${esc(r.checkedAt)} · ${r.receipt.signature ? "ed25519 signed" : "unsigned (signing needs a server key; the CLI can sign)"}</span></div>
   <div class="actions"><button class="btn sm ghost" id="copyjson">Copy result JSON</button></div></div>

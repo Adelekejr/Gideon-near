@@ -4,7 +4,9 @@ import type { Sources } from "@gideon/core";
 export type Recorded = { value: unknown } | { error: string };
 export type Recording = Record<string, Recorded>;
 
-const METHODS = ["viewAccount", "tronTx", "ethTx", "btcTx", "ftMetadata", "storageRegistered", "oneClickStatus", "recentTransfers", "nearTx", "communityFlags"] as const;
+const METHODS = ["viewAccount", "tronTx", "ethTx", "btcTx", "ftMetadata", "storageRegistered", "oneClickStatus", "recentTransfers", "nearTx", "communityFlags", "accountCreated"] as const;
+/** Info-only methods: a missing recording means "unknown" (null), not a failure. */
+const INFO_ONLY = new Set<string>(["accountCreated"]);
 
 export const recordKey = (method: string, args: unknown[]) => `${method}(${args.map((a) => JSON.stringify(a)).join(",")})`;
 
@@ -12,6 +14,7 @@ export const recordKey = (method: string, args: unknown[]) => `${method}(${args.
 export function recordingSources(inner: Sources, into: Recording, scrub: (method: string, value: unknown) => unknown = (_m, v) => v): Sources {
   const out = {} as Record<string, unknown>;
   for (const m of METHODS) {
+    if (typeof inner[m] !== "function") continue;
     out[m] = async (...args: unknown[]) => {
       const k = recordKey(m, args);
       try {
@@ -33,7 +36,10 @@ export function replaySources(rec: Recording): Sources {
   for (const m of METHODS) {
     out[m] = async (...args: unknown[]) => {
       const r = rec[recordKey(m, args)];
-      if (!r) throw new Error(`offline: no recorded answer for ${m}`);
+      if (!r) {
+        if (INFO_ONLY.has(m)) return null;
+        throw new Error(`offline: no recorded answer for ${m}`);
+      }
       if ("error" in r) throw new Error(r.error);
       return r.value;
     };

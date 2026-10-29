@@ -7,4 +7,4 @@ export { exchangesFor, findExchange, tokensFor, tokenByContract, tokenBySymbol, 
 export { canonicalJson, resultDigest, makeReceipt, verifyReceipt, newReceiptKey, type ReceiptCheck } from "./receipt.js";
 export { builtInExplainer, explain, type Explainer } from "./adapters.js";
 export { RULES } from "./rules/index.js";
-export { yoctoToNear } from "./context.js";
+export { yoctoToNear, fmtDate } from "./context.js";

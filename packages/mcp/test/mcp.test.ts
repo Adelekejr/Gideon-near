@@ -57,6 +57,17 @@ describe("gideon MCP server", () => {
     const r = await call(c, "gideon_check", { recipient: "kemi-rent.testnet", network: "testnet", amount: "1", destination: "wallet" });
     expect(r.structuredContent.verdict).toBe("SAFE");
     expect(r.structuredContent.agent_action).toBe("SEND");
+    expect(r.structuredContent.account.exists).toBe(true);
+    expect(r.structuredContent.account.summary).toMatch(/^Account exists on NEAR testnet/);
+    expect(r.content[0].text).toMatch(/Account: Account exists on NEAR testnet/);
+  });
+
+  it("an account that doesn't exist → BLOCKED with account.exists false", async () => {
+    const c = await connect({ sources: sources({ viewAccount: async () => null }) });
+    const r = await call(c, "gideon_check", { recipient: "adelekejr-nope.testnet", network: "testnet", amount: "1" });
+    expect(r.structuredContent.verdict).toBe("BLOCKED");
+    expect(r.structuredContent.account.exists).toBe(false);
+    expect(r.structuredContent.headline).toMatch(/doesn't exist on NEAR testnet/);
   });
 
   it("a failed lookup is ATTENTION → ASK_HUMAN, never SAFE", async () => {
@@ -65,6 +76,7 @@ describe("gideon MCP server", () => {
     expect(r.structuredContent.verdict).toBe("ATTENTION");
     expect(r.structuredContent.agent_action).toBe("ASK_HUMAN");
     expect(r.structuredContent.couldnt_check.length).toBeGreaterThan(0);
+    expect(r.structuredContent.account.exists).toBeNull();
   });
 
   it("network defaults to GIDEON_NETWORK", async () => {
