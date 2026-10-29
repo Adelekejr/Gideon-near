@@ -1,5 +1,6 @@
 import { classify } from "./classify.js";
 import { makeCtx } from "./context.js";
+import { NETWORKS } from "./networks.js";
 import { makeReceipt } from "./receipt.js";
 import { HEADLINE_ORDER, RULES } from "./rules/index.js";
 import type { CheckInput, CheckOptions, CheckResult, Finding, Sources, Verdict } from "./types.js";
@@ -36,7 +37,8 @@ export async function check(rawInput: CheckInput, sources: Sources, opts: CheckO
     destination: rawInput.destination ?? "unknown",
   };
   const c = classify(input.to);
-  const ctx = makeCtx(input, c, sources, now);
+  const registry = opts.flagRegistry !== undefined ? opts.flagRegistry || null : NETWORKS[input.network]?.flagRegistry ?? null;
+  const ctx = makeCtx(input, c, sources, now, registry);
 
   const settled = await Promise.all(RULES.map(async (r) => {
     try {

@@ -1,4 +1,4 @@
-import type { AccountInfo, FtMetadata, Network } from "@gideon/core";
+import type { AccountInfo, CommunityFlag, FtMetadata, Network } from "@gideon/core";
 import { NETWORKS } from "@gideon/core";
 import { json, request, SourceError, type HttpOptions } from "./http.js";
 
@@ -72,5 +72,16 @@ export class NearRpc {
     const r = await this.viewFunction<unknown>(network, contract, "storage_balance_of", { account_id: accountId });
     if (!r.ok) throw new SourceError(`${contract} has no storage_balance_of`);
     return r.value != null;
+  }
+
+  /** R10: `get_flags` on the community flag registry. null = registry account or contract missing. */
+  async communityFlags(network: Network, registry: string, accountId: string): Promise<CommunityFlag[] | null> {
+    const r = await this.viewFunction<unknown>(network, registry, "get_flags", { account_id: accountId });
+    if (!r.ok) return null;
+    if (!Array.isArray(r.value)) throw new SourceError(`${registry} get_flags returned an unexpected answer`);
+    return r.value.map((x: { reporter?: unknown; reason?: unknown; at_ms?: unknown }) => {
+      if (typeof x?.reporter !== "string" || typeof x?.reason !== "string") throw new SourceError(`${registry} get_flags returned an unexpected answer`);
+      return { reporter: x.reporter, reason: x.reason, at_ms: Number(x.at_ms ?? 0) };
+    });
   }
 }

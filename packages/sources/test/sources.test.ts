@@ -52,6 +52,23 @@ describe("NEAR RPC", () => {
   });
 });
 
+describe("Community flag registry (R10)", () => {
+  it("get_flags → flags; missing account or contract → null; junk → throws", async () => {
+    const rpc = (answer: unknown) => new NearRpc({ fetch: fetchOf((_u, i) => {
+      const p = JSON.parse(String(i.body)).params;
+      expect([p.method_name, JSON.parse(atob(p.args_base64))]).toEqual(["get_flags", { account_id: "scam.testnet" }]);
+      return J(answer);
+    }) });
+    const flag = { reporter: "alice.testnet", reason: "dust", at_ms: 1 };
+    expect(await rpc({ result: { result: bytes([flag]) } }).communityFlags("testnet", "flags.testnet", "scam.testnet")).toEqual([flag]);
+    expect(await rpc({ result: { result: bytes([]) } }).communityFlags("testnet", "flags.testnet", "scam.testnet")).toEqual([]);
+    expect(await rpc({ error: { cause: { name: "UNKNOWN_ACCOUNT" } } }).communityFlags("testnet", "flags.testnet", "scam.testnet")).toBeNull();
+    expect(await rpc({ result: { error: "wasm execution failed with error: CompilationError(CodeDoesNotExist { account_id: \"flags.testnet\" })" } })
+      .communityFlags("testnet", "flags.testnet", "scam.testnet")).toBeNull();
+    await expect(rpc({ result: { result: bytes({ nope: 1 }) } }).communityFlags("testnet", "flags.testnet", "scam.testnet")).rejects.toThrow(/unexpected/);
+  });
+});
+
 describe("other chains", () => {
   const H = "89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944";
   it("TronGrid: tx found / {} = not found", async () => {

@@ -11,7 +11,7 @@ const down = async (): Promise<never> => { throw new Error("source down"); };
 export function fake(over: Partial<Sources> = {}): Sources {
   return {
     viewAccount: down, tronTx: down, ethTx: down, btcTx: down, ftMetadata: down,
-    storageRegistered: down, oneClickStatus: down, recentTransfers: down, nearTx: down,
+    storageRegistered: down, oneClickStatus: down, recentTransfers: down, nearTx: down, communityFlags: down,
     ...over,
   };
 }
@@ -21,7 +21,7 @@ export function empty(over: Partial<Sources> = {}): Sources {
   return fake({
     viewAccount: async () => null, tronTx: async () => null, ethTx: async () => null, btcTx: async () => null,
     ftMetadata: async () => null, storageRegistered: async () => false, oneClickStatus: async () => null,
-    recentTransfers: async () => [], nearTx: async () => null, ...over,
+    recentTransfers: async () => [], nearTx: async () => null, communityFlags: async () => [], ...over,
   });
 }
 

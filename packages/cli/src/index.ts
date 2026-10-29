@@ -16,6 +16,7 @@ const HELP = `gideon — check a NEAR send before you make it
     --from <account>            your account (for lookalike history)
     --book <file.json>          address book: [{"account":"x.testnet","label":"Ada"}]
     --copied <text>             what you copied (clipboard check)
+    --registry <contract>       community flag registry for R10 (or GIDEON_FLAG_REGISTRY)
     --json                      print the full result JSON
   gideon keygen                 new receipt signing key (set GIDEON_RECEIPT_KEY)
   gideon verify-receipt <result.json>
@@ -43,7 +44,7 @@ async function main(argv: string[]): Promise<number> {
     options: {
       network: { type: "string" }, asset: { type: "string" }, contract: { type: "string" }, amount: { type: "string" },
       dest: { type: "string" }, exchange: { type: "string" }, from: { type: "string" }, book: { type: "string" },
-      copied: { type: "string" }, json: { type: "boolean" },
+      copied: { type: "string" }, registry: { type: "string" }, json: { type: "boolean" },
     },
   });
   const to = positionals[0];
@@ -59,7 +60,11 @@ async function main(argv: string[]): Promise<number> {
     addressBook: values.book ? (JSON.parse(readFileSync(values.book, "utf8")) as Contact[]) : undefined,
     clipboard: values.copied ? { copied: values.copied } : undefined,
   };
-  const r = await check(input, liveSources(sourcesOptionsFromEnv(process.env)), { receiptKey: process.env.GIDEON_RECEIPT_KEY || undefined });
+  const flagRegistry = values.registry ?? process.env.GIDEON_FLAG_REGISTRY;
+  const r = await check(input, liveSources(sourcesOptionsFromEnv(process.env)), {
+    receiptKey: process.env.GIDEON_RECEIPT_KEY || undefined,
+    ...(flagRegistry !== undefined ? { flagRegistry } : {}),
+  });
   if (values.json) console.log(JSON.stringify(r, null, 2));
   else await print(r);
   return r.verdict === "SAFE" ? 0 : r.verdict === "ATTENTION" ? 1 : 2;

@@ -47,6 +47,8 @@ export interface CheckOptions {
   now?: number;
   /** ed25519 secret key (64 hex chars). When set, the receipt is signed (R12). */
   receiptKey?: string;
+  /** Community flag registry contract for R10. Overrides the network default; "" turns R10 off. */
+  flagRegistry?: string;
 }
 
 export interface Evidence {
@@ -192,4 +194,13 @@ export interface Sources {
   oneClickStatus(depositAddress: string): Promise<OneClickStatus | null>;
   recentTransfers(network: Network, accountId: string): Promise<Transfer[]>;
   nearTx(network: Network, hash: string): Promise<NearTx | null>;
+  /** `get_flags` view call on the registry. null = the registry account or contract doesn't exist. */
+  communityFlags(network: Network, registry: string, accountId: string): Promise<CommunityFlag[] | null>;
+}
+
+/** One report in the community flag registry (contracts/flag-registry). */
+export interface CommunityFlag {
+  reporter: string;
+  reason: string;
+  at_ms: number;
 }

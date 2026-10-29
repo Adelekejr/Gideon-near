@@ -10,9 +10,11 @@ export interface Ctx {
   calls: SourceCall[];
   /** Clock (ms since epoch) for deadline checks. */
   now: number;
+  /** Flag registry contract for R10, or null when none is configured. */
+  registry: string | null;
 }
 
-export function makeCtx(input: Ctx["input"], c: Classification, sources: Sources, now = Date.now()): Ctx {
+export function makeCtx(input: Ctx["input"], c: Classification, sources: Sources, now = Date.now(), registry: string | null = null): Ctx {
   const memo = new Map<string, Promise<Settled<unknown>>>();
   const calls: SourceCall[] = [];
   return {
@@ -20,6 +22,7 @@ export function makeCtx(input: Ctx["input"], c: Classification, sources: Sources
     c,
     calls,
     now,
+    registry,
     ask<T>(source: string, key: string, fn: (s: Sources) => Promise<T>) {
       const k = `${source}:${key}`;
       if (!memo.has(k)) {

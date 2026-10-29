@@ -16,6 +16,8 @@ export interface NetworkConfig {
   explorer: string;
   /** NearBlocks API base (free tier, about 6 calls per minute). */
   nearblocksApi: string;
+  /** Community flag registry (contracts/flag-registry) read by R10. null until it is deployed. */
+  flagRegistry: string | null;
 }
 
 export const NETWORKS: Record<Network, NetworkConfig> = {
@@ -26,6 +28,7 @@ export const NETWORKS: Record<Network, NetworkConfig> = {
     rpcUrls: ["https://rpc.testnet.fastnear.com", "https://test.rpc.fastnear.com"],
     explorer: "https://testnet.nearblocks.io",
     nearblocksApi: "https://api-testnet.nearblocks.io",
+    flagRegistry: null,
   },
   mainnet: {
     id: "mainnet",
@@ -34,6 +37,7 @@ export const NETWORKS: Record<Network, NetworkConfig> = {
     rpcUrls: ["https://rpc.mainnet.fastnear.com", "https://free.rpc.fastnear.com"],
     explorer: "https://nearblocks.io",
     nearblocksApi: "https://api.nearblocks.io",
+    flagRegistry: null,
   },
 };
 

@@ -33,6 +33,7 @@ export function liveSources(o: LiveSourcesOptions = {}): Sources {
     oneClickStatus: (d) => oc.status(d),
     recentTransfers: (n, a) => nb.recentTransfers(n, a),
     nearTx: (n, h) => nb.nearTx(n, h),
+    communityFlags: (n, reg, a) => rpc.communityFlags(n, reg, a),
   };
 }
 
