@@ -1,0 +1,71 @@
+{
+  "_about": "Exchange registry for R8, one list per network. R8 never returns BLOCKED from this data alone: exchanges change their lists. Each entry says where its claim comes from, when it was checked, and whether a human has confirmed it.",
+  "_checked": "2026-10-29",
+  "mainnet": [
+    {
+      "id": "generic",
+      "name": "Any exchange",
+      "credits": ["NEAR"],
+      "memo": "unknown",
+      "verified": true,
+      "source": "https://help.mynearwallet.com/en/articles/23-sent-some-near-tokens-to-an-external-walletexchange-but-haven-t-received-them-there",
+      "note": "MyNearWallet: most exchanges only support native NEAR coins; tokens such as USDC sent over the NEAR network to an exchange may not arrive."
+    },
+    {
+      "id": "binance",
+      "name": "Binance",
+      "credits": ["NEAR"],
+      "memo": "unknown",
+      "verified": false,
+      "source": "https://www.binance.info/en/support/faq/detail/115003736451",
+      "note": "Starter assumption from the generic guidance. Binance's FAQ says deposits of unlisted tokens or over unsupported networks may not be credited. Confirm on Binance's NEAR deposit page before relying on this."
+    },
+    {
+      "id": "coinbase",
+      "name": "Coinbase",
+      "credits": ["NEAR"],
+      "memo": "unknown",
+      "verified": false,
+      "source": null,
+      "note": "Starter assumption from the generic guidance. Not yet confirmed against Coinbase's own pages."
+    },
+    {
+      "id": "kraken",
+      "name": "Kraken",
+      "credits": ["NEAR"],
+      "memo": "unknown",
+      "verified": false,
+      "source": null,
+      "note": "Starter assumption from the generic guidance. Not yet confirmed against Kraken's own pages."
+    },
+    {
+      "id": "okx",
+      "name": "OKX",
+      "credits": ["NEAR"],
+      "memo": "unknown",
+      "verified": false,
+      "source": null,
+      "note": "Starter assumption from the generic guidance. Not yet confirmed against OKX's own pages."
+    }
+  ],
+  "testnet": [
+    {
+      "id": "generic",
+      "name": "Any exchange (testnet stand-in)",
+      "credits": ["NEAR"],
+      "memo": "unknown",
+      "verified": false,
+      "source": "https://help.mynearwallet.com/en/articles/23-sent-some-near-tokens-to-an-external-walletexchange-but-haven-t-received-them-there",
+      "note": "No real exchange runs on NEAR testnet. This entry mirrors the mainnet rule so the testnet demo behaves like mainnet."
+    },
+    {
+      "id": "binance",
+      "name": "Binance (testnet stand-in)",
+      "credits": ["NEAR"],
+      "memo": "unknown",
+      "verified": false,
+      "source": "https://www.binance.info/en/support/faq/detail/115003736451",
+      "note": "Demo stand-in: Binance has no testnet deposit. Mirrors the mainnet entry so the demo shows what a mainnet user would see."
+    }
+  ]
+}

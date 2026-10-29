@@ -1,0 +1,13 @@
+{
+  "name": "@gideon/core",
+  "version": "0.1.0",
+  "description": "Gideon rule engine (R1–R12). Pure TypeScript, no network calls of its own.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": { ".": { "types": "./dist/src/index.d.ts", "default": "./dist/src/index.js" } },
+  "files": ["dist", "data"],
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "dependencies": { "@noble/ed25519": "^3.2.0", "@noble/hashes": "^2.4.0" }
+}
