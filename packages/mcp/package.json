@@ -1,0 +1,27 @@
+{
+  "name": "@gideon/mcp",
+  "version": "0.1.0",
+  "description": "Gideon MCP server: AI agents check a NEAR send before they make it.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "bin": {
+    "gideon-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@gideon/core": "0.1.0",
+    "@gideon/sources": "0.1.0",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.4.0"
+  }
+}

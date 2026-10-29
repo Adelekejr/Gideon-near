@@ -12,11 +12,12 @@
     "packages/core",
     "packages/sources",
     "packages/cli",
+    "packages/mcp",
     "apps/web",
     "apps/extension"
   ],
   "scripts": {
-    "build": "npm run build -w @gideon/core -w @gideon/sources -w @gideon/cli",
+    "build": "npm run build -w @gideon/core -w @gideon/sources -w @gideon/cli -w @gideon/mcp",
     "postinstall": "npm run build",
     "test": "vitest run",
     "verify": "node scripts/verify.mjs",
@@ -25,9 +26,11 @@
     "build:web": "npm run build -w @gideon/web",
     "preview:web": "npm run preview -w @gideon/web",
     "gideon": "node packages/cli/dist/index.js",
-    "typecheck": "tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/sources/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit && tsc -p apps/extension/tsconfig.json --noEmit",
+    "typecheck": "tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/sources/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit && tsc -p apps/extension/tsconfig.json --noEmit && tsc -p packages/mcp/tsconfig.json --noEmit",
     "build:extension": "npm run build -w @gideon/extension",
-    "zip:extension": "npm run zip -w @gideon/extension"
+    "zip:extension": "npm run zip -w @gideon/extension",
+    "demo:agent": "node packages/mcp/demo/agent.mjs",
+    "mcp": "node packages/mcp/dist/index.js"
   },
   "devDependencies": {
     "typescript": "^5.6.0",
