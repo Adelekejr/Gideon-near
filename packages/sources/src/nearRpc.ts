@@ -1,0 +1,76 @@
+import type { AccountInfo, FtMetadata, Network } from "@gideon/core";
+import { NETWORKS } from "@gideon/core";
+import { json, request, SourceError, type HttpOptions } from "./http.js";
+
+export interface RpcOptions extends HttpOptions {
+  /** Replace the free endpoints, e.g. with a paid provider (adapter, off by default). */
+  urls?: Partial<Record<Network, string[]>>;
+  /** Extra headers for every RPC call, e.g. { Authorization: "Bearer <key>" }. */
+  headers?: Record<string, string>;
+}
+
+type RpcReply = { result?: any; error?: { cause?: { name?: string }; name?: string; message?: string; data?: unknown } };
+
+export class NearRpc {
+  constructor(private o: RpcOptions = {}) {}
+
+  private urls(network: Network) {
+    return this.o.urls?.[network]?.length ? this.o.urls[network]! : NETWORKS[network].rpcUrls;
+  }
+
+  /** Try each endpoint in order; only transport failures fall through to the next one. */
+  async call(network: Network, method: string, params: unknown): Promise<RpcReply> {
+    let last = "no RPC endpoint configured";
+    for (const url of this.urls(network)) {
+      try {
+        const res = await request(url, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...this.o.headers },
+          body: JSON.stringify({ jsonrpc: "2.0", id: "gideon", method, params }),
+        }, this.o);
+        if (res.status >= 500 || res.status === 429) { last = `${new URL(url).host} HTTP ${res.status}`; continue; }
+        return await json<RpcReply>(res, url);
+      } catch (e) {
+        last = (e as Error).message;
+      }
+    }
+    throw new SourceError(`NEAR RPC (${network}) failed: ${last}`);
+  }
+
+  async viewAccount(network: Network, accountId: string): Promise<AccountInfo | null> {
+    const r = await this.call(network, "query", { request_type: "view_account", finality: "final", account_id: accountId });
+    if (r.error) {
+      const name = r.error.cause?.name ?? "";
+      if (name === "UNKNOWN_ACCOUNT" || name === "INVALID_ACCOUNT") return null;
+      throw new SourceError(`NEAR RPC error: ${name || r.error.message || "unknown"}`);
+    }
+    return { amountYocto: r.result.amount, codeHash: r.result.code_hash, storageUsage: r.result.storage_usage };
+  }
+
+  async viewFunction<T>(network: Network, contract: string, method: string, args: unknown): Promise<{ ok: true; value: T } | { ok: false; reason: "no-account" | "no-method" }> {
+    const r = await this.call(network, "query", {
+      request_type: "call_function", finality: "final", account_id: contract, method_name: method,
+      args_base64: btoa(JSON.stringify(args)),
+    });
+    const err = r.error ? JSON.stringify(r.error) : r.result?.error ?? "";
+    if (err) {
+      if (/UNKNOWN_ACCOUNT|AccountDoesNotExist|does not exist while viewing/.test(err)) return { ok: false, reason: "no-account" };
+      if (/MethodNotFound|CodeDoesNotExist|NO_CONTRACT_CODE|CompilationError|contract code/i.test(err)) return { ok: false, reason: "no-method" };
+      throw new SourceError(`NEAR RPC view error: ${String(err).slice(0, 120)}`);
+    }
+    const bytes = new Uint8Array(r.result.result as number[]);
+    return { ok: true, value: JSON.parse(new TextDecoder().decode(bytes)) as T };
+  }
+
+  async ftMetadata(network: Network, contract: string): Promise<FtMetadata | null> {
+    const r = await this.viewFunction<FtMetadata>(network, contract, "ft_metadata", {});
+    if (!r.ok || !r.value || typeof r.value.symbol !== "string") return null;
+    return { name: r.value.name, symbol: r.value.symbol, decimals: r.value.decimals };
+  }
+
+  async storageRegistered(network: Network, contract: string, accountId: string): Promise<boolean> {
+    const r = await this.viewFunction<unknown>(network, contract, "storage_balance_of", { account_id: accountId });
+    if (!r.ok) throw new SourceError(`${contract} has no storage_balance_of`);
+    return r.value != null;
+  }
+}
