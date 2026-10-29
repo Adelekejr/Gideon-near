@@ -1,0 +1,53 @@
+{
+  "_about": "Real-world mistakes used by the website examples, the offline tests and `npm run verify`. Every address here is public. The Intents deposit address is a finished mainnet swap, read with 1Click's read-only status endpoint; no quotes were requested and no funds moved.",
+  "cases": [
+    {
+      "id": "tron-hash",
+      "title": "Tron transaction hash pasted as a NEAR account",
+      "input": { "to": "89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944", "network": "mainnet", "destination": "exchange", "exchange": "binance", "asset": { "symbol": "NEAR" }, "amount": "120" },
+      "expect": { "verdict": "BLOCKED", "headline": "TX_HASH_AS_ACCOUNT" }
+    },
+    {
+      "id": "evm-address",
+      "title": "Ethereum address on NEAR",
+      "input": { "to": "0x94a0abA1283aF69Cb260b7e0Ea0366Dca0dd3cd8", "network": "testnet", "asset": { "symbol": "NEAR" }, "amount": "5" },
+      "expect": { "verdict": "ATTENTION", "headline": "ETH_IMPLICIT_NEW" }
+    },
+    {
+      "id": "intents-wrong-token",
+      "title": "USDC sent to a NEAR Intents deposit address made for wNEAR",
+      "input": { "to": "6560ef42e12a16195010ca95b194cd1385fa241a39ff6a9016cdea278c18afee", "network": "mainnet", "destination": "intents", "asset": { "symbol": "USDC", "contract": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1" }, "amount": "20" },
+      "expect": { "verdict": "BLOCKED", "headline": "WRONG_ASSET_FOR_DEPOSIT" }
+    },
+    {
+      "id": "wnear-to-exchange",
+      "title": "wNEAR sent to an exchange",
+      "input": { "to": "hammed-stampdue.testnet", "network": "testnet", "destination": "exchange", "exchange": "binance", "asset": { "symbol": "wNEAR", "contract": "wrap.testnet" }, "amount": "3" },
+      "expect": { "verdict": "ATTENTION", "headline": "EXCHANGE_MAY_NOT_CREDIT" }
+    },
+    {
+      "id": "lookalike",
+      "title": "Lookalike of a saved contact",
+      "input": { "to": "northwind-payro11.testnet", "network": "testnet", "asset": { "symbol": "NEAR" }, "amount": "40", "addressBook": [{ "account": "northwind-payroll.testnet", "label": "Northwind payroll" }] },
+      "expect": { "verdict": "BLOCKED", "headline": "LOOKALIKE_OF_CONTACT" }
+    },
+    {
+      "id": "wrong-network-name",
+      "title": "Mainnet name on testnet",
+      "input": { "to": "alice.near", "network": "testnet", "asset": { "symbol": "NEAR" }, "amount": "1" },
+      "expect": { "verdict": "BLOCKED", "headline": "NETWORK_MISMATCH" }
+    },
+    {
+      "id": "tron-address",
+      "title": "Tron address in a NEAR send",
+      "input": { "to": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", "network": "mainnet", "asset": { "symbol": "NEAR" }, "amount": "10" },
+      "expect": { "verdict": "BLOCKED", "headline": "WRONG_NETWORK_TRON" }
+    },
+    {
+      "id": "safe",
+      "title": "A normal send",
+      "input": { "to": "hammed-stampdue.testnet", "network": "testnet", "asset": { "symbol": "NEAR" }, "amount": "1", "destination": "wallet" },
+      "expect": { "verdict": "SAFE", "headline": null }
+    }
+  ]
+}

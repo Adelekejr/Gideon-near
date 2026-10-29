@@ -1,0 +1,109 @@
+{
+  "recordedAt": "2026-10-29T17:13:42.887Z",
+  "note": "Live answers recorded by scripts/record-fixtures.mjs. Read-only calls only.",
+  "answers": {
+    "viewAccount(\"mainnet\",\"89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944\")": {
+      "value": null
+    },
+    "oneClickStatus(\"89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944\")": {
+      "value": null
+    },
+    "ethTx(\"0x89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944\")": {
+      "value": null
+    },
+    "btcTx(\"89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944\")": {
+      "value": null
+    },
+    "tronTx(\"89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944\")": {
+      "value": {
+        "chain": "Tron",
+        "hash": "89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944",
+        "summary": "a TRX transfer of 4.629 TRX",
+        "explorerUrl": "https://tronscan.org/#/transaction/89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944"
+      }
+    },
+    "viewAccount(\"testnet\",\"0x94a0aba1283af69cb260b7e0ea0366dca0dd3cd8\")": {
+      "value": null
+    },
+    "viewAccount(\"mainnet\",\"6560ef42e12a16195010ca95b194cd1385fa241a39ff6a9016cdea278c18afee\")": {
+      "value": {
+        "amountYocto": "0",
+        "codeHash": "11111111111111111111111111111111",
+        "storageUsage": 182
+      }
+    },
+    "ftMetadata(\"mainnet\",\"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1\")": {
+      "value": {
+        "name": "USDC",
+        "symbol": "USDC",
+        "decimals": 6
+      }
+    },
+    "oneClickStatus(\"6560ef42e12a16195010ca95b194cd1385fa241a39ff6a9016cdea278c18afee\")": {
+      "value": {
+        "status": "SUCCESS",
+        "updatedAt": "2026-09-30T00:31:15.000Z",
+        "correlationId": "6ca75a34-e453-49bf-a9c2-892e14fc5582",
+        "quoteResponse": {
+          "timestamp": "2026-09-30T00:30:44.627Z",
+          "signature": "ed25519:3hYxVCB1gssV95DSZ6moHfkKFFqcZiB5vySEMjJDc5fWuP9ZinKohFBxB8FoRPaHYYsh3pJFb79jqgrSSssbfyDV",
+          "quoteRequest": {
+            "dry": false,
+            "swapType": "EXACT_INPUT",
+            "depositMode": "SIMPLE",
+            "slippageTolerance": 15,
+            "originAsset": "nep141:wrap.near",
+            "depositType": "ORIGIN_CHAIN",
+            "destinationAsset": "nep141:aaaaaa20d9e0e2461697782ef11675f668207961.factory.bridge.near",
+            "amount": "20000000000000000000000000",
+            "refundType": "ORIGIN_CHAIN",
+            "recipientType": "DESTINATION_CHAIN",
+            "deadline": "2026-09-30T00:32:44.599Z",
+            "virtualChainRecipient": null,
+            "virtualChainRefundRecipient": null,
+            "confidentiality": "public"
+          },
+          "quote": {
+            "amountIn": "20000000000000000000000000",
+            "amountInFormatted": "20.0",
+            "amountInUsd": "98.634446849540",
+            "minAmountIn": "20000000000000000000000000",
+            "amountOut": "1472446117601434319485",
+            "amountOutFormatted": "1472.446117601434319485",
+            "amountOutUsd": "98.634446849540",
+            "minAmountOut": "1470237448425032168005",
+            "timeWhenInactive": "2026-10-03T00:32:44.599Z",
+            "depositAddress": "6560ef42e12a16195010ca95b194cd1385fa241a39ff6a9016cdea278c18afee",
+            "deadline": "2026-10-03T00:32:44.599Z",
+            "timeEstimate": 22,
+            "refundFee": "0",
+            "withdrawFee": "0"
+          }
+        }
+      }
+    },
+    "storageRegistered(\"mainnet\",\"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1\",\"6560ef42e12a16195010ca95b194cd1385fa241a39ff6a9016cdea278c18afee\")": {
+      "value": false
+    },
+    "viewAccount(\"testnet\",\"hammed-stampdue.testnet\")": {
+      "value": {
+        "amountYocto": "10000000000000000000000000",
+        "codeHash": "11111111111111111111111111111111",
+        "storageUsage": 182
+      }
+    },
+    "ftMetadata(\"testnet\",\"wrap.testnet\")": {
+      "value": {
+        "name": "Wrapped NEAR fungible token",
+        "symbol": "wNEAR",
+        "decimals": 24
+      }
+    },
+    "storageRegistered(\"testnet\",\"wrap.testnet\",\"hammed-stampdue.testnet\")": {
+      "value": false
+    },
+    "viewAccount(\"testnet\",\"northwind-payro11.testnet\")": {
+      "value": null
+    }
+  }
+}
