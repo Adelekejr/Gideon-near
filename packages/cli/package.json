@@ -1,0 +1,11 @@
+{
+  "name": "@gideon/cli",
+  "version": "0.1.0",
+  "description": "Gideon on the command line: check a NEAR send before you make it.",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "gideon": "./dist/index.js" },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "dependencies": { "@gideon/core": "0.1.0", "@gideon/sources": "0.1.0" }
+}
