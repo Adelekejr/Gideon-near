@@ -4,6 +4,8 @@ import { findSendButtons, isRecipientField, isTextField, shouldCheck, type Field
 import { card, checking, failed, tamperCard, toneOf } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
 import { sendCheck } from "./lib/messages.js";
+import { collectSignals, pageHint, recipientScope } from "./lib/network.js";
+import { placement } from "./lib/place.js";
 import { asShift, loadShift, themeOf, type Shift } from "./lib/shift.js";
 import { playAll } from "./lib/motion.js";
 import type { CheckResult, Contact } from "@gideon/core";
@@ -12,7 +14,12 @@ import type { CheckResult, Contact } from "@gideon/core";
  * Gideon content script. It only reacts to text you paste or type into a field that
  * looks like a send recipient (or to a value that can only be an address or hash),
  * sends that one value to the extension's service worker for checking, and shows the
- * result next to the field. It reads nothing else on the page.
+ * result next to the field.
+ *
+ * In Auto network mode it also looks, on this device, at the page address and at short
+ * texts that are a NEAR account name or a "Testnet" / "Mainnet" badge (lib/network.ts),
+ * to tell which network the wallet is on. Only the answer (testnet / mainnet / not sure,
+ * and the account it came from) goes to the worker; no other page text leaves the page.
  */
 
 let settings: Settings = withDefaults({}).settings;
@@ -86,18 +93,18 @@ function place(): void {
   const p = panel;
   if (!p || p.host.style.display === "none") return;
   if (p.field && !p.field.isConnected) return hide();
-  if (p.field) {
-    const r = p.field.getBoundingClientRect();
-    const w = Math.max(300, Math.min(460, r.width));
-    const left = Math.min(Math.max(8, r.left), Math.max(8, window.innerWidth - w - 8));
-    p.host.style.width = `${w}px`;
-    p.host.style.left = `${left + window.scrollX}px`;
-    p.host.style.top = `${r.bottom + window.scrollY + 8}px`;
-  } else {
-    p.host.style.width = "380px";
-    p.host.style.left = `${window.scrollX + window.innerWidth - 396}px`;
-    p.host.style.top = `${window.scrollY + 16}px`;
-  }
+  const vv = window.visualViewport;
+  const view = vv
+    ? { left: vv.offsetLeft, top: vv.offsetTop, width: vv.width, height: vv.height }
+    : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+  const field = p.field ? p.field.getBoundingClientRect() : null;
+  const at = placement(field, view, p.host.scrollHeight || 220);
+  p.host.style.width = `${at.width}px`;
+  p.host.style.maxHeight = `${at.maxHeight}px`;
+  p.host.style.overflowY = "auto";
+  p.host.style.overscrollBehavior = "contain";
+  p.host.style.left = `${at.left + window.scrollX}px`;
+  p.host.style.top = `${at.top + window.scrollY}px`;
 }
 
 let raf = 0;
@@ -110,6 +117,9 @@ function schedulePlace(): void {
 }
 window.addEventListener("scroll", schedulePlace, { passive: true, capture: true });
 window.addEventListener("resize", schedulePlace, { passive: true });
+// Phones: the on-screen keyboard shrinks the visual viewport without a window resize.
+window.visualViewport?.addEventListener("resize", schedulePlace, { passive: true });
+window.visualViewport?.addEventListener("scroll", schedulePlace, { passive: true });
 
 function show(field: Field | null, html: string, tone: keyof typeof COLORS): void {
   const p = getPanel();
@@ -125,6 +135,7 @@ function show(field: Field | null, html: string, tone: keyof typeof COLORS): voi
     field.style.outlineOffset = "1px";
   }
   place();
+  schedulePlace(); // again once the card has its real height
   playAll(box);
 }
 
@@ -238,9 +249,16 @@ async function run(field: Field, value: string, copied: string | null): Promise<
   release(p);
   show(field, checking(value), "idle");
   p.seq = seq;
+  let page;
+  try {
+    page = settings.networkMode === "auto" ? pageHint(location.href, collectSignals(document, recipientScope(field))) : undefined;
+  } catch {
+    page = undefined;
+  }
   const res = await sendCheck({
     input: { to: value, ...(copied ? { clipboard: { copied } } : {}) },
     host: location.host,
+    ...(page ? { page } : {}),
   }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
   if (p.seq !== seq || p.field !== field) return; // a newer check replaced this one
   if (!res || !res.ok) {
@@ -251,7 +269,7 @@ async function run(field: Field, value: string, copied: string | null): Promise<
   const tone = toneOf(r);
   const held = r.verdict === "BLOCKED" && settings.holdSend;
   if (held) hold(p, field);
-  show(field, card(r, { held, actions: actionsFor(r, held) }), tone);
+  show(field, card(r, { held, actions: actionsFor(r, held), ...(res.net ? { net: res.net } : {}) }), tone);
 }
 
 /* ---------- events ---------- */

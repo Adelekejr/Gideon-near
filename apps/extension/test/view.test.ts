@@ -33,10 +33,15 @@ describe("verdict colours", () => {
 });
 
 describe("settings and address book", () => {
-  it("defaults to testnet with every guard on", () => {
-    expect(withDefaults({}).settings).toEqual({ network: "testnet", checkOnPaste: true, holdSend: true, clipboardCheck: true });
-    expect(withDefaults({ settings: { network: "mainnet" } }).settings.network).toBe("mainnet");
-    expect(withDefaults({ settings: { network: "devnet" } }).settings.network).toBe("testnet");
+  it("defaults to Auto network with every guard on", () => {
+    expect(withDefaults({}).settings).toEqual({ networkMode: "auto", checkOnPaste: true, holdSend: true, clipboardCheck: true });
+    expect(withDefaults({ settings: { networkMode: "mainnet" } }).settings.networkMode).toBe("mainnet");
+    expect(withDefaults({ settings: { networkMode: "testnet" } }).settings.networkMode).toBe("testnet");
+    expect(withDefaults({ settings: { networkMode: "devnet" } }).settings.networkMode).toBe("auto");
+  });
+  it("moves 0.2.0 installs (a saved manual network, no Auto) onto Auto", () => {
+    expect(withDefaults({ settings: { network: "mainnet" } }).settings.networkMode).toBe("auto");
+    expect(withDefaults({ settings: { network: "testnet", holdSend: false } }).settings).toEqual({ networkMode: "auto", checkOnPaste: true, holdSend: false, clipboardCheck: true });
   });
   it("normalises and de-duplicates contacts", () => {
     let c = addContact([], " Alice.Near ", "Alice");

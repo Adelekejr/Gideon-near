@@ -1,8 +1,10 @@
-import type { CheckResult, Contact, Network } from "@gideon/core";
+import type { CheckResult, Contact } from "@gideon/core";
+import type { NetworkMode } from "./network.js";
 
 /** Everything the extension keeps, all in chrome.storage.local on this device. */
 export interface Settings {
-  network: Network;
+  /** "auto" reads the network from the page (0.2.1+); "testnet" / "mainnet" are manual overrides. */
+  networkMode: NetworkMode;
   /** Check recipient fields on paste and as you type. */
   checkOnPaste: boolean;
   /** Hold the page's Send / Withdraw button while the check says BLOCKED. */
@@ -12,7 +14,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  network: "testnet",
+  networkMode: "auto",
   checkOnPaste: true,
   holdSend: true,
   clipboardCheck: true,
@@ -25,6 +27,8 @@ export interface Stats {
 
 export interface LastCheck {
   host: string;
+  /** Network checked on, and why ("testnet · from your wallet's account"). */
+  net?: string;
   to: string;
   verdict: CheckResult["verdict"];
   couldNotCheck: boolean;
@@ -41,10 +45,12 @@ export interface Stored {
 
 export function withDefaults(raw: Partial<Record<keyof Stored, unknown>>): Stored {
   const s = (raw.settings ?? {}) as Partial<Settings>;
-  const network: Network = s.network === "mainnet" ? "mainnet" : "testnet";
+  // 0.2.0 stored a manual `network` and had no Auto; 0.2.1 starts everyone on Auto once.
+  const m = (s as { networkMode?: unknown }).networkMode;
+  const networkMode: NetworkMode = m === "testnet" || m === "mainnet" ? m : "auto";
   return {
     settings: {
-      network,
+      networkMode,
       checkOnPaste: s.checkOnPaste ?? DEFAULT_SETTINGS.checkOnPaste,
       holdSend: s.holdSend ?? DEFAULT_SETTINGS.holdSend,
       clipboardCheck: s.clipboardCheck ?? DEFAULT_SETTINGS.clipboardCheck,

@@ -1,6 +1,7 @@
 import { exchangesFor, tokensFor, type CheckInput, type Contact, type Network } from "@gideon/core";
 import { addContact, load, removeContact, saveContacts, saveSettings, type LastCheck, type Settings } from "./lib/settings.js";
 import { sendCheck, type CheckRequest } from "./lib/messages.js";
+import type { NetworkMode } from "./lib/network.js";
 import { card, checking, esc, failed, LOGO, short } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
 import { POPUP_STYLE } from "./lib/popup-style.js";
@@ -55,13 +56,18 @@ rail.addEventListener("keydown", (e) => {
 });
 $("ver").textContent = `v${chrome.runtime.getManifest().version}`;
 
-function fillForNetwork(n: Network): void {
+/**
+ * Asset options carry their network ("mainnet|USDT|usdt.tether-token.near"), so in Auto a token
+ * you pick also tells Gideon the network. Native NEAR has none: Auto then goes by the address.
+ */
+function fillForNetwork(n: NetworkMode): void {
   net.value = n;
   net.parentElement!.classList.toggle("main", n === "mainnet");
+  const nets: Network[] = n === "auto" ? ["mainnet", "testnet"] : [n];
   asset.innerHTML =
-    `<option value="NEAR|">NEAR (native)</option>` +
-    tokensFor(n).map((t) => `<option value="${esc(t.symbol)}|${esc(t.contract)}">${esc(t.symbol)}${t.kind === "bridged" ? " (bridged)" : ""}</option>`).join("");
-  exSel.innerHTML = exchangesFor(n).map((e) => `<option value="${esc(e.id)}">${esc(e.name)}${e.verified ? "" : " (unverified)"}</option>`).join("");
+    `<option value="|NEAR|">NEAR (native)</option>` +
+    nets.flatMap((m) => tokensFor(m).map((t) => `<option value="${m}|${esc(t.symbol)}|${esc(t.contract)}">${esc(t.symbol)}${t.kind === "bridged" ? " (bridged)" : ""}${n === "auto" ? ` · ${m}` : ""}</option>`)).join("");
+  exSel.innerHTML = exchangesFor(n === "auto" ? "mainnet" : n).map((e) => `<option value="${esc(e.id)}">${esc(e.name)}${e.verified ? "" : " (unverified)"}</option>`).join("");
 }
 dest.addEventListener("change", () => exSel.classList.toggle("hidden", dest.value !== "exchange"));
 
@@ -88,7 +94,7 @@ function renderContacts(): void {
 async function init(): Promise<void> {
   const s = await load();
   contacts = s.contacts;
-  fillForNetwork(s.settings.network);
+  fillForNetwork(s.settings.networkMode);
   for (const k of ["checkOnPaste", "holdSend", "clipboardCheck"] as const) {
     const box = $<HTMLInputElement>(k);
     box.checked = s.settings[k];
@@ -101,9 +107,9 @@ async function init(): Promise<void> {
 }
 
 net.addEventListener("change", () => {
-  const n = net.value as Network;
+  const n = net.value as NetworkMode;
   fillForNetwork(n);
-  void saveSettings({ network: n });
+  void saveSettings({ networkMode: n });
   $("result").innerHTML = "";
 });
 
@@ -128,10 +134,12 @@ $<HTMLFormElement>("f").addEventListener("submit", async (e) => {
   e.preventDefault();
   const to = $<HTMLInputElement>("to").value.trim();
   if (!to) return;
-  const [symbol, contract] = asset.value.split("|");
+  const [tokenNet, symbol, contract] = asset.value.split("|");
+  const mode = net.value as NetworkMode;
+  const chosen = mode !== "auto" ? mode : (tokenNet as Network | "") || undefined;
   const input: CheckRequest["input"] = {
     to,
-    network: net.value as Network,
+    ...(chosen ? { network: chosen } : {}),
     asset: { symbol: symbol!, ...(contract ? { contract } : {}) },
     destination: dest.value as CheckInput["destination"],
     ...(dest.value === "exchange" ? { exchange: exSel.value } : {}),
@@ -144,7 +152,7 @@ $<HTMLFormElement>("f").addEventListener("submit", async (e) => {
   const res = await sendCheck({ input, host: "" }).catch((err: unknown) => ({ ok: false as const, error: String(err) }));
   go.disabled = false;
   go.firstChild!.textContent = "Check this send ";
-  $("result").innerHTML = res?.ok ? card(res.result) : failed(res?.error ?? "The extension didn't answer.");
+  $("result").innerHTML = res?.ok ? card(res.result, res.net ? { net: res.net } : {}) : failed(res?.error ?? "The extension didn't answer.");
   playAll($("result"));
   const s = await load();
   $("sChecked").textContent = String(s.stats.checked);

@@ -85,7 +85,13 @@ export interface CardOptions {
   held?: boolean;
   /** Buttons, already escaped HTML. */
   actions?: string;
-  network?: boolean;
+  /** Which network the check ran on and why, e.g. { network: "testnet", why: "from your wallet's account (x.testnet)" }. */
+  net?: { network: string; why: string };
+}
+
+/** "network → testnet · from your wallet's account (…)" */
+export function netLine(n: { network: string; why: string }): string {
+  return `<div class="gn"><b>network →</b> ${esc(n.network)} · ${esc(n.why)}</div>`;
 }
 
 /** One verdict card. Used inline on pages and in the popup. */
@@ -100,6 +106,7 @@ ${head(tone, statusLabel(r, o.held), titleOf(r))}
 ${h ? findingLine(h) : ""}
 ${accountLine(r)}
 ${fix ? `<div class="gf"><b>fix →</b> ${esc(fix)}</div>` : ""}
+${o.net ? netLine(o.net) : ""}
 <details class="more"><summary>Details · ${r.findings.filter((f) => f.status !== "SKIPPED").length} checks · ${esc(r.input.network)} · ${r.ms} ms</summary>${findingsList(r)}</details>
 ${o.actions ? `<div class="gacts">${o.actions}</div>` : ""}
 </div></div>`;

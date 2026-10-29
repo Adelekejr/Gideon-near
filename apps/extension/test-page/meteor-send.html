@@ -1,0 +1,56 @@
+<!doctype html>
+<!--
+  A RECONSTRUCTION of Meteor Wallet's send screen (wallet.meteorwallet.app/wallet/send), for testing
+  Gideon's Auto network detection without logging in. Not Meteor's markup: the strings come from
+  Meteor's public app bundle (heading_send "Send", input_heading_sendTo "Send To",
+  input_placeHolder_sendTo "Send to account ID", the account-ID help line, the Mainnet/Testnet
+  network switch), and the layout follows what the send screen shows on a phone: the signed-in
+  account as plain text in a top bar made of styled divs (no <header>), then the form.
+  Query: ?account=hammed-stampdue.testnet (signed-in account) · ?menu=1 (network menu open)
+-->
+<html lang="en"><head><meta charset="utf-8"><title>Meteor Wallet (local reconstruction)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:#100f17;color:#f2f1f7}
+.css-k008qs{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#17151f;border-bottom:1px solid #2a2735}
+.css-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#7b5cff,#e05cff)}
+.css-acc{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw}
+.css-menu{margin-left:auto;position:relative}
+.css-menu button{background:#2a2735;color:#f2f1f7;border:0;border-radius:8px;padding:6px 10px}
+.css-drop{display:none;position:absolute;right:0;top:36px;background:#211e2b;border-radius:10px;padding:8px;min-width:150px}
+.css-drop.open{display:block}.css-drop div{padding:6px 8px;font-size:13px}
+.css-main{padding:18px 16px 40px;max-width:480px;margin:0 auto}
+h2{margin:6px 0 18px;font-size:22px}
+.css-label{font-size:13px;font-weight:600;color:#b9b6c8;margin:14px 0 6px}
+.css-field{background:#211e2b;border-radius:12px;padding:4px 12px}
+input{width:100%;box-sizing:border-box;height:46px;border:0;background:transparent;color:#f2f1f7;font:15px ui-monospace,Menlo,monospace;outline:none}
+.css-help{font-size:12px;color:#8a879a;margin-top:6px}
+.css-send{margin-top:26px;width:100%;height:50px;border:0;border-radius:12px;background:#7b5cff;color:#fff;font-weight:700;font-size:16px}
+.css-send:disabled{background:#4a4660}
+</style></head>
+<body>
+<div id="root">
+  <div class="css-k008qs">
+    <div class="css-avatar"></div>
+    <div class="css-acc" id="acc">hammed-stampdue.testnet</div>
+    <div class="css-menu"><button type="button" id="menuBtn">⚙</button>
+      <div class="css-drop" id="drop"><div>Network</div><div>Mainnet</div><div>Testnet</div><div>Language</div></div>
+    </div>
+  </div>
+  <div class="css-main">
+    <h2>Send</h2>
+    <div class="css-label">Send To</div>
+    <div class="css-field"><input id="to" placeholder="Send to account ID" autocomplete="off" spellcheck="false"></div>
+    <div class="css-help">The account ID must include a Top Level Account such as .near or contain exactly 64 characters.</div>
+    <div class="css-label">Amount</div>
+    <div class="css-field"><input id="amount" inputmode="decimal" placeholder="0.0"></div>
+    <button class="css-send" id="send" type="button">Send</button>
+  </div>
+</div>
+<script>
+const q = new URLSearchParams(location.search);
+if (q.has("account")) document.getElementById("acc").textContent = q.get("account");
+if (q.get("menu") === "1") document.getElementById("drop").classList.add("open");
+document.getElementById("menuBtn").onclick = () => document.getElementById("drop").classList.toggle("open");
+</script>
+</body></html>

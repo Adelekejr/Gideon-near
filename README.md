@@ -53,7 +53,7 @@ npm run build:web           # static build in apps/web/dist
 
 # the Chrome extension
 npm run build:extension     # unpacked build in apps/extension/dist
-npm run zip:extension       # apps/extension/gideon-extension-0.2.0.zip
+npm run zip:extension       # apps/extension/gideon-extension-0.2.1.zip
 npm run zip:firefox -w @gideon/extension   # Firefox / Firefox for Android build (see "Phones")
 
 # the MCP server for AI agents (see "AI agents (MCP server)")
@@ -134,7 +134,7 @@ Gideon is not on the Chrome Web Store. Install it from this repo:
 4. Pin Gideon from the puzzle-piece menu. It starts on **testnet**; switch to
    mainnet in the popup.
 
-`npm run zip:extension` also writes `apps/extension/gideon-extension-0.2.0.zip`.
+`npm run zip:extension` also writes `apps/extension/gideon-extension-0.2.1.zip`.
 To install from the zip, unzip it and load that folder the same way. Works in
 Chrome 111+ and other Chromium browsers (Edge, Brave, Arc).
 
@@ -182,12 +182,12 @@ linked below.
 
 Build the files on a computer and copy them to the phone:
 
-- `npm run zip:extension`: `apps/extension/gideon-extension-0.2.0.zip` (Chromium browsers)
-- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.2.0.zip` (Firefox)
+- `npm run zip:extension`: `apps/extension/gideon-extension-0.2.1.zip` (Chromium browsers)
+- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.2.1.zip` (Firefox)
 
 **Mises Browser** (Chromium). Menu → **Extensions** → turn on
 **Developer mode** → **+ (from .zip/.crx/.user.js)** → pick
-`gideon-extension-0.2.0.zip`. Keep it zipped. Mises unpacks it into its cache,
+`gideon-extension-0.2.1.zip`. Keep it zipped. Mises unpacks it into its cache,
 so clearing the browser's cache or data removes it; install again if so.
 ([steps](https://github.com/lukman754/Mentari-Unpam),
 [Play listing](https://play.google.com/store/apps/details?id=site.mises.browser_stable),
@@ -198,7 +198,7 @@ so clearing the browser's cache or data removes it; install again if so.
 sideloaded extensions (fixed in 1.8.2).
 
 **Yandex Browser.** Officially it installs from the Chrome Web Store and
-Opera add-ons. For testing: unzip `gideon-extension-0.2.0.zip` into a phone
+Opera add-ons. For testing: unzip `gideon-extension-0.2.1.zip` into a phone
 folder, open `browser://extensions`, turn on **Developer mode**, tap **Load
 unpacked extension** and pick `manifest.json` in that folder. Users reported
 in 2020 that newer builds stopped loading unpacked extensions, so this may not
@@ -517,11 +517,16 @@ The website deploys as a static site; `vercel.json` builds it with
 - **The extension only knows the address.** It doesn't read the token,
   amount or destination from the page, so on-page checks run as "NEAR to an
   unknown destination". Token and exchange checks (R5, R6, R8) need the popup,
-  the website or the CLI.
+  the website or the CLI. The network it does work out (0.2.1, Auto): from the
+  page address, the signed-in account shown at the top of the wallet, a
+  "Testnet"/"Mainnet" badge, or the recipient's suffix. Only the first two can
+  stop a send as "wrong network"; on wallets that show neither, it never blocks
+  on a guess.
 - **The content script runs on every http(s) page** so it can work on any
   wallet or exchange. It acts only on recipient-looking fields and
-  address-shaped values, and sends only that value to the extension's own
-  background worker, which calls the free APIs. Nothing goes to a Gideon server.
+  address-shaped values, and sends only that value (plus, in Auto network
+  mode, the network it read from the page and the account it read it from) to
+  the extension's own background worker, which calls the free APIs. Nothing goes to a Gideon server.
 - **The clipboard check (R9) only sees copies made on the same page**, while
   that tab stays in front. Copies from other apps, `navigator.clipboard`
   writes and clipboard malware on your computer aren't visible to it, so then
