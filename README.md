@@ -30,7 +30,7 @@ Work began 29 Oct 2026.
 
 All the examples above are real cases in [`demo/cases.json`](demo/cases.json).
 
-![Gideon blocks a typo: adelekejrx.testnet doesn't exist on NEAR testnet](shots/desktop-check-blocked-nonexistent.png)
+![Gideon blocks an account that doesn't exist on NEAR testnet](shots/desktop-check-blocked-nonexistent.png)
 
 ## Quickstart
 
@@ -53,7 +53,7 @@ npm run build:web           # static build in apps/web/dist
 
 # the Chrome extension
 npm run build:extension     # unpacked build in apps/extension/dist
-npm run zip:extension       # apps/extension/gideon-extension-0.1.0.zip
+npm run zip:extension       # apps/extension/gideon-extension-0.2.0.zip
 npm run zip:firefox -w @gideon/extension   # Firefox / Firefox for Android build (see "Phones")
 
 # the MCP server for AI agents (see "AI agents (MCP server)")
@@ -134,15 +134,16 @@ Gideon is not on the Chrome Web Store. Install it from this repo:
 4. Pin Gideon from the puzzle-piece menu. It starts on **testnet**; switch to
    mainnet in the popup.
 
-`npm run zip:extension` also writes `apps/extension/gideon-extension-0.1.0.zip`.
+`npm run zip:extension` also writes `apps/extension/gideon-extension-0.2.0.zip`.
 To install from the zip, unzip it and load that folder the same way. Works in
 Chrome 111+ and other Chromium browsers (Edge, Brave, Arc).
 
 What it does:
 
 - **On a send or withdrawal page**, when you paste (or type) into a field that
-  looks like a recipient address, it checks the value and shows the night-watch
-  warning under the field: vermilion only for STOPPED, amber for "look again"
+  looks like a recipient address, it checks the value and shows a warning card
+  under the field, in the same shift as the popup, with the Arrow G playing the
+  result: vermilion only for STOPPED, amber for "look again"
   and "couldn't check", green for "looks right". On STOPPED it holds the page's
   Send / Withdraw button until you clear the field or choose **Send anyway**.
 - **Clipboard check (R9).** It remembers what you copied on the page and
@@ -154,15 +155,22 @@ What it does:
 - **Popup.** Check a send by hand (recipient, token, amount, destination),
   see the last check made on a page, and turn each guard on or off.
 
-![Gideon stops a Tron transaction hash pasted on a withdrawal page](shots/extension-warning-blocked.png)
+![Gideon stops a Tron transaction hash pasted on a withdrawal page](shots/extension-warning-blocked-night.png)
 
-More: [popup](shots/extension-popup.png),
-[looks right](shots/extension-warning-safe.png),
-[couldn't check](shots/extension-warning-couldnt-check.png),
+| Night Watch | Day Shift |
+|---|---|
+| ![Popup, lookalike stopped](shots/extension-popup-night.png) | ![Popup, lookalike stopped](shots/extension-popup-day.png) |
+| ![Card, 0x address held](shots/extension-warning-attention-night.png) | ![Card, Tron hash stopped](shots/extension-warning-blocked-day.png) |
+
+More: popup [looks right](shots/extension-popup-safe-night.png),
+card [looks right](shots/extension-warning-safe-night.png) /
+[day](shots/extension-warning-safe-day.png),
+[couldn't check](shots/extension-warning-couldnt-check-night.png),
 [clipboard swapped on copy](shots/extension-clipboard-tamper-copy.png) and
-[on paste](shots/extension-clipboard-tamper.png). They were taken in
+[on paste](shots/extension-clipboard-tamper-night.png). They were taken in
 Playwright's Chromium on the local test page `apps/extension/test-page/withdraw.html`
-(`node apps/extension/scripts/screenshots.mjs`).
+(`node apps/extension/scripts/screenshots.mjs all shots night`; the last
+argument is the shift).
 
 
 ## Phones (Android)
@@ -174,12 +182,12 @@ linked below.
 
 Build the files on a computer and copy them to the phone:
 
-- `npm run zip:extension`: `apps/extension/gideon-extension-0.1.0.zip` (Chromium browsers)
-- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.1.0.zip` (Firefox)
+- `npm run zip:extension`: `apps/extension/gideon-extension-0.2.0.zip` (Chromium browsers)
+- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.2.0.zip` (Firefox)
 
 **Mises Browser** (Chromium). Menu → **Extensions** → turn on
 **Developer mode** → **+ (from .zip/.crx/.user.js)** → pick
-`gideon-extension-0.1.0.zip`. Keep it zipped. Mises unpacks it into its cache,
+`gideon-extension-0.2.0.zip`. Keep it zipped. Mises unpacks it into its cache,
 so clearing the browser's cache or data removes it; install again if so.
 ([steps](https://github.com/lukman754/Mentari-Unpam),
 [Play listing](https://play.google.com/store/apps/details?id=site.mises.browser_stable),
@@ -190,7 +198,7 @@ so clearing the browser's cache or data removes it; install again if so.
 sideloaded extensions (fixed in 1.8.2).
 
 **Yandex Browser.** Officially it installs from the Chrome Web Store and
-Opera add-ons. For testing: unzip `gideon-extension-0.1.0.zip` into a phone
+Opera add-ons. For testing: unzip `gideon-extension-0.2.0.zip` into a phone
 folder, open `browser://extensions`, turn on **Developer mode**, tap **Load
 unpacked extension** and pick `manifest.json` in that folder. Users reported
 in 2020 that newer builds stopped loading unpacked extensions, so this may not
@@ -400,16 +408,63 @@ variables) to turn one on.
 ## Brand
 
 The mark is the **Arrow G**: the G's crossbar is the send arrow, and its
-vermilion spur is the wall. In the site and extension it moves. When a send is
-BLOCKED, the arrow hits the wall and bounces back. When it's SAFE, the wall
-slides down into the G and the arrow leaves through the opening. The wordmark
-is Archivo 800 at 125% width. The lockup SVGs are in
-[`apps/web/public/brand/`](apps/web/public/brand/), and the favicon is
-[`apps/web/public/favicon.svg`](apps/web/public/favicon.svg).
+vermilion spur is the wall. On the site and in the extension it plays every
+real check result, in under 1.2 seconds:
+
+- **BLOCKED:** the arrow hits the wall and bounces back.
+- **ATTENTION** (including "couldn't check"): the arrow stops at an amber wall and waits. It never passes.
+- **SAFE:** the wall drops into the G and the arrow goes through.
+
+With "reduce motion" turned on in the OS, only the final pose is shown.
+
+![The Arrow G on real results: bounced, held for review, passed](shots/verdict-motion-frames.png)
+
+The whole look on one page: [contact sheet](shots/contact-sheet.png). Home in
+each shift: [day](shots/home-day-desktop.png) / [mobile](shots/home-day-mobile.png),
+[night](shots/home-night-desktop.png) / [mobile](shots/home-night-mobile.png),
+[blueprint](shots/home-plan-desktop.png) / [mobile](shots/home-plan-mobile.png),
+[signal](shots/home-signal-desktop.png) / [mobile](shots/home-signal-mobile.png).
+Site screenshots come from `node apps/web/scripts/site-shots.mjs shots` after
+`npm run build:web`.
+
+The type is Archivo (wordmark 800 at 125% width, headings up to 112%) and
+JetBrains Mono. The site and the extension use the same font files, colours,
+mark and motion.
+
+**Status colours never change.** Vermilion `#FF4D1A` means BLOCKED and
+nothing else. Amber `#F4B400` means look again or couldn't check. Green
+`#2DB36F` means safe.
+
+**Shifts.** The site and the extension popup each have a shift picker, and
+both default to **AUTO**:
+
+| Shift | When | Look |
+| --- | --- | --- |
+| AUTO | Follows the device clock | Day Shift from 06:00, Night Watch from 18:30 |
+| Day Shift | Manual or AUTO | Warm paper, ink, ochre accent |
+| Night Watch | Manual or AUTO | Near-black, cream, amber accent |
+| Blueprint | Manual only | Blueprint navy with a grid, sky accent |
+| Signal Box | Manual only | Pure black and white, highest contrast |
+
+The choice is saved: on the site in `localStorage` (applied before first
+paint, so there's no flash), and in the extension in `chrome.storage.local`.
+
+The lockup SVGs are in [`apps/web/public/brand/`](apps/web/public/brand/), and
+the favicon is [`apps/web/public/favicon.svg`](apps/web/public/favicon.svg).
 
 | Light | Dark |
 | --- | --- |
 | ![Gideon lockup, light](shots/brand-lockup-light.png) | ![Gideon lockup, dark](shots/brand-lockup-dark.png) |
+
+**NEAR logo.** The site footer, the network bar and the extension popup footer
+show the official NEAR logo, black or white, never recoloured. NEAR and the
+NEAR logo are trademarks of NEAR Foundation, used here per their brand
+guidelines to show that Gideon is built on NEAR. Gideon is an independent
+project, not made or endorsed by NEAR Foundation.
+
+**Fonts.** Archivo and JetBrains Mono are licensed under the SIL Open Font
+License 1.1 and bundled in `apps/web/public/fonts/` and
+`apps/extension/static/fonts/`.
 
 ## Repo layout
 
@@ -503,7 +558,8 @@ The website deploys as a static site; `vercel.json` builds it with
 - **NEAR:** NEAR Connect (`@hot-labs/near-connect`, wallet selector on the
   Send page). The flag registry uses Rust, `near-sdk`, `cargo-near`, and
   `near-sandbox` + `near-api` for its sandbox test. Fonts: Archivo and JetBrains Mono (SIL Open
-  Font License), bundled in the extension.
+  Font License), bundled in the site and the extension. NEAR logo: NEAR Foundation
+  trademark, used per their brand guidelines.
 - **Free, no-key APIs:** FastNEAR RPC (testnet and mainnet), NearBlocks API,
   NEAR Intents 1Click API, TronGrid, PublicNode Ethereum RPC and
   mempool.space. NEAR AI Cloud is an optional adapter, off by default.
