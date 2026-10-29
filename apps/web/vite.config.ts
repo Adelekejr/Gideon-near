@@ -24,6 +24,7 @@ export default defineConfig({
         check: resolve(root, "check.html"),
         extension: resolve(root, "extension.html"),
         agents: resolve(root, "agents.html"),
+        send: resolve(root, "send.html"),
       },
     },
   },

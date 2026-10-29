@@ -17,7 +17,7 @@ export function stopper(state: StopState, cls = ""): string {
 <rect class="gs-wall" x="146" y="10" width="11" height="68"/></svg>`;
 }
 
-const PAGES: [string, string][] = [["index.html", "Checker"], ["extension.html", "Extension"], ["agents.html", "Agents"]];
+const PAGES: [string, string][] = [["index.html", "Checker"], ["send.html", "Send"], ["extension.html", "Extension"], ["agents.html", "Agents"]];
 
 function nav(on: string): string {
   const net = getNetwork();
