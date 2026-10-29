@@ -51,7 +51,7 @@ export async function r07Lookalike(ctx: Ctx): Promise<RuleResult> {
         { fix: [`Send to ${cp} if that's who you meant.`, "Never copy an address from your transaction history."],
           evidence: [...ev, { label: "Dust transfer", value: short(dust.hash), url: explorerTxUrl(input.network, dust.hash) }] });
     }
-    return f("R7", "ATTENTION", "LOOKALIKE_OF_HISTORY", `Looks like ${short(cp, 12, 6)} from your history`,
+    return f("R7", "ATTENTION", "LOOKALIKE_OF_HISTORY", `Looks like ${cp.length <= 40 ? cp : short(cp, 12, 6)} from your history`,
       `${to} is very close to ${cp}, an account you've transacted with. Make sure you didn't copy the wrong one.`,
       { fix: ["Compare every character, or send from your address book."], evidence: ev });
   }

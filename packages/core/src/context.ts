@@ -46,5 +46,6 @@ export function makeCtx(input: Ctx["input"], c: Classification, sources: Sources
 
 export function yoctoToNear(yocto: string | number): string {
   const n = typeof yocto === "number" ? yocto / 1e24 : Number(BigInt(yocto) / 10n ** 18n) / 1e6;
+  if (n > 0 && n < 0.0001) return "less than 0.0001"; // dust must not read as "0"
   return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
 }
