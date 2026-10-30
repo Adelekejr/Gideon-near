@@ -360,7 +360,7 @@ async function run(field: Field, value: string, copied: string | null, force = f
   if (missingOptional(res.result)) {
     setTimeout(async () => {
       if (!current()) return;
-      const again = await sendCheck(req, LIMITS.pageWaitMs);
+      const again = await sendCheck({ ...req, refill: true }, LIMITS.pageWaitMs);
       if (!current() || !again.ok) return;
       await drained;
       if (!current()) return;

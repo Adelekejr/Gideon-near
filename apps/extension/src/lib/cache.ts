@@ -59,6 +59,7 @@ export function cachedSources(s: Sources, ttlMs = 3 * 60_000, now: () => number 
     recentTransfers: (n, a) => history.wrap(`${n}:${a}`, () => s.recentTransfers(n, a)),
     // A send makes "never sent here" stale, so only "sent before" (which can't change back) is kept.
     ...(s.sentCount ? { sentCount: (n, f, t) => sent.wrap(`${n}:${f}>${t}`, () => s.sentCount!(n, f, t), (v) => v > 0) } : {}),
+    // Dates and dateless-but-indexed answers are kept (see hasDate).
     ...(s.accountCreated
       ? { accountCreated: (n, a) => created.wrap(`${n}:${a}`, () => s.accountCreated!(n, a), hasDate) as ReturnType<NonNullable<Sources["accountCreated"]>> }
       : {}),
@@ -72,6 +73,14 @@ export function cachedSources(s: Sources, ttlMs = 3 * 60_000, now: () => number 
   };
 }
 
+/**
+ * Keep an answer that can't change: a date, or "the indexer knows this account but it has no
+ * creation transaction" (accounts from NEAR's launch, dated by the genesis read). "Not indexed
+ * yet" changes as the indexer catches up, so it's asked again.
+ */
 function hasDate(v: unknown): boolean {
-  return typeof v === "number" ? v > 0 : !!(v && typeof v === "object" && (v as { createdMs?: unknown }).createdMs);
+  if (typeof v === "number") return v > 0;
+  if (!v || typeof v !== "object") return false;
+  const o = v as { createdMs?: unknown; indexed?: unknown };
+  return !!o.createdMs || o.indexed === true;
 }

@@ -50,6 +50,9 @@ export async function runRequest(req: CheckRequest): Promise<{ result: CheckResu
       optionalBudgetMs: LIMITS.optionalMs,
       historyTimeoutMs: LIMITS.historyMs,
     }), cacheable);
+  // A refill only fills in the creation date on a card already counted (and maybe already
+  // updated by the drained-wallet check), so it changes neither the counts nor "last check".
+  if (req.refill) return { result, net, ...(sender ? { sender } : {}) };
   const last: LastCheck = {
     host: req.host,
     net: `${net.network} · ${net.why}`,

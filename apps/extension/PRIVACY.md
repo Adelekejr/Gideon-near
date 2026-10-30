@@ -1,6 +1,6 @@
 # Gideon extension: what it reads, keeps and sends
 
-This file describes the code in this folder (`src/`, `manifest.json`) as of version 0.2.7.
+This file describes the code in this folder (`src/`, `manifest.json`) as of version 0.2.8.
 If the code and this file ever disagree, that's a bug: please report it.
 
 ## Short version

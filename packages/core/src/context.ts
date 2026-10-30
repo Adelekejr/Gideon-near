@@ -132,7 +132,11 @@ async function readFacts(ctx: Ctx, sources: Sources): Promise<AccountFacts | nul
   }
   // The indexer knows the account but has no creation date: it may date from the chain's launch
   // (genesis accounts like illia.near have no creation transaction). One archival read settles it.
-  if (created === "unavailable" && indexedNoDate && sources.accountAtGenesis && Date.now() < until) {
+  // When the shared budget is already spent, the read is recorded as missed (not silently skipped),
+  // so the answer isn't kept as complete and the extension asks once more to fill the date in.
+  if (created === "unavailable" && indexedNoDate && sources.accountAtGenesis && Date.now() >= until) {
+    ctx.calls.push({ source: `archival-${net}:genesis:${id}`, ok: false, ms: 0, optional: true, error: "genesis lookup skipped: out of time" });
+  } else if (created === "unavailable" && indexedNoDate && sources.accountAtGenesis) {
     const t0 = Date.now();
     const key = `archival-${net}:genesis:${id}`;
     try {
@@ -148,6 +152,9 @@ async function readFacts(ctx: Ctx, sources: Sources): Promise<AccountFacts | nul
   }
   let chainAgeDays: number | undefined;
   if (created === "after-indexer" && sources.accountExistedAt && Date.now() < until) chainAgeDays = await chainAge(ctx, sources, id, until);
+  else if (created === "after-indexer" && sources.accountExistedAt) {
+    ctx.calls.push({ source: `archival-${net}:age:${id}`, ok: false, ms: 0, optional: true, error: "chain-history dating skipped: out of time" });
+  }
   const parts = [`Account exists on ${where}.`];
   if (createdAt) parts.push(`Created ${fmtDate(Date.parse(createdAt))}.`);
   else if (chainAgeDays === 0) parts.push("Created in the last 24 hours.");

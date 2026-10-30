@@ -8,7 +8,7 @@ engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 ```bash
 npm install
 npm run build:extension      # → apps/extension/dist
-npm run zip:extension        # → apps/extension/gideon-extension-0.2.7.zip
+npm run zip:extension        # → apps/extension/gideon-extension-0.2.8.zip
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
@@ -36,6 +36,17 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 Tests are in `test/` and run with the root `npm test`.
 
 What the extension reads, keeps and sends: [PRIVACY.md](PRIVACY.md).
+
+## What changed in 0.2.8
+
+- **Creation date in the popup's own check.** "Check this send" in the popup now fills in a
+  creation date that missed the time limit, the same way the card on a page does (one quiet
+  follow-up a moment later). On a slow phone connection `illia.near` showed "Creation date
+  unavailable" there; it now shows "Created 21 Jul 2020".
+- **Launch-day accounts on slow connections.** The indexer's "known account, no creation date"
+  answer is remembered, and a launch-day read that ran out of time is recorded as missed (not
+  skipped), so the follow-up fills the date in everywhere. The follow-up no longer counts as a
+  second check.
 
 ## What changed in 0.2.7
 

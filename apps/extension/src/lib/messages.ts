@@ -11,6 +11,8 @@ export interface CheckRequest {
   page?: NetHint;
   /** The account the wallet shows as signed in (names only). */
   sender?: SenderHint;
+  /** A quiet follow-up that only fills in a missed creation date: not counted again, "last check" left as is. */
+  refill?: boolean;
 }
 
 /** The network a check ran on, and why, for the card. */

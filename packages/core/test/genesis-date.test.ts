@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { acct, empty, find, run } from "./helpers.js";
+import { check } from "../src/engine.js";
+import { acct, empty, find, NOW, run } from "./helpers.js";
 
 /** Accounts from the chain's launch (e.g. illia.near) have no creation transaction, so NearBlocks has no date. */
 describe("creation date for genesis accounts", () => {
@@ -7,7 +8,7 @@ describe("creation date for genesis accounts", () => {
 
   it("indexer knows it but has no date, and it existed at genesis: dated to NEAR's launch", async () => {
     const asked: string[] = [];
-    const r = await run({ to: "illia.near", network: "mainnet" }, empty({
+    const r = await check({ to: "illia.near", network: "mainnet" }, empty({
       viewAccount: async () => acct(5), accountCreated: noDate,
       accountAtGenesis: async (n, a) => { asked.push(`${n}:${a}`); return true; },
     }));
@@ -33,5 +34,17 @@ describe("creation date for genesis accounts", () => {
     await run({ to: "bob.near", network: "mainnet" }, empty({ viewAccount: async () => acct(5), accountCreated: async () => Date.parse("2023-01-01"), accountAtGenesis: g }));
     await run({ to: "bob.near", network: "mainnet" }, empty({ viewAccount: async () => acct(5), accountCreated: async () => ({ createdMs: null, indexed: false, indexedHeight: null }), accountAtGenesis: g }));
     expect(asked).toBe(0);
+  });
+});
+
+describe("genesis read with no time left", () => {
+  it("is recorded as missed, never silently skipped (so the answer isn't treated as complete)", async () => {
+    const r = await check({ to: "illia.near", network: "mainnet" }, empty({
+      viewAccount: async () => acct(5),
+      accountCreated: async () => { await new Promise((res) => setTimeout(res, 60)); return { createdMs: null, indexed: true, indexedHeight: 1 }; },
+      accountAtGenesis: async () => true,
+    }), { now: NOW, optionalBudgetMs: 50, sourceTimeoutMs: 3000 });
+    expect(r.account?.summary).toContain("Creation date unavailable.");
+    expect(r.sources.some((c) => c.optional && !c.ok)).toBe(true);
   });
 });

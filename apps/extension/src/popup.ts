@@ -5,6 +5,7 @@ import { addContact, load, removeContact, saveContacts, saveSettings, type LastC
 import { sendCheck, sendDrainer, type CheckRequest } from "./lib/messages.js";
 import { drainerWanted } from "@gideon/core";
 import { LIMITS } from "./lib/limits.js";
+import { missingOptional } from "./lib/runcache.js";
 import type { NetworkMode } from "./lib/network.js";
 import { card, checking, esc, failed, LOGO, short } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
@@ -199,13 +200,33 @@ $<HTMLFormElement>("f").addEventListener("submit", async (e) => {
     $("sStopped").textContent = String(s.stats.stopped);
   };
   await showStats();
+  if (!res?.ok) return;
+  let shown = res.result;
   // The verdict shows first; the drained-wallet check (R18) then updates the card, or leaves it as is.
-  if (res?.ok && pending) {
+  const drained = (async () => {
+    if (!pending) return;
     const merged = await sendDrainer(res.result, LIMITS.drainerWaitMs);
     if (asked !== drainerSeq) return; // a newer check replaced this one
-    $("result").innerHTML = card(merged ?? res.result, netOpt);
+    shown = merged ?? res.result;
+    $("result").innerHTML = card(shown, netOpt);
     if (merged && merged.verdict !== res.result.verdict) playAll($("result"));
     await showStats();
+  })();
+  // Same as the card on a page: if only the creation date missed the time limit, ask once more in a
+  // moment (the worker remembers the lookups) and fill it in quietly, keeping the drained-wallet answer.
+  if (missingOptional(res.result)) {
+    setTimeout(async () => {
+      if (asked !== drainerSeq) return;
+      const again = await sendCheck({ input, host: "", refill: true }).catch(() => null);
+      if (!again?.ok || asked !== drainerSeq) return;
+      await drained;
+      if (asked !== drainerSeq) return;
+      const r18 = shown.findings.some((f) => f.rule === "R18" && f.status !== "SKIPPED");
+      const filled = r18 ? await sendDrainer(again.result, LIMITS.drainerWaitMs) : again.result;
+      if (asked !== drainerSeq || !filled) return;
+      shown = filled;
+      $("result").innerHTML = card(shown, again.net ? { net: again.net } : netOpt);
+    }, LIMITS.refillAfterMs);
   }
 });
 let drainerSeq = 0;
