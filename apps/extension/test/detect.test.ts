@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, beforeEach } from "vitest";
-import { findSendButtons, isRecipientField, isStrongAddress, isTextField, shouldCheck, type Field } from "../src/lib/detect.js";
+import { findSendButtons, isRecipientField, isSecretField, isStrongAddress, isTextField, shouldCheck, type Field } from "../src/lib/detect.js";
 
 const TRON_HASH = "89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944";
 const field = (sel: string) => document.querySelector(sel) as Field;
@@ -16,6 +16,9 @@ beforeEach(() => {
     <input id="memo" name="memo" placeholder="Memo">
     <input id="pw" type="password">
     <input id="plain">
+    <label for="pk">Private key</label><input id="pk">
+    <div><span>Enter your recovery phrase</span><textarea id="seed"></textarea></div>
+    <input id="w3" placeholder="Word 3">
     <button type="button">Max</button><button type="submit">Withdraw</button>
   </form>
   <div id="loose"><input id="to" aria-label="To"><div role="button">Send</div><button>Cancel</button></div>`;
@@ -42,7 +45,22 @@ describe("what gets checked", () => {
     expect(isStrongAddress("alice.near")).toBe(true);
     expect(isStrongAddress("hello")).toBe(false);
     expect(isStrongAddress("hello world.near")).toBe(false);
-    expect(shouldCheck(field("#plain"), TRON_HASH)).toBe(true);
+    expect(shouldCheck(field("#plain"), "TJCnKsPa7y5okkXvQAidZBzqx3QyQ6sxMW")).toBe(true);
+  });
+  it("64 hex (the shape of a private key) only in a recipient field", () => {
+    expect(shouldCheck(field("#plain"), TRON_HASH)).toBe(false);
+    expect(shouldCheck(field("#plain"), "0x" + TRON_HASH)).toBe(false);
+    expect(shouldCheck(field("#plain"), TRON_HASH.toUpperCase())).toBe(false);
+    expect(shouldCheck(field("#addr"), TRON_HASH)).toBe(true);
+    expect(shouldCheck(field("#to"), "0x" + TRON_HASH)).toBe(true);
+  });
+  it("never checks key, seed or password fields", () => {
+    for (const id of ["#pk", "#seed", "#w3", "#pw"]) {
+      expect(isSecretField(field(id))).toBe(true);
+      expect(shouldCheck(field(id), TRON_HASH)).toBe(false);
+      expect(shouldCheck(field(id), "alice.near")).toBe(false);
+    }
+    expect(isSecretField(field("#addr"))).toBe(false);
   });
   it("plain words only in recipient fields", () => {
     expect(shouldCheck(field("#plain"), "bob")).toBe(false);

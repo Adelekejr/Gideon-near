@@ -35,6 +35,8 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 
 Tests are in `test/` and run with the root `npm test`.
 
+What the extension reads, keeps and sends: [PRIVACY.md](PRIVACY.md).
+
 ## What changed in 0.2.5
 
 - **After an update, reload open pages.** A page left open while Gideon is updated or reloaded keeps

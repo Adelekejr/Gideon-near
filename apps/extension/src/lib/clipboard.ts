@@ -3,8 +3,14 @@ import { isStrongAddress } from "./detect.js";
 /** How long a copy counts for. After this we no longer know what's on the clipboard. */
 export const COPY_TTL_MS = 2 * 60_000;
 
+/** Only text shaped like an address is ever kept; anything else you copy is ignored. */
+export function addressLike(text: string): boolean {
+  const t = text.trim();
+  return !!t && t.length <= 120 && (isStrongAddress(t) || /^[a-z\d._-]+\.(near|testnet)$/i.test(t));
+}
+
 /**
- * Remembers what you copied on this page, so a paste can be compared with it (rule R9).
+ * Remembers the address you copied on this page (in memory only, never stored or sent), so a paste can be compared with it (rule R9).
  * Forgets on window blur or tab switch, because then you may have copied something
  * elsewhere that the page can't see.
  */
@@ -14,7 +20,7 @@ export class ClipboardWatch {
 
   recordCopy(text: string, now = Date.now()): void {
     const t = text.trim();
-    this.copied = t ? t : null;
+    this.copied = addressLike(t) ? t : null;
     this.at = now;
   }
 
@@ -29,7 +35,7 @@ export class ClipboardWatch {
       this.copied = null;
       return null;
     }
-    return isStrongAddress(this.copied) || /^[a-z\d._-]+\.(near|testnet)$/i.test(this.copied) ? this.copied : null;
+    return this.copied;
   }
 }
 

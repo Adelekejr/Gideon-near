@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { check } from "@gideon/core";
-import { ClipboardWatch, COPY_TTL_MS, copyTampered } from "../src/lib/clipboard.js";
+import { addressLike, ClipboardWatch, COPY_TTL_MS, copyTampered } from "../src/lib/clipboard.js";
 import { empty } from "../../../packages/core/test/helpers.js";
 
 describe("ClipboardWatch", () => {
@@ -14,6 +14,17 @@ describe("ClipboardWatch", () => {
     const w = new ClipboardWatch();
     w.recordCopy("hello there", 0);
     expect(w.copiedFor(1)).toBeNull();
+  });
+  it("never keeps a key, phrase or other text, even briefly", () => {
+    const w = new ClipboardWatch();
+    w.recordCopy("alice.near", 0);
+    w.recordCopy("abandon ability able about above absent absorb abstract absurd abuse access accident", 1);
+    expect(w.copiedFor(2)).toBeNull();
+    w.recordCopy("ed25519:3D4YudUahN1nawWogh8pAKSj92sUNMdbZGjn7kERKzYoTy8tnFQuwoGUC51DowKqorvkr2pytJSnwuSbsNVfqygr", 3);
+    expect(w.copiedFor(4)).toBeNull();
+    expect((w as unknown as { copied: unknown }).copied).toBeNull();
+    expect(addressLike("my password 123")).toBe(false);
+    expect(addressLike("alice.near")).toBe(true);
   });
   it("forgets on reset (window blur / tab switch)", () => {
     const w = new ClipboardWatch();

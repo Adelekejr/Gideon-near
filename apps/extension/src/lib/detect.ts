@@ -5,6 +5,12 @@ const RECIPIENT = /(recipient|receiver|receiving|send[\s_-]*to|to[\s_-]*address|
 /** Words that mean it's some other kind of address or field. */
 const NOT_RECIPIENT = /(e-?mail|street|city|postal|post code|postcode|zip|billing|shipping|ip[\s_-]*address|web[\s_-]*address|website|\burl\b|search|password|memo|\btag\b|amount|phone|coupon|promo|username|first[\s_-]*name|last[\s_-]*name|full[\s_-]*name)/i;
 
+/**
+ * Words that mark a field as holding a secret. Gideon never checks what's typed or pasted here,
+ * so a private key or recovery phrase can't reach an address lookup.
+ */
+const SECRET = /(private[\s_-]*key|secret|seed|mnemonic|recovery|pass[\s_-]*phrase|backup[\s_-]*phrase|import[\s_-]*(wallet|account|key)|\bword[\s_#-]*\d+|one-time-code|current-password|new-password)/i;
+
 /** Kinds that only ever appear when someone pasted an address or hash. */
 const STRONG: AddressKind[] = ["near-implicit", "eth-implicit", "hex64-uppercase", "evm-tx-hash", "tron-address", "btc-address"];
 
@@ -62,6 +68,21 @@ function cssEscape(s: string): string {
   return s.replace(/["\\]/g, "\\$&");
 }
 
+/**
+ * 64 hex characters (with or without 0x) is also how an Ethereum private key looks, so these are
+ * only checked in a field labelled as a recipient, never in an unlabelled one.
+ */
+const KEY_SHAPED: AddressKind[] = ["near-implicit", "hex64-uppercase", "evm-tx-hash"];
+
+/** Does this field look like it holds a private key, recovery phrase or password? */
+export function isSecretField(el: Field): boolean {
+  if (el.tagName === "INPUT" && (el as HTMLInputElement).type === "password") return true;
+  const own = ownText(el);
+  if (SECRET.test(own)) return true;
+  if (RECIPIENT.test(own)) return false;
+  return SECRET.test(nearbyText(el));
+}
+
 /** Does this field look like the recipient of a send? */
 export function isRecipientField(el: Field): boolean {
   if (/^\s*to\s*$/i.test(el.getAttribute("aria-label") ?? "")) return true;
@@ -99,8 +120,8 @@ export function shouldCheck(el: Field, value: string): boolean {
   // A fake letter, invisible character or hidden space hides an address: judge what it imitates.
   const v = oddCharacters(raw).length ? plainVersion(raw) : raw.trim();
   if (!v || v.length > 120 || /\s/.test(v)) return false;
-  if (el.tagName === "INPUT" && (el as HTMLInputElement).type === "password") return false;
-  if (isStrongAddress(v)) return true;
+  if (isSecretField(el)) return false;
+  if (isStrongAddress(v)) return !KEY_SHAPED.includes(classify(v).kind) || isRecipientField(el);
   if (!isRecipientField(el)) return false;
   const k = classify(v).kind;
   return k !== "empty" && v.length >= 2;

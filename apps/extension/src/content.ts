@@ -1,6 +1,6 @@
 import type { Network } from "@gideon/core";
 import { addContact, load, saveContacts, withDefaults, type Settings } from "./lib/settings.js";
-import { ClipboardWatch, copyTampered } from "./lib/clipboard.js";
+import { addressLike, ClipboardWatch, copyTampered } from "./lib/clipboard.js";
 import { findSendButtons, plainTrim, isRecipientField, isTextField, shouldCheck, type Field } from "./lib/detect.js";
 import { card, checking, failed, tamperCard, toneOf, updated } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
@@ -378,11 +378,16 @@ function selectionText(target: EventTarget | null): string {
 
 let lastSelection = "";
 function onCopy(e: ClipboardEvent): void {
+  if (!settings.clipboardCheck) { watch.reset(); return; }
+  // The selection is held only for this copy event (to spot a page swapping it), then dropped.
+  // Only an address-shaped selection is remembered for the paste check (R9).
   lastSelection = selectionText(e.target);
-  watch.recordCopy(lastSelection);
+  setTimeout(() => { lastSelection = ""; }, 0);
+  const sel = lastSelection.trim();
+  watch.recordCopy(addressLike(sel) ? sel : "");
 }
 function onCopyAfter(e: ClipboardEvent): void {
-  if (!settings.clipboardCheck) return;
+  if (!settings.clipboardCheck) { lastSelection = ""; return; }
   let written: string | null = null;
   try {
     written = e.clipboardData?.getData("text/plain") ?? null;
@@ -391,6 +396,7 @@ function onCopyAfter(e: ClipboardEvent): void {
   }
   const swapped = copyTampered(lastSelection, written, e.defaultPrevented);
   if (swapped) show(null, tamperCard(lastSelection, swapped), "block");
+  lastSelection = "";
 }
 window.addEventListener("copy", onCopy, true);
 window.addEventListener("cut", onCopy, true);
