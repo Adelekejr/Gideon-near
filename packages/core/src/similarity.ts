@@ -45,9 +45,7 @@ function stem(s: string): string {
 
 /**
  * Is `candidate` a lookalike of `trusted`? Null when they're equal or clearly different.
- * - hex accounts (64-hex, 0x+40), same length: the ends match the way poisoners grind them
- *   (first and last characters together 6 or more, at least 2 at each end; or 6+ at one end),
- *   or at most 4 characters differ in total
+ * - hex accounts (64-hex, or 0x + 40 hex), see hexLookalike
  * - named accounts: same look-alike skeleton (1/l, 0/o, i/l, rn/m, hyphen/dot), or edit distance
  *   ≤ 2 (≤ 1 when the name is under 10 characters; names under 4 characters only by skeleton)
  */
@@ -57,18 +55,7 @@ export function lookalike(candidate: string, trusted: string): Lookalike | null 
   const diff: number[] = [];
   if (a.length === b.length) for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) diff.push(i);
   const hexA = HEX_ACCOUNT.test(a) && a.length >= 40, hexB = HEX_ACCOUNT.test(b) && b.length >= 40;
-  if (hexA || hexB) {
-    if (!(hexA && hexB && a.length === b.length)) return null;
-    const off = a.startsWith("0x") && b.startsWith("0x") ? 2 : 0;
-    const { head, tail } = sharedEnds(a.slice(off), b.slice(off));
-    const mid = `${diff.length} character${diff.length === 1 ? "" : "s"} differ in the middle`;
-    if (diff.length <= 4) return { reason: `Only ${diff.length} character${diff.length === 1 ? "" : "s"} differ${diff.length === 1 ? "s" : ""}`, diff };
-    if ((head >= 2 && tail >= 2 && head + tail >= 6) || head >= 6 || tail >= 6) {
-      const ends = tail === 0 ? `Same first ${head} characters` : head === 0 ? `Same last ${tail} characters` : `Same first ${head} and last ${tail} characters`;
-      return { reason: `${ends}, ${mid}`, diff };
-    }
-    return null;
-  }
+  if (hexA || hexB) return hexLookalike(a, b, diff);
   if (skeleton(a) === skeleton(b)) return { reason: "Only look-alike characters differ (like l/1, o/0, i/l, rn/m, - and .)", diff };
   const sa = stem(a), sb = stem(b), suffix = (x: string, st: string) => x.slice(st.length);
   const bare = (x: string) => x.replace(/[\d._-]+$/, "");
@@ -79,5 +66,35 @@ export function lookalike(candidate: string, trusted: string): Lookalike | null 
   const limit = Math.min(a.length, b.length) < 10 ? 1 : 2;
   const dist = editDistance(a, b);
   if (dist <= limit) return { reason: `Differs by ${dist} character${dist === 1 ? "" : "s"}`, diff };
+  return null;
+}
+
+const plural = (n: number, w = "character") => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+/**
+ * Hex accounts (64-hex implicit, or 0x + 40 hex eth-implicit), compared only with the same kind
+ * (0x with 0x, plain with plain), ignoring the "0x":
+ * - the ends match the way poisoners grind them, in any split: at least 2 at each end and 5 or
+ *   more in total (2+3, 4+4, 3+6, ...), or 5 or more at one end alone. A random pair matches this
+ *   about 1 time in 500,000, so it's a strong sign, not a coincidence;
+ * - or a small edit: at most 4 characters changed (same length), or at most 2 added, missing or
+ *   swapped (a wrong length is also caught by R1, but this names the account it was meant to be).
+ */
+export function hexLookalike(a: string, b: string, diff: number[] = []): Lookalike | null {
+  const ox = (x: string) => x.startsWith("0x");
+  if (!HEX_ACCOUNT.test(a) || !HEX_ACCOUNT.test(b) || ox(a) !== ox(b)) return null;
+  const x = a.replace(/^0x/, ""), y = b.replace(/^0x/, "");
+  if (x === y || x.length < 38 || y.length < 38 || Math.abs(x.length - y.length) > 2) return null;
+  const { head, tail } = sharedEnds(x, y);
+  const ends = tail === 0 ? `Same first ${head} characters` : head === 0 ? `Same last ${tail} characters` : `Same first ${head} and last ${tail} characters`;
+  if (x.length === y.length) {
+    const n = diff.length || [...x].filter((ch, i) => ch !== y[i]).length;
+    if (n <= 4) return { reason: `Only ${plural(n)} differ${n === 1 ? "s" : ""}`, diff };
+    if ((head >= 2 && tail >= 2 && head + tail >= 5) || head >= 5 || tail >= 5) return { reason: `${ends}, ${plural(n)} differ in the middle`, diff };
+    return null;
+  }
+  const dist = editDistance(x, y);
+  if (dist <= 2) return { reason: `${dist === 1 ? "One character" : "Two characters"} added or missing`, diff };
+  if ((head >= 2 && tail >= 2 && head + tail >= 5) || head >= 5 || tail >= 5) return { reason: `${ends}, but a different length`, diff };
   return null;
 }

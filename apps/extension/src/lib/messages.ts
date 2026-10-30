@@ -21,18 +21,52 @@ export interface NetUsed {
   sure: boolean;
 }
 
-export type CheckResponse = { ok: true; result: CheckResult; net?: NetUsed; sender?: SenderUsed } | { ok: false; error: string };
+export type CheckResponse =
+  | { ok: true; result: CheckResult; net?: NetUsed; sender?: SenderUsed }
+  | { ok: false; error: string; /** This page's copy of Gideon was replaced by an update or reload: reload the page. */ orphaned?: true };
 
 type Send = (msg: CheckRequest) => Promise<CheckResponse | undefined>;
 const viaRuntime: Send = (msg) => chrome.runtime.sendMessage(msg);
 
 /**
- * Ask the service worker for a check. Never hangs: after `timeoutMs` (or if the worker was
- * stopped mid-check and never replies) it answers { ok: false } so the card can say so.
+ * False once the extension this script belongs to was updated, reloaded or removed while the page
+ * stayed open. Chrome then cuts the old script off (chrome.runtime.id goes away) and every call
+ * throws "Extension context invalidated". Only reloading the page brings the new version in.
  */
-export function sendCheck(req: Omit<CheckRequest, "type">, timeoutMs?: number, send: Send = viaRuntime): Promise<CheckResponse> {
-  const asked = Promise.resolve().then(() => send({ type: "gideon:check", ...req }));
-  return withTimeout(asked, timeoutMs, "The check")
-    .then((r): CheckResponse => r ?? { ok: false, error: "The extension stopped before it answered." })
-    .catch((e: unknown): CheckResponse => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+export function extensionAlive(): boolean {
+  try {
+    return typeof chrome !== "undefined" && !!chrome.runtime?.id;
+  } catch {
+    return false;
+  }
+}
+
+const ORPHANED = /context invalidated|extension context/i;
+// The service worker was asleep, stopped by the browser, or stopped mid-check: worth one more try.
+const WORKER_GONE = /receiving end does not exist|could not establish connection|message port closed|stopped before it answered/i;
+
+/**
+ * Ask the service worker for a check. Never hangs: after `timeoutMs` it answers { ok: false } so
+ * the card can say so. If the worker didn't answer (Android browsers stop MV3 workers often), it
+ * waits `retryAfterMs` and asks once more; sending the message wakes the worker again.
+ * If this script was orphaned by an update, it answers { ok: false, orphaned: true } at once.
+ */
+export function sendCheck(req: Omit<CheckRequest, "type">, timeoutMs?: number, send: Send = viaRuntime, alive: () => boolean = extensionAlive, retryAfterMs = 250): Promise<CheckResponse> {
+  const gone: CheckResponse = { ok: false, error: "Gideon was updated. Reload this page to keep checking.", orphaned: true };
+  if (!alive()) return Promise.resolve(gone);
+  const once = (): Promise<CheckResponse> =>
+    Promise.resolve()
+      .then(() => send({ type: "gideon:check", ...req }))
+      .then((r): CheckResponse => r ?? { ok: false, error: "The extension stopped before it answered." })
+      .catch((e: unknown): CheckResponse => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+  const asked = once().then(async (r) => {
+    if (r.ok) return r;
+    if (!alive() || ORPHANED.test(r.error)) return gone;
+    if (!WORKER_GONE.test(r.error)) return r;
+    await new Promise((res) => setTimeout(res, retryAfterMs));
+    if (!alive()) return gone;
+    const again = await once();
+    return !again.ok && (!alive() || ORPHANED.test(again.error)) ? gone : again;
+  });
+  return withTimeout(asked, timeoutMs, "The check").catch((e: unknown): CheckResponse => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
 }

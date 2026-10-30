@@ -2,7 +2,7 @@ import { check, type CheckResult } from "@gideon/core";
 import { liveSources } from "@gideon/sources";
 import { load, type LastCheck } from "./lib/settings.js";
 import type { CheckRequest, CheckResponse, NetUsed } from "./lib/messages.js";
-import { resolveNetwork } from "./lib/resolve.js";
+import { resolveNetwork, walletNetworkHint } from "./lib/resolve.js";
 import { titleOf } from "./lib/view.js";
 import { cachedSources, TtlCache } from "./lib/cache.js";
 import { LIMITS } from "./lib/limits.js";
@@ -31,12 +31,14 @@ export async function runRequest(req: CheckRequest): Promise<{ result: CheckResu
     if (mine.join() !== myAccounts.join()) await chrome.storage.local.set({ myAccounts: mine });
   }
   const device = sendsOn(sends, net.network);
+  const walletNetwork = walletNetworkHint(net, req.page, sender?.account);
   const input = {
     ...req.input,
     ...(sender?.account ? { from: sender.account } : {}),
     network: net.network,
     addressBook: contacts,
     ...(device.length ? { deviceSends: device } : {}),
+    ...(walletNetwork ? { walletNetwork } : {}),
   };
   // Same address, network and inputs within a few minutes (or already running): reuse the answer.
   const result = await results.wrap(checkKey(input), () =>

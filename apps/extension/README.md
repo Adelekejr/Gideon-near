@@ -8,7 +8,7 @@ engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 ```bash
 npm install
 npm run build:extension      # → apps/extension/dist
-npm run zip:extension        # → apps/extension/gideon-extension-0.2.4.zip
+npm run zip:extension        # → apps/extension/gideon-extension-0.2.5.zip
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
@@ -35,10 +35,30 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 
 Tests are in `test/` and run with the root `npm test`.
 
+## What changed in 0.2.5
+
+- **After an update, reload open pages.** A page left open while Gideon is updated or reloaded keeps
+  the old copy, which the browser cuts off ("Extension context invalidated"). That copy now notices,
+  stops asking, and shows "Gideon was updated. Reload this page to keep checking." Pages opened
+  after the update are not affected.
+- When the browser has stopped Gideon's background worker (Android does this often), a check that
+  gets no answer asks once more, which wakes the worker.
+- "Couldn't check" now reads "That doesn't mean the address is safe. Check it another way before you send."
+- Your accounts and the address book accept `.near`, `.testnet` and 64-character hex accounts; the
+  examples say so.
+- **Wider hex lookalikes (R7).** 64-hex and `0x` accounts are compared with your contacts, the
+  accounts you sent to from this device, and your on-chain history in more ways: the same first and
+  last characters in any split (2+3, 4+4, 6+0 and so on, 5 or more in total), up to 4 characters
+  changed, or one or two characters added or missing. `0x` accounts are compared after the `0x`.
+- **Same name on the other network (R16).** Typing `alice.near` while sending on testnet, or
+  `alice.testnet` on mainnet, when the same name exists on the network you're on: if Gideon is sure
+  of your network it blocks with "Wrong network: did you mean alice.testnet?"; if it only looks like
+  you're on the other network, it's a hint ("Your wallet may be on testnet"), never a block.
+
 ## What changed in 0.2.4
 
-- **Long account names.** Meteor shortens long names in its header (`hammed-stampdue.testnet`
-  shows as `hammed-st...testnet`), so 0.2.3 found no sender and skipped "first send" and the
+- **Long account names.** Meteor shortens long names in its header (`alice-wallet.testnet`
+  shows as `alice-wal...testnet`), so 0.2.3 found no sender and skipped "first send" and the
   past-recipient lookalike check. Gideon now matches the short form to a full name elsewhere on
   the page or to "Your accounts" in the popup (new section; it also remembers every full name it
   reads from a wallet header). The card shows the sender it used: `sender → you.testnet · how`.

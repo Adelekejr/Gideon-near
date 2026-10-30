@@ -4,8 +4,8 @@ import type { TextSignal } from "./network.js";
 /**
  * Who's sending: the account the wallet shows as signed in.
  *
- * Wallets shorten long names in their header. Meteor shows `hammed-stampdue.testnet` as
- * `hammed-st...testnet` (first 9 characters, "...", then the last 7), so the full name often
+ * Wallets shorten long names in their header. Meteor shows `alice-wallet.testnet` as
+ * `alice-wal...testnet` (first 9 characters, "...", then the last 7), so the full name often
  * isn't on the page at all. Gideon then matches the shortened form against full names elsewhere on
  * the page and the accounts it remembers as yours ("Your accounts" in the popup, and every full name
  * it has read from a wallet header before). Saved contacts are never used: they're other people.
@@ -26,7 +26,7 @@ export interface SenderHint {
   wallet?: string;
   /** Several different accounts claim to be the sender: Gideon doesn't guess. */
   ambiguous?: string[];
-  /** The shortened name shown in the header, e.g. "hammed-st...testnet". */
+  /** The shortened name shown in the header, e.g. "alice-wal...testnet". */
   shown?: string;
   /** Full account names elsewhere on the page that fit `shown`. */
   candidates?: string[];
@@ -58,7 +58,7 @@ export function isAccount(a: string): boolean {
   return HEX64.test(a) || (a.length >= 2 && a.length <= 64 && FULL.test(a) && VALID.test(a));
 }
 
-/** "hammed-st...testnet" → { head: "hammed-st", tail: "testnet" }; null if it isn't a shortened name. */
+/** "alice-wal...testnet" → { head: "alice-wal", tail: "testnet" }; null if it isn't a shortened name. */
 export function shortened(text: string): { head: string; tail: string } | null {
   const t = clean(text);
   if (t.length > 50) return null;

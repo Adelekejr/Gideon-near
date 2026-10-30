@@ -1,4 +1,4 @@
-import { classify, withTimeout, type Network, type Sources } from "@gideon/core";
+import { classify, networkOfName, withTimeout, type Network, type Sources } from "@gideon/core";
 import { decide, type NetHint, type NetworkMode } from "./network.js";
 import type { NetUsed } from "./messages.js";
 
@@ -28,4 +28,16 @@ export async function resolveNetwork(
   if (main === "yes") return { network: "mainnet", source: "both", why: `${base}: it only exists on mainnet`, sure: false };
   if (main === "error" || test === "error") return { network: "mainnet", source: "both", why: `${base}, but one lookup failed; showing mainnet`, sure: false };
   return { network: "mainnet", source: "both", why: `${base}: not found on either`, sure: false };
+}
+
+/**
+ * The network the wallet only seems to be on, when it differs from the one the check runs on
+ * (R16 then looks for the same name there and gives a hint). Never set when the network is
+ * certain: then a mismatch is R1's and R16's block, not a hint.
+ */
+export function walletNetworkHint(net: NetUsed, page: NetHint | undefined, sender?: string | null): Network | undefined {
+  if (net.sure) return undefined;
+  const fromSender = sender ? networkOfName(sender) : null;
+  const seen = page?.network ?? fromSender;
+  return seen && seen !== net.network ? seen : undefined;
 }

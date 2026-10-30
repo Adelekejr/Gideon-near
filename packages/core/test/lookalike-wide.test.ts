@@ -55,13 +55,49 @@ describe("64-hex lookalikes", () => {
   });
   it("ends too short to be a grind stay different", () => {
     no(grind(2, 2), real);
-    no(grind(5, 0), real);
+    no(grind(4, 0), real);
+    no(grind(0, 4), real);
     no(grind(1, 4), real);
-    no(real.slice(0, 63), real);
+    no(grind(1, 3), real);
   });
   it("0x addresses compare after the prefix", () => {
     const a = "0x" + "ab12" + "0".repeat(32) + "cd34", b = "0x" + "ab12" + "f".repeat(32) + "cd34";
     yes(a, b);
     expect(sharedEnds("abcxyz", "abqxyz")).toEqual({ head: 2, tail: 3 });
+  });
+});
+
+describe("wider hex lookalikes (0.2.5)", () => {
+  const real = "9ebef819489ae5e6641cc5573740dadc751c35c3ae37c110e4fad8101494e418";
+  const grind = (head: number, tail: number) =>
+    real.slice(0, head) + [...real.slice(head, 64 - tail)].map((c) => (c === "0" ? "1" : "0")).join("") + real.slice(64 - tail);
+  it("5 or more matching in any split, 2+ at each end", () => {
+    for (const [h, t] of [[2, 3], [3, 2], [5, 0], [0, 5], [6, 4], [4, 6], [10, 10]]) yes(grind(h!, t!), real);
+  });
+  it("a character added, missing or swapped", () => {
+    expect(lookalike(real.slice(0, 63), real)?.reason).toBe("One character added or missing");
+    expect(lookalike(real.slice(0, 30) + real.slice(32), real)?.reason).toBe("Two characters added or missing");
+    yes(real.slice(0, 20) + "a" + real.slice(20), real);
+    const swapped = real.slice(0, 20) + real[21] + real[20] + real.slice(22);
+    expect(lookalike(swapped, real)?.reason).toBe("Only 2 characters differ");
+  });
+  it("same ends but a different length", () => {
+    const longer = real.slice(0, 4) + "0".repeat(57) + real.slice(60);
+    expect(lookalike(longer, real)?.reason).toMatch(/^Same first 4 and last 4 characters, but a different length/);
+  });
+  it("0x eth-implicit: same rules, after the 0x", () => {
+    const eth = "0x" + "d8da6bf26964af9d7eed9e03e53415d37aa96045";
+    const g = (h: number, t: number) => "0x" + eth.slice(2, 2 + h) + [...eth.slice(2 + h, 42 - t)].map((c) => (c === "0" ? "1" : "0")).join("") + eth.slice(42 - t);
+    for (const [h, t] of [[4, 4], [3, 2], [6, 0], [0, 6]]) yes(g(h!, t!), eth);
+    no(g(2, 2), eth);
+    no(g(1, 3), eth);
+    expect(lookalike(eth.slice(0, 41), eth)?.reason).toBe("One character added or missing");
+    expect(lookalike(eth.toUpperCase().replace("0X", "0x"), eth)).toBeNull(); // same account, different case
+  });
+  it("never mixes kinds: 0x with plain hex, hex with names", () => {
+    const eth = "0xd8da6bf26964af9d7eed9e03e53415d37aa96045";
+    no(eth.slice(2), eth);
+    no(real, "alice.near");
+    no("0x" + real.slice(0, 40), real);
   });
 });

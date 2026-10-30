@@ -7,7 +7,7 @@ export type Status = "BLOCKED" | "ATTENTION" | "PASS" | "COULD_NOT_CHECK" | "SKI
 export type Verdict = "BLOCKED" | "ATTENTION" | "SAFE";
 
 export type RuleId =
-  | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12" | "R13" | "R14" | "R15";
+  | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12" | "R13" | "R14" | "R15" | "R16";
 
 export type Destination = "wallet" | "exchange" | "intents" | "unknown";
 
@@ -44,6 +44,11 @@ export interface CheckInput {
   deviceSends?: string[];
   /** User's saved contacts (R7). */
   addressBook?: Contact[];
+  /**
+   * The network the wallet page seems to be on, when that isn't certain and differs from
+   * \`network\` (the extension sets it). R16 then looks for the same name on that network.
+   */
+  walletNetwork?: Network;
   /** What the user copied, if known (R9, extension). */
   clipboard?: { copied: string };
 }

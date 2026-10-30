@@ -17,7 +17,7 @@ Work began 29 Oct 2026.
 
 | Mistake | Example | Verdict |
 | --- | --- | --- |
-| An account that doesn't exist | `adelekejrx.testnet` (typo), or a name that only exists on the other network | BLOCKED |
+| An account that doesn't exist | `guest-bok.testnet` (typo of `guest-book.testnet`), or a name that only exists on the other network | BLOCKED |
 | A transaction hash pasted as an account | a Tron tx hash looks like a 64-hex NEAR implicit account, and wallets accept it | BLOCKED |
 | Wrong network | a `.near` name while sending on testnet, or a Tron `T…` address | BLOCKED |
 | Wrong token for an Intents deposit | sending wNEAR to a 1Click deposit address that expects USDC | BLOCKED |
@@ -43,7 +43,7 @@ npm run verify              # the 8 demo cases, replayed from recorded real resp
 npm run verify -- --live    # the same 8 cases against the live, free APIs
 
 # check one send from the terminal (testnet is the default)
-npm run gideon -- check adelekejr.testnet --amount 1
+npm run gideon -- check guest-book.testnet --amount 1
 npm run gideon -- check 89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944 \
   --network mainnet --dest exchange --exchange binance --json
 
@@ -53,7 +53,7 @@ npm run build:web           # static build in apps/web/dist
 
 # the Chrome extension
 npm run build:extension     # unpacked build in apps/extension/dist
-npm run zip:extension       # apps/extension/gideon-extension-0.2.4.zip
+npm run zip:extension       # apps/extension/gideon-extension-0.2.5.zip
 npm run zip:firefox -w @gideon/extension   # Firefox / Firefox for Android build (see "Phones")
 
 # the MCP server for AI agents (see "AI agents (MCP server)")
@@ -73,7 +73,7 @@ CLI exit codes: `0` SAFE, `1` ATTENTION (including "couldn't check"),
 flowchart LR
   U["You or an agent<br/>to, token, amount, destination"] --> E["@gideon/core<br/>check()"]
   E --> C["Classify the input<br/>(named, implicit, 0x, tx hash, Tron, ...)"]
-  C --> R["Rules R1 to R15"]
+  C --> R["Rules R1 to R16"]
   R <-->|"read-only lookups"| S["@gideon/sources"]
   S --> RPC["NEAR RPC (FastNEAR)"]
   S --> NB["NearBlocks API"]
@@ -100,7 +100,7 @@ browser, straight against the public APIs) and your own code
 | R4 Ethereum-style account | A `0x` + 40 hex address used on NEAR: in use, or never used? | NEAR RPC |
 | R5 Token | Is the token real, not a lookalike, and is the receiver registered with it? | NEAR RPC, token list |
 | R6 Intents deposit | For a 1Click deposit address: does the token match what it expects, is it still open? | 1Click `/v0/status` (mainnet) |
-| R7 Lookalike | Looks almost like a saved contact or an account you've sent to before (l/1, o/0, i/l, rn/m, - vs ., an extra or missing character, extra digits at the end, or a 64-hex address with the same first and last characters)? BLOCKED "Looks like X, but it isn't", naming the address. Close to another account in your recent history: ATTENTION, or BLOCKED as address poisoning when it sent you dust. If your history can't be read in time, only contacts are compared and the verdict doesn't change. | your contacts, sends made from this device (extension), recent history from FastNEAR and NearBlocks (needs your sending account) |
+| R7 Lookalike | Looks almost like a saved contact or an account you've sent to before (l/1, o/0, i/l, rn/m, - vs ., an extra or missing character, extra digits at the end, or a 64-hex or `0x` address with the same first and last characters in any split, like 4+4 or 6+0, or one or two characters added, missing or changed)? BLOCKED "Looks like X, but it isn't", naming the address. Close to another account in your recent history: ATTENTION, or BLOCKED as address poisoning when it sent you dust. If your history can't be read in time, only contacts are compared and the verdict doesn't change. | your contacts, sends made from this device (extension), recent history from FastNEAR and NearBlocks (needs your sending account) |
 | R8 Exchange | Will this exchange credit this token? Never BLOCKED from registry data alone. | `packages/core/data/exchanges.json` |
 | R9 Clipboard | Is what was pasted what you copied? | the extension (copies made on the same page) |
 | R10 Community flags | Has anyone flagged this account as a scam or poisoning address? ATTENTION at most, never BLOCKED. | `get_flags` view call on the flag registry contract (off until it's deployed) |
@@ -108,6 +108,7 @@ browser, straight against the public APIs) and your own code
 | R13 First send | Have you ever sent to this address from your account? Never: ATTENTION "You've never sent to this address before". Saved contacts and past recipients pass. If NearBlocks is slow or rate-limited the note is skipped and the verdict doesn't change (native NEAR sends and calls are counted, token transfers aren't). | FastNEAR / NearBlocks recent history, sends made from this device (extension), NearBlocks `/v1/account/{from}/txns-only/count?to=` (needs your sending account) |
 | R14 Reported scam | Is this account on Gideon's short list of publicly reported scam accounts? BLOCKED "Reported scam", linking the public report. Every entry was read at its source and quotes it (`packages/core/src/reported-scams.ts`); nothing is copied from an explorer's label list. Exact match on its own network only. | local list, each entry with its report link |
 | R15 Fake letters | Does the address contain a letter from another alphabet that looks like a plain one (Greek 'α', Cyrillic 'а', full-width letters), an invisible character (zero-width space, U+FEFF) or a hidden space (non-breaking, thin, a space inside)? BLOCKED, naming the character, where it is and what it imitates, and showing the plain version. Reads the address exactly as pasted. | local |
+| R16 Other network | Is this the same name as an account on the other network (`alice.near` typed while sending on testnet, where `alice.testnet` exists, or the reverse)? When the network is certain (you set it, or the page proves it) BLOCKED "Wrong network: did you mean alice.testnet?". When the wallet only seems to be on the other network, ATTENTION "Your wallet may be on testnet", never a block. Nothing when the twin doesn't exist. | NEAR RPC `view_account` on the other network (info-only, time-limited) |
 
 How a verdict is reached:
 
@@ -137,7 +138,7 @@ Gideon is not on the Chrome Web Store. Install it from this repo:
 4. Pin Gideon from the puzzle-piece menu. It starts on **testnet**; switch to
    mainnet in the popup.
 
-`npm run zip:extension` also writes `apps/extension/gideon-extension-0.2.4.zip`.
+`npm run zip:extension` also writes `apps/extension/gideon-extension-0.2.5.zip`.
 To install from the zip, unzip it and load that folder the same way. Works in
 Chrome 111+ and other Chromium browsers (Edge, Brave, Arc).
 
@@ -185,13 +186,15 @@ linked below.
 
 Build the files on a computer and copy them to the phone:
 
-- `npm run zip:extension`: `apps/extension/gideon-extension-0.2.4.zip` (Chromium browsers)
-- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.2.4.zip` (Firefox)
+- `npm run zip:extension`: `apps/extension/gideon-extension-0.2.5.zip` (Chromium browsers)
+- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.2.5.zip` (Firefox)
 
 **Mises Browser** (Chromium). Menu → **Extensions** → turn on
 **Developer mode** → **+ (from .zip/.crx/.user.js)** → pick
-`gideon-extension-0.2.4.zip`. Keep it zipped. Mises unpacks it into its cache,
+`gideon-extension-0.2.5.zip`. Keep it zipped. Mises unpacks it into its cache,
 so clearing the browser's cache or data removes it; install again if so.
+After installing a new version, reload any wallet tab that was already open
+(otherwise its card says "Gideon was updated. Reload this page to keep checking.").
 ([steps](https://github.com/lukman754/Mentari-Unpam),
 [Play listing](https://play.google.com/store/apps/details?id=site.mises.browser_stable),
 [no load-from-folder](https://github.com/mises-id/mises-browser-core/issues/332))
@@ -201,7 +204,7 @@ so clearing the browser's cache or data removes it; install again if so.
 sideloaded extensions (fixed in 1.8.2).
 
 **Yandex Browser.** Officially it installs from the Chrome Web Store and
-Opera add-ons. For testing: unzip `gideon-extension-0.2.4.zip` into a phone
+Opera add-ons. For testing: unzip `gideon-extension-0.2.5.zip` into a phone
 folder, open `browser://extensions`, turn on **Developer mode**, tap **Load
 unpacked extension** and pick `manifest.json` in that folder. Users reported
 in 2020 that newer builds stopped loading unpacked extensions, so this may not

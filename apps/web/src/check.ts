@@ -9,6 +9,7 @@ const RULE_NAMES: Record<string, string> = {
   R13: "First send",
   R14: "Reported scam",
   R15: "Fake letters",
+  R16: "Other network",
 };
 const ST: Record<Status, [string, string]> = {
   BLOCKED: ["block", "BLOCK"], ATTENTION: ["warn", "LOOK"], PASS: ["safe", "PASS"], COULD_NOT_CHECK: ["cnc", "COULDN’T CHECK"], SKIPPED: ["skip", "—"],

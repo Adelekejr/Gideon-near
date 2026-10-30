@@ -151,7 +151,7 @@ export function signedInAccount(signals: TextSignal[]): string | null {
   for (const s of signals) {
     if (!s.header) continue;
     const t = s.text.trim().toLowerCase().replace(/^@/, "");
-    if (ACCOUNT.test(t) && !t.includes("…") && !t.includes("..")) head.add(t); // "hammed-st...testnet" is shortened, not a name
+    if (ACCOUNT.test(t) && !t.includes("…") && !t.includes("..")) head.add(t); // "alice-wal...testnet" is shortened, not a name
   }
   return head.size === 1 ? [...head][0]! : null;
 }

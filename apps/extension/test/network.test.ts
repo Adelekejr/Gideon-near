@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { check } from "@gideon/core";
 import { collectSignals, decide, fromTexts, fromUrl, pageHint, recipientScope, type NetHint } from "../src/lib/network.js";
-import { resolveNetwork } from "../src/lib/resolve.js";
+import { resolveNetwork, walletNetworkHint } from "../src/lib/resolve.js";
 import { findSendButtons, isRecipientField, type Field } from "../src/lib/detect.js";
 import { card } from "../src/lib/view.js";
 import { placement } from "../src/lib/place.js";
@@ -196,5 +196,20 @@ describe("card placement on phones", () => {
     const p = placement({ left: 28, top: 150, bottom: 196, width: 304 }, { left: 0, top: 0, width: 360, height: 400 }, 457);
     expect(p.side).toBe("below");
     expect(p.top + p.maxHeight).toBeLessThanOrEqual(400);
+  });
+});
+
+describe("walletNetworkHint (R16's hint)", () => {
+  const unsure = { network: "mainnet" as const, source: "recipient" as const, why: "", sure: false };
+  it("a testnet-looking page while checking a .near name on mainnet → testnet", () => {
+    expect(walletNetworkHint(unsure, { network: "testnet", source: "label", sure: false, why: "" })).toBe("testnet");
+  });
+  it("the sender's .testnet account counts when the page says nothing", () => {
+    expect(walletNetworkHint(unsure, undefined, "alice-wallet.testnet")).toBe("testnet");
+  });
+  it("never when the network is certain, or when everything agrees", () => {
+    expect(walletNetworkHint({ ...unsure, sure: true }, { network: "testnet", source: "url", sure: true, why: "" })).toBeUndefined();
+    expect(walletNetworkHint(unsure, { network: "mainnet", source: "label", sure: false, why: "" })).toBeUndefined();
+    expect(walletNetworkHint(unsure, undefined)).toBeUndefined();
   });
 });

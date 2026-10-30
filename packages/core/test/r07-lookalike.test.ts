@@ -71,3 +71,40 @@ describe("R7 lookalike and address poisoning", () => {
     expect(find(r, "R7")[0].status).toBe("SKIPPED");
   });
 });
+
+describe("R7 wider hex matching (contacts, device sends, history)", () => {
+  const live = empty({ viewAccount: async () => acct(1) });
+  const real = "9ebef819489ae5e6641cc5573740dadc751c35c3ae37c110e4fad8101494e418";
+  const fake3x2 = real.slice(0, 3) + "0".repeat(59) + real.slice(62);
+  const eth = "0xd8da6bf26964af9d7eed9e03e53415d37aa96045";
+  const ethFake = "0xd8da" + "1".repeat(32) + "6045";
+  it("3+2 grind of a saved contact → BLOCKED", async () => {
+    const r = await run({ to: fake3x2, addressBook: [{ account: real, label: "Exchange deposit" }] }, live);
+    expect(r.headline?.code).toBe("LOOKALIKE_OF_CONTACT");
+    expect(r.headline?.detail).toContain("Same first 3 and last 2 characters");
+  });
+  it("0x grind of a device send → BLOCKED", async () => {
+    const r = await run({ to: ethFake, deviceSends: [eth] }, live);
+    expect(r.headline?.code).toBe("LOOKALIKE_OF_PAST_RECIPIENT");
+  });
+  it("0x poisoning: lookalike past recipient that sent dust → ADDRESS_POISONING", async () => {
+    const r = await run({ to: ethFake, from: "me.testnet" }, empty({
+      viewAccount: async () => acct(1),
+      recentTransfers: async () => [
+        { hash: "t1", signer: "me.testnet", receiver: eth, depositYocto: 5e24 },
+        { hash: "t2", signer: ethFake, receiver: "me.testnet", depositYocto: 0.5e21 },
+      ],
+    }));
+    expect(r.headline?.code).toBe("ADDRESS_POISONING");
+  });
+  it("one character missing from a 64-hex history account → ATTENTION", async () => {
+    const r = await run({ to: real.slice(0, 63), from: "me.testnet" }, empty({
+      viewAccount: async () => acct(1),
+      recentTransfers: async () => [{ hash: "t1", signer: real, receiver: "me.testnet", depositYocto: 5e24 }],
+    }));
+    const x = find(r, "R7")[0];
+    expect(x.code).toBe("LOOKALIKE_OF_HISTORY");
+    expect(x.detail).toContain("One character added or missing");
+  });
+});
+

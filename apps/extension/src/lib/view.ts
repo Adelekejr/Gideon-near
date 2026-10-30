@@ -89,11 +89,11 @@ export interface CardOptions {
   actions?: string;
   /** Which network the check ran on and why, e.g. { network: "testnet", why: "from your wallet's account (x.testnet)" }. */
   net?: { network: string; why: string };
-  /** Which sender the check used, e.g. { account: "hammed-stampdue.testnet", why: "from your wallet's header" }. */
+  /** Which sender the check used, e.g. { account: "alice-wallet.near", why: "from your wallet's header" }. */
   sender?: { account: string | null; why: string };
 }
 
-/** "sender → hammed-stampdue.testnet · from your wallet's header", or why it couldn't tell. */
+/** "sender → alice-wallet.near · from your wallet's header", or why it couldn't tell. */
 export function senderLine(s: { account: string | null; why: string }): string {
   if (!s.account && !s.why) return "";
   return `<div class="gn"><b>sender →</b> ${s.account ? `${esc(s.account)} · ${esc(s.why)}` : `couldn't tell · ${esc(s.why)}`}</div>`;
@@ -129,8 +129,15 @@ export function checking(value: string): string {
 }
 
 export function failed(message: string): string {
+  const m = message.trim().replace(/([^.!?])$/, "$1.");
   return `<div class="gw t-warn" role="alert">${head("warn", "COULDN’T CHECK", "Couldn't check this address")}
-<div class="gb"><div class="gr">${esc(message)} This is not a safe. Check the address another way before you send.</div></div></div>`;
+<div class="gb"><div class="gr">${esc(m)} That doesn't mean the address is safe. Check it another way before you send.</div></div></div>`;
+}
+
+/** This page still runs the old copy of Gideon after an update or reload; only reloading the page fixes it. */
+export function updated(): string {
+  return `<div class="gw t-warn" role="alert">${head("warn", "RELOAD PAGE", "Gideon was updated")}
+<div class="gb"><div class="gr">Reload this page to keep checking. Until then this address isn't checked, so check it another way before you send.</div></div></div>`;
 }
 
 /** Shown when a page script swaps what you copied for another address, at the moment you copy. */

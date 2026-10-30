@@ -112,7 +112,7 @@ $("madd").addEventListener("click", () => {
   const a = box.value.trim().toLowerCase().replace(/^@/, "");
   if (!a) return;
   if (!isAccount(a)) {
-    box.setCustomValidity("Type a full account name, like you.testnet or you.near");
+    box.setCustomValidity("Type a full account name, like you.near or you.testnet, or a 64-character hex account");
     box.reportValidity();
     return;
   }

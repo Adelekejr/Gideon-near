@@ -84,7 +84,7 @@ export function summarize(r: CheckResult) {
     agent_instruction: INSTRUCTION[r.verdict],
     recipient: r.input.to,
     network: r.input.network,
-    headline: r.headline ? `${r.headline.title}. ${r.headline.detail}` : null,
+    headline: r.headline ? `${r.headline.title}${/[.?!]$/.test(r.headline.title) ? "" : "."} ${r.headline.detail}` : null,
     account: r.account
       ? { exists: r.account.exists, summary: r.account.summary,
           ...(r.account.balanceNear !== undefined ? { balance_near: r.account.balanceNear } : {}),

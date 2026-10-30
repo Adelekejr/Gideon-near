@@ -2,9 +2,9 @@ import type { Network } from "@gideon/core";
 import { addContact, load, saveContacts, withDefaults, type Settings } from "./lib/settings.js";
 import { ClipboardWatch, copyTampered } from "./lib/clipboard.js";
 import { findSendButtons, plainTrim, isRecipientField, isTextField, shouldCheck, type Field } from "./lib/detect.js";
-import { card, checking, failed, tamperCard, toneOf } from "./lib/view.js";
+import { card, checking, failed, tamperCard, toneOf, updated } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
-import { sendCheck, type CheckResponse } from "./lib/messages.js";
+import { extensionAlive, sendCheck, type CheckResponse } from "./lib/messages.js";
 import { collectSignals, pageHint, recipientScope } from "./lib/network.js";
 import { pageAccounts } from "./lib/wallets.js";
 import { rememberSend, senderHint, type SenderHint } from "./lib/sender.js";
@@ -221,6 +221,7 @@ function noteSend(t: EventTarget | null): void {
   if (!c || c.verdict === "BLOCKED" || !(t instanceof Node) || !c.field.isConnected) return;
   if (plainTrim(c.field.value) !== plainTrim(c.value)) return;
   if (!findSendButtons(c.field).some((b) => b.contains(t))) return;
+  if (!extensionAlive()) return;
   const s = { network: c.network, to: c.to, at: Date.now(), ...(c.from ? { from: c.from } : {}) };
   void chrome.storage.local.get("sends").then((raw) => {
     const list = Array.isArray(raw.sends) ? raw.sends : [];
@@ -288,7 +289,26 @@ function alreadyChecking(field: Field, value: string): boolean {
   return !!p && p.field === field && p.value === value && p.host.style.display !== "none";
 }
 
+/**
+ * Set once Gideon was updated, reloaded or removed while this page stayed open: this script is the
+ * old copy and Chrome has cut it off. It stops asking the extension (every call would fail with
+ * "Extension context invalidated") and only shows the reload card when you enter an address.
+ */
+let orphaned = false;
+
+function showUpdated(field: Field): void {
+  orphaned = true;
+  const p = getPanel();
+  p.seq++;
+  release(p);
+  show(field, updated(), "warn");
+}
+
 async function run(field: Field, value: string, copied: string | null, force = false): Promise<void> {
+  if (orphaned || !extensionAlive()) {
+    if (!(panel?.field === field && panel.host.style.display !== "none" && orphaned)) showUpdated(field);
+    return;
+  }
   // Wallets re-render and fire input events without the address changing; don't restart the check.
   if (!force && alreadyChecking(field, value)) return;
   const p = getPanel();
@@ -316,6 +336,7 @@ async function run(field: Field, value: string, copied: string | null, force = f
   const res = await sendCheck(req, LIMITS.pageWaitMs);
   if (p.seq !== seq || p.field !== field) return; // a newer check replaced this one
   if (!res.ok) {
+    if (res.orphaned) return showUpdated(field);
     show(field, failed(res.error), "warn");
     return;
   }

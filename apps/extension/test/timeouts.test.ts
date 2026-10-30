@@ -21,20 +21,60 @@ describe("limits", () => {
 
 describe("sendCheck never leaves the card on CHECKING", () => {
   const req = { input: { to: "bob.near" }, host: "x" };
+  const up = () => true;
   it("a worker that never replies → ok:false after the limit", async () => {
     const t0 = Date.now();
-    const r = await sendCheck(req, 80, hang);
+    const r = await sendCheck(req, 80, hang, up);
     expect(Date.now() - t0).toBeLessThan(1000);
     expect(r).toMatchObject({ ok: false });
     expect(!r.ok && r.error).toMatch(/took longer than 0.08 s/);
   });
-  it("a worker stopped mid-check (undefined reply) or a thrown send → ok:false", async () => {
-    expect(await sendCheck(req, 80, async () => undefined)).toMatchObject({ ok: false, error: "The extension stopped before it answered." });
-    expect(await sendCheck(req, 80, async () => { throw new Error("Could not establish connection."); })).toMatchObject({ ok: false });
+  it("a worker stopped mid-check (undefined reply) or a thrown send → ok:false, after one retry", async () => {
+    let n = 0;
+    expect(await sendCheck(req, 500, async () => { n++; return undefined; }, up, 1)).toMatchObject({ ok: false, error: "The extension stopped before it answered." });
+    expect(n).toBe(2);
+    expect(await sendCheck(req, 500, async () => { throw new Error("Could not establish connection."); }, up, 1)).toMatchObject({ ok: false });
   });
   it("passes a reply through", async () => {
     const reply = { ok: false as const, error: "x" };
-    expect(await sendCheck(req, 80, async () => reply)).toBe(reply);
+    expect(await sendCheck(req, 80, async () => reply, up)).toBe(reply);
+  });
+});
+
+describe("Gideon updated or its worker restarted while the page is open", () => {
+  const req = { input: { to: "bob.near" }, host: "x" };
+  const ok = { ok: true as const, result: {} as CheckResult };
+  it("orphaned script (chrome.runtime.id gone) → the reload message at once, nothing sent", async () => {
+    const send = vi.fn(async () => ok);
+    const r = await sendCheck(req, 500, send, () => false);
+    expect(r).toEqual({ ok: false, error: "Gideon was updated. Reload this page to keep checking.", orphaned: true });
+    expect(send).not.toHaveBeenCalled();
+  });
+  it("'Extension context invalidated' thrown by sendMessage → the reload message, no retry", async () => {
+    const send = vi.fn(async () => { throw new Error("Extension context invalidated."); });
+    expect(await sendCheck(req, 500, send, () => true, 1)).toMatchObject({ ok: false, orphaned: true });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+  it("the update lands mid-check → the reload message", async () => {
+    let alive = true;
+    const send = async () => { alive = false; return undefined; };
+    expect(await sendCheck(req, 500, send, () => alive, 1)).toMatchObject({ orphaned: true });
+  });
+  it("worker stopped (no receiver) → wakes it and asks once more", async () => {
+    let n = 0;
+    const send = async () => (++n === 1 ? Promise.reject(new Error("Could not establish connection. Receiving end does not exist.")) : ok);
+    expect(await sendCheck(req, 500, send, () => true, 1)).toBe(ok);
+    expect(n).toBe(2);
+  });
+  it("worker killed mid-check (port closed) → one retry", async () => {
+    let n = 0;
+    const send = async () => (++n === 1 ? Promise.reject(new Error("The message port closed before a response was received.")) : ok);
+    expect(await sendCheck(req, 500, send, () => true, 1)).toBe(ok);
+  });
+  it("a real check error is not retried", async () => {
+    const send = vi.fn(async () => ({ ok: false as const, error: "NEAR RPC HTTP 500" }));
+    await sendCheck(req, 500, send, () => true, 1);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });
 
