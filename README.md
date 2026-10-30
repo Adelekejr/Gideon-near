@@ -175,8 +175,13 @@ What it does:
   whole-balance sends and NFT approvals (see "Before you approve a transaction").
   It reads MyNearWallet and Meteor sign links in the page address, and Meteor's
   "Approve Transaction(s)" screen. It never clicks or holds Approve. Tested on the
-  MyNearWallet testnet sign link and a local Meteor reconstruction
-  (`apps/extension/test-page/meteor-approve.html`), not yet on the live Meteor wallet.
+  MyNearWallet testnet sign link, a local Meteor reconstruction
+  (`apps/extension/test-page/meteor-approve.html`), and on a phone with the live
+  Meteor testnet sign link from `scripts/demo-tx-link.mjs` (not signed). Meteor
+  already blocks full-access key requests itself (it allows them only for approved
+  account recovery services and greys out Approve), so there the full-access card
+  is a second opinion; Gideon's new value on Meteor is the other three warnings,
+  and the full-access check matters most on wallets and agents that don't block it.
 - **Clipboard check (R9).** It remembers what you copied on the page and
   compares it with what you paste. If a page script swaps the address while
   you copy, it warns at once.
@@ -552,9 +557,9 @@ The website deploys as a static site; `vercel.json` builds it with
   sign links the whole request is in the address and is decoded exactly. In
   Meteor's pop-up flow it is not, so Gideon reads the screen: the From / To
   accounts and Meteor's full-access wording, which covers the full-access and
-  contract checks only, not whole-balance sends or NFT approvals. That screen
-  reading follows Meteor's public app code and hasn't been tried on the live
-  wallet. The card doesn't hold Approve, and shows nothing if the check itself
+  contract checks only, not whole-balance sends or NFT approvals. The sign-link
+  reading was tried on the live Meteor testnet wallet on a phone; the pop-up
+  screen reading follows Meteor's public app code and hasn't been tried live. The card doesn't hold Approve, and shows nothing if the check itself
   fails. On testnet, a contract the indexer hasn't reached yet (it lags about a
   month) can only be dated up to 7 days old, so one 7–30 days old isn't flagged.
   MyNearWallet's testnet site now tells visitors to use Meteor and doesn't

@@ -49,8 +49,11 @@ What the extension reads, keeps and sends: [PRIVACY.md](PRIVACY.md).
   request from MyNearWallet and Meteor sign links in the page address, and from Meteor's
   approval screen when the address doesn't carry it. Verified in Playwright's Chromium on the
   MyNearWallet testnet sign link from `scripts/demo-tx-link.mjs` and on
-  `test-page/meteor-approve.html`; **not yet verified on the live Meteor wallet** (its approval
-  screen is read from its public app code). The card does not hold the Approve button, and
+  `test-page/meteor-approve.html`, and on a phone with the live Meteor testnet sign link
+  (`/connect/testnet/sign?transactions=…`, not signed). Meteor's pop-up flow (the approval
+  screen read from its public app code) is **not yet verified live**. Meteor already blocks
+  full-access key requests on its own (only approved account recovery services may ask, and
+  Approve is greyed out), so on Meteor the full-access card is a second opinion, not new. The card does not hold the Approve button, and
   shows nothing when the check itself fails. No new permissions.
 
 - **Creation date in the popup's own check.** "Check this send" in the popup now fills in a

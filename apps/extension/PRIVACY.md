@@ -69,8 +69,8 @@ The content script runs on web pages and reacts to four things:
      flow). Only when the page shows a heading such as "Approve Transaction(s)". On
      `wallet.meteorwallet.app` it reads the From / To explorer links and the wallet's own
      full-access wording; on any other site it reacts only to that full-access wording. Text in
-     scripts and styles is ignored. This reading follows Meteor's public app code and has not
-     been checked against the live Meteor wallet.
+     scripts and styles is ignored. This screen reading follows Meteor's public app code and has
+     not been checked against the live Meteor wallet (the sign-link reading has).
    The request is decoded and checked on your device; the card says "Gideon only read this request
    from the page. It never touches your keys." Nothing from it is stored, and the check is not
    counted in your stats.
