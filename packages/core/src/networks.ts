@@ -18,6 +18,8 @@ export interface NetworkConfig {
   explorer: string;
   /** NearBlocks API base (free tier, about 6 calls per minute). */
   nearblocksApi: string;
+  /** FastNEAR transactions API (free, no key, follows the chain head): the sender's newest transactions. */
+  txApi: string;
   /** Community flag registry (contracts/flag-registry) read by R10. null until it is deployed. */
   flagRegistry: string | null;
 }
@@ -31,6 +33,7 @@ export const NETWORKS: Record<Network, NetworkConfig> = {
     archivalRpcUrls: ["https://archival-rpc.testnet.fastnear.com"],
     explorer: "https://testnet.nearblocks.io",
     nearblocksApi: "https://api-testnet.nearblocks.io",
+    txApi: "https://tx.test.fastnear.com",
     flagRegistry: null,
   },
   mainnet: {
@@ -41,6 +44,7 @@ export const NETWORKS: Record<Network, NetworkConfig> = {
     archivalRpcUrls: ["https://archival-rpc.mainnet.fastnear.com"],
     explorer: "https://nearblocks.io",
     nearblocksApi: "https://api.nearblocks.io",
+    txApi: "https://tx.main.fastnear.com",
     flagRegistry: null,
   },
 };

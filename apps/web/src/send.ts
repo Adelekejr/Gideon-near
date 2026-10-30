@@ -28,7 +28,8 @@ $("foot").innerHTML = footer(`GIDEON · check, then send · NEAR ${NET}`);
 
 const nc = connector(NET, (c) => { who = c; reset(); });
 
-const to = () => ($("to") as HTMLInputElement).value.trim();
+// Trim ordinary spaces only: trim() would also drop the non-breaking spaces and U+FEFF that R15 reports.
+const to = () => ($("to") as HTMLInputElement).value.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, "");
 const amount = () => ($("amount") as HTMLInputElement).value.trim();
 function yocto(): string | null { try { return nearToYocto(amount()); } catch { return null; } }
 const key = () => sendKey(NET, who?.accountId ?? "", to(), amount());

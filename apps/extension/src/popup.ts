@@ -1,4 +1,6 @@
 import { exchangesFor, tokensFor, type CheckInput, type Contact, type Network } from "@gideon/core";
+import { isAccount, rememberAccount } from "./lib/sender.js";
+import { plainTrim } from "./lib/detect.js";
 import { addContact, load, removeContact, saveContacts, saveSettings, type LastCheck, type Settings } from "./lib/settings.js";
 import { sendCheck, type CheckRequest } from "./lib/messages.js";
 import type { NetworkMode } from "./lib/network.js";
@@ -91,9 +93,41 @@ function renderContacts(): void {
     : `<li><span class="hint">No saved addresses yet.</span></li>`;
 }
 
+let mine: string[] = [];
+function renderMine(): void {
+  $("mcount").textContent = String(mine.length);
+  $("mlist").innerHTML = mine.length
+    ? mine.map((a, i) => `<li><span>${esc(a)}</span><button type="button" data-i="${i}" aria-label="Remove ${esc(a)}">remove</button></li>`).join("")
+    : `<li><span class="hint">None yet. Gideon also remembers the full name when a wallet shows it.</span></li>`;
+}
+$("mlist").addEventListener("click", (e) => {
+  const i = (e.target as HTMLElement).dataset.i;
+  if (i === undefined) return;
+  mine = mine.filter((_, j) => j !== +i);
+  void chrome.storage.local.set({ myAccounts: mine });
+  renderMine();
+});
+$("madd").addEventListener("click", () => {
+  const box = $<HTMLInputElement>("macc");
+  const a = box.value.trim().toLowerCase().replace(/^@/, "");
+  if (!a) return;
+  if (!isAccount(a)) {
+    box.setCustomValidity("Type a full account name, like you.testnet or you.near");
+    box.reportValidity();
+    return;
+  }
+  box.setCustomValidity("");
+  mine = rememberAccount(mine, a);
+  void chrome.storage.local.set({ myAccounts: mine });
+  box.value = "";
+  renderMine();
+});
+
 async function init(): Promise<void> {
   const s = await load();
   contacts = s.contacts;
+  mine = s.myAccounts;
+  renderMine();
   fillForNetwork(s.settings.networkMode);
   for (const k of ["checkOnPaste", "holdSend", "clipboardCheck"] as const) {
     const box = $<HTMLInputElement>(k);
@@ -132,7 +166,7 @@ $("cadd").addEventListener("click", () => {
 
 $<HTMLFormElement>("f").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const to = $<HTMLInputElement>("to").value.trim();
+  const to = plainTrim($<HTMLInputElement>("to").value);
   if (!to) return;
   const [tokenNet, symbol, contract] = asset.value.split("|");
   const mode = net.value as NetworkMode;

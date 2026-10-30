@@ -64,7 +64,9 @@ function head(tone: Tone, chip: string, title: string): string {
 
 function findingLine(f: Finding): string {
   const ev = f.evidence?.[0];
-  return ev ? `<div class="gf"><b>found →</b> ${esc(ev.label)}: ${esc(short(ev.value))}</div>` : "";
+  if (!ev) return "";
+  const v = esc(short(ev.value));
+  return `<div class="gf"><b>found →</b> ${esc(ev.label)}: ${ev.url && /^https:\/\//.test(ev.url) ? `<a href="${esc(ev.url)}" target="_blank" rel="noopener noreferrer">${v} ↗</a>` : v}</div>`;
 }
 
 export function short(v: string): string {
@@ -87,6 +89,14 @@ export interface CardOptions {
   actions?: string;
   /** Which network the check ran on and why, e.g. { network: "testnet", why: "from your wallet's account (x.testnet)" }. */
   net?: { network: string; why: string };
+  /** Which sender the check used, e.g. { account: "hammed-stampdue.testnet", why: "from your wallet's header" }. */
+  sender?: { account: string | null; why: string };
+}
+
+/** "sender → hammed-stampdue.testnet · from your wallet's header", or why it couldn't tell. */
+export function senderLine(s: { account: string | null; why: string }): string {
+  if (!s.account && !s.why) return "";
+  return `<div class="gn"><b>sender →</b> ${s.account ? `${esc(s.account)} · ${esc(s.why)}` : `couldn't tell · ${esc(s.why)}`}</div>`;
 }
 
 /** "network → testnet · from your wallet's account (…)" */
@@ -107,6 +117,7 @@ ${h ? findingLine(h) : ""}
 ${accountLine(r)}
 ${fix ? `<div class="gf"><b>fix →</b> ${esc(fix)}</div>` : ""}
 ${o.net ? netLine(o.net) : ""}
+${o.sender ? senderLine(o.sender) : ""}
 <details class="more"><summary>Details · ${r.findings.filter((f) => f.status !== "SKIPPED").length} checks · ${esc(r.input.network)} · ${r.ms} ms</summary>${findingsList(r)}</details>
 ${o.actions ? `<div class="gacts">${o.actions}</div>` : ""}
 </div></div>`;

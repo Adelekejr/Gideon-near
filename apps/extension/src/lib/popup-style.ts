@@ -51,10 +51,10 @@ b.v{color:var(--blocked)}
 .book summary{cursor:pointer;list-style:none}.book summary::-webkit-details-marker{display:none}
 .book summary::after{content:' +';color:var(--acc)}.book[open] summary::after{content:' −'}
 .hint{font-size:12px;color:var(--mute);margin-bottom:8px}
-#clist{list-style:none}
-#clist li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--line);font:12px var(--mono);color:var(--ink);overflow-wrap:anywhere}
-#clist li b{color:var(--mute);font-weight:500}
-#clist button{all:unset;cursor:pointer;font:11px var(--mono);color:var(--mute);text-decoration:underline}#clist button:hover{color:var(--ink)}
+#clist,#mlist{list-style:none}
+#clist li,#mlist li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--line);font:12px var(--mono);color:var(--ink);overflow-wrap:anywhere}
+#clist li b,#mlist li b{color:var(--mute);font-weight:500}
+#clist button,#mlist button{all:unset;cursor:pointer;font:11px var(--mono);color:var(--mute);text-decoration:underline}#clist button:hover,#mlist button:hover{color:var(--ink)}
 .book .row .btn{flex:0 0 auto;height:34px}
 .foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:9px;border-top:1px solid var(--line);font:10px var(--mono);letter-spacing:.04em;color:var(--mute)}
 .built{display:inline-flex;align-items:center;gap:7px}

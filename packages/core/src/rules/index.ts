@@ -13,6 +13,8 @@ import { r09Clipboard } from "./r09-clipboard.js";
 import { r10Registry } from "./r10-registry.js";
 import { r11AccountAge } from "./r11-account-age.js";
 import { r13FirstSend } from "./r13-first-send.js";
+import { r14ReportedScam } from "./r14-reported-scam.js";
+import { r15FakeLetters } from "./r15-fake-letters.js";
 
 export type Rule = { id: RuleId; name: string; run: (ctx: Ctx) => RuleResult | Promise<RuleResult> };
 
@@ -29,7 +31,9 @@ export const RULES: Rule[] = [
   { id: "R10", name: "Community flag registry", run: r10Registry },
   { id: "R11", name: "Account age (brand-new accounts)", run: r11AccountAge },
   { id: "R13", name: "First send to this address", run: r13FirstSend },
+  { id: "R14", name: "Reported scam", run: r14ReportedScam },
+  { id: "R15", name: "Fake letters and hidden characters", run: r15FakeLetters },
 ];
 
 /** When several rules block, the most specific explanation leads. */
-export const HEADLINE_ORDER: RuleId[] = ["R9", "R2", "R6", "R7", "R8", "R5", "R1", "R3", "R4", "R11", "R13", "R10"];
+export const HEADLINE_ORDER: RuleId[] = ["R14", "R15", "R9", "R2", "R6", "R7", "R8", "R5", "R1", "R3", "R4", "R11", "R13", "R10"];

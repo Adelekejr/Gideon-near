@@ -75,6 +75,7 @@ async function print(r: CheckResult) {
   const col = r.verdict === "BLOCKED" ? C.r : r.verdict === "ATTENTION" ? C.y : C.g;
   console.log(`\n${C.b}${col}${r.verdict}${C.x}  ${r.input.to}  ${C.d}(${r.classification.label}, ${r.input.network})${C.x}`);
   if (r.headline) console.log(`${C.b}${r.headline.title}${C.x}\n${r.headline.detail}`);
+  for (const e of r.headline?.evidence ?? []) if (e.url) console.log(`${e.label}: ${e.url}`);
   const ex = process.env.NEARAI_API_KEY ? nearAiExplainer({ apiKey: process.env.NEARAI_API_KEY, model: process.env.NEARAI_MODEL || undefined }) : null;
   if (ex) { const e = await explain(r, ex); console.log(`${C.d}(${e.by})${C.x} ${e.text}`); }
   for (const [i, s] of (r.headline?.fix ?? []).entries()) console.log(`  ${i + 1}. ${s}`);

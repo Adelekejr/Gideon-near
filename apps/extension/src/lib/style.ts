@@ -45,8 +45,8 @@ export const STYLE = `
 .gr{font-size:13px;color:var(--ink2);line-height:1.45}
 .gf{font:12px var(--mono);margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);color:var(--ink);overflow-wrap:anywhere}
 .gn{font:11px var(--mono);margin-top:8px;color:var(--ink2);overflow-wrap:anywhere}
-.gn b{font-weight:700;color:var(--ink)}
-.gf b,.ga b{font-weight:700;color:var(--acc)}
+.gn b{font-weight:700;color:var(--ink)}.gn+.gn{margin-top:3px}
+.gf b,.ga b{font-weight:700;color:var(--acc)}.gf a{color:inherit;text-decoration:underline}
 .ga{font:11.5px var(--mono);margin-top:8px;color:var(--mute);overflow-wrap:anywhere}
 .more{margin-top:10px}
 .more summary{cursor:pointer;font:11.5px var(--mono);color:var(--mute)}

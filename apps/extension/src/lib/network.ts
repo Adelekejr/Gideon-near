@@ -151,7 +151,7 @@ export function signedInAccount(signals: TextSignal[]): string | null {
   for (const s of signals) {
     if (!s.header) continue;
     const t = s.text.trim().toLowerCase().replace(/^@/, "");
-    if (ACCOUNT.test(t) && !t.includes("…")) head.add(t);
+    if (ACCOUNT.test(t) && !t.includes("…") && !t.includes("..")) head.add(t); // "hammed-st...testnet" is shortened, not a name
   }
   return head.size === 1 ? [...head][0]! : null;
 }
@@ -201,7 +201,7 @@ export function recipientNetwork(to: string): Network | null {
 
 /* ---------- reading the page (DOM) ---------- */
 
-const HEADER_SEL = 'header, nav, [role="banner"], [class*="header" i], [class*="navbar" i], [class*="topbar" i], [class*="account-name" i], [class*="accountName" i], [class*="profile" i]';
+const HEADER_SEL = 'header, nav, [role="banner"], [class*="header" i], [class*="navbar" i], [class*="topbar" i], [class*="account-name" i], [class*="accountName" i], [class*="profile" i], [class*="user-account" i], [class*="account-menu" i], [class*="accountMenu" i], [class*="user-menu" i], [class*="userMenu" i], [data-test-id="currentUser"]';
 
 /**
  * Short texts that look like an account name or a network badge, with whether each is in the header.
@@ -220,7 +220,8 @@ export function collectSignals(doc: Document, exclude?: Element | null, topPx = 
     seen++;
     const t = (n.nodeValue ?? "").trim();
     if (t.length < 5 || t.length > 70) continue;
-    if (!/(\.near|\.testnet|testnet|mainnet)/i.test(t)) continue;
+    // Account names and network badges; 64-hex accounts (full or shortened) only count as the sender.
+    if (!/(\.near|\.testnet|testnet|mainnet)/i.test(t) && !/^[0-9a-f]{64}$|^[0-9a-f]{4,12}(\.{2,3}|…)[0-9a-f]{4,12}$/i.test(t)) continue;
     const el = n.parentElement;
     if (!el || el.closest('gideon-watch, script, style, noscript, template, datalist, [role="listbox"], [role="option"], [role="combobox"]')) continue;
     if (exclude && (exclude.contains(el) || el.contains(exclude))) continue;

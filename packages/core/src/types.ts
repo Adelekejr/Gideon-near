@@ -7,7 +7,7 @@ export type Status = "BLOCKED" | "ATTENTION" | "PASS" | "COULD_NOT_CHECK" | "SKI
 export type Verdict = "BLOCKED" | "ATTENTION" | "SAFE";
 
 export type RuleId =
-  | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12" | "R13";
+  | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12" | "R13" | "R14" | "R15";
 
 export type Destination = "wallet" | "exchange" | "intents" | "unknown";
 
@@ -36,6 +36,12 @@ export interface CheckInput {
   exchange?: string;
   /** Sender account, used to read recent history for lookalike checks (R7). */
   from?: string;
+  /**
+   * Accounts you sent to from this device on this network (the extension remembers sends you
+   * made on wallet pages). They count as past recipients even when the sender isn't known
+   * or the indexer hasn't caught up (R7, R13).
+   */
+  deviceSends?: string[];
   /** User's saved contacts (R7). */
   addressBook?: Contact[];
   /** What the user copied, if known (R9, extension). */

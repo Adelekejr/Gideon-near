@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Gideon: NEAR pre-send check",
   "short_name": "Gideon",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Checks a NEAR address the moment you paste it, and holds the send when it's a mistake you can't undo.",
   "minimum_chrome_version": "111",
   "icons": {
@@ -38,6 +38,8 @@
     "https://free.rpc.fastnear.com/*",
     "https://api.nearblocks.io/*",
     "https://api-testnet.nearblocks.io/*",
+    "https://tx.main.fastnear.com/*",
+    "https://tx.test.fastnear.com/*",
     "https://1click.chaindefuser.com/*",
     "https://api.trongrid.io/*",
     "https://ethereum-rpc.publicnode.com/*",

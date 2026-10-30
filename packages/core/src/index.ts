@@ -8,5 +8,7 @@ export { exchangesFor, findExchange, tokensFor, tokenByContract, tokenBySymbol, 
 export { canonicalJson, resultDigest, makeReceipt, verifyReceipt, newReceiptKey, type ReceiptCheck } from "./receipt.js";
 export { builtInExplainer, explain, type Explainer } from "./adapters.js";
 export { RULES } from "./rules/index.js";
+export { REPORTED_SCAMS, reportedScam, type ReportedScam } from "./reported-scams.js";
+export { oddCharacters, plainVersion, type OddChar } from "./rules/r15-fake-letters.js";
 export { yoctoToNear, fmtDate } from "./context.js";
 export { withTimeout, TimeoutError } from "./time.js";

@@ -1,5 +1,6 @@
 import { withTimeout, type CheckInput, type CheckResult, type Network } from "@gideon/core";
 import type { NetHint } from "./network.js";
+import type { SenderHint, SenderUsed } from "./sender.js";
 
 export interface CheckRequest {
   type: "gideon:check";
@@ -8,6 +9,8 @@ export interface CheckRequest {
   host: string;
   /** What the page says about its network (content script only). Never page text, only the answer. */
   page?: NetHint;
+  /** The account the wallet shows as signed in (names only). */
+  sender?: SenderHint;
 }
 
 /** The network a check ran on, and why, for the card. */
@@ -18,7 +21,7 @@ export interface NetUsed {
   sure: boolean;
 }
 
-export type CheckResponse = { ok: true; result: CheckResult; net?: NetUsed } | { ok: false; error: string };
+export type CheckResponse = { ok: true; result: CheckResult; net?: NetUsed; sender?: SenderUsed } | { ok: false; error: string };
 
 type Send = (msg: CheckRequest) => Promise<CheckResponse | undefined>;
 const viaRuntime: Send = (msg) => chrome.runtime.sendMessage(msg);

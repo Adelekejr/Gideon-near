@@ -1,4 +1,4 @@
-import { classify, type AddressKind } from "@gideon/core";
+import { classify, oddCharacters, plainVersion, type AddressKind } from "@gideon/core";
 
 /** Words that mark a field as "who you're sending to". */
 const RECIPIENT = /(recipient|receiver|receiving|send[\s_-]*to|to[\s_-]*address|withdraw(al)?[\s_-]*address|wallet[\s_-]*address|deposit[\s_-]*address|destination|beneficiary|payee|account[\s_-]*id|near[\s_-]*account|\baddress\b)/i;
@@ -84,9 +84,20 @@ export function isStrongAddress(value: string): boolean {
   return c.kind === "near-named" && /\.(near|testnet)$/i.test(v);
 }
 
+/**
+ * Trim only ordinary spaces and line breaks. JavaScript's trim() also removes non-breaking spaces
+ * and the invisible U+FEFF, which R15 must see.
+ */
+export function plainTrim(value: string): string {
+  return value.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, "");
+}
+
 /** Should a value in this field be checked? */
 export function shouldCheck(el: Field, value: string): boolean {
-  const v = value.trim();
+  const raw = plainTrim(value);
+  if (!raw || raw.length > 120) return false;
+  // A fake letter, invisible character or hidden space hides an address: judge what it imitates.
+  const v = oddCharacters(raw).length ? plainVersion(raw) : raw.trim();
   if (!v || v.length > 120 || /\s/.test(v)) return false;
   if (el.tagName === "INPUT" && (el as HTMLInputElement).type === "password") return false;
   if (isStrongAddress(v)) return true;

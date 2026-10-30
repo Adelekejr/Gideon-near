@@ -20,7 +20,8 @@ export function nearToYocto(amount: string): string {
 
 /** Everything a check result is valid for. Any change means the check no longer applies. */
 export function sendKey(network: Network, from: string, to: string, amount: string): string {
-  return JSON.stringify([network, from, to.trim(), amount.trim()]);
+  // Ordinary spaces only: a non-breaking space or U+FEFF added after a check makes it a different send.
+  return JSON.stringify([network, from, to.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, ""), amount.trim()]);
 }
 
 export type GateKind = "connect" | "fill" | "check" | "checking" | "safe" | "attention" | "blocked" | "sending" | "sent";

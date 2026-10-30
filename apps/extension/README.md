@@ -8,7 +8,7 @@ engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 ```bash
 npm install
 npm run build:extension      # → apps/extension/dist
-npm run zip:extension        # → apps/extension/gideon-extension-0.2.3.zip
+npm run zip:extension        # → apps/extension/gideon-extension-0.2.4.zip
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
@@ -34,6 +34,36 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 | `scripts/screenshots.mjs` | Loads `dist/` into Playwright's Chromium and takes the screenshots in `/shots`. Needs `playwright-core` and `npx playwright install chromium`. |
 
 Tests are in `test/` and run with the root `npm test`.
+
+## What changed in 0.2.4
+
+- **Long account names.** Meteor shortens long names in its header (`hammed-stampdue.testnet`
+  shows as `hammed-st...testnet`), so 0.2.3 found no sender and skipped "first send" and the
+  past-recipient lookalike check. Gideon now matches the short form to a full name elsewhere on
+  the page or to "Your accounts" in the popup (new section; it also remembers every full name it
+  reads from a wallet header). The card shows the sender it used: `sender → you.testnet · how`.
+- **Fresh history.** Recent sends are read from FastNEAR's transactions API as well as NearBlocks
+  (NearBlocks testnet was about a month behind), whichever answers, merged.
+- **Sends from this device.** When you press the wallet's Send button on an address Gideon didn't
+  stop, it remembers it (on this device only, last 100). Those count as "sent before", and an
+  address that looks like one of them is STOPPED even before any explorer has indexed the send.
+- A lookalike of someone you've sent to now leads over "doesn't exist".
+- **Reported scam (R14).** Accounts publicly reported as scams are STOPPED, with a link to the report.
+- **Fake letters (R15).** Letters from other alphabets, invisible characters and hidden spaces are
+  STOPPED, naming the character, e.g. "contains a Greek 'α' that looks like 'a'".
+- **Any NEAR web wallet.** The sender is read the same way on every wallet and dApp: the wallet's
+  own record where its code could be checked, else the one account name shown in the header or
+  account menu (full, shortened, or 64-hex), a site's NEAR sign-in (`*_wallet_auth_key`),
+  `?account_id=` / `?signer_id=` in the address, and the page title. If these name different
+  accounts, Gideon doesn't guess (unless exactly one of them is under "Your accounts").
+  Accounts in the address path are never used: on MyNearWallet `/send-money/<id>` is the recipient.
+
+  | Wallet | How the sender is found | Checked |
+  |---|---|---|
+  | Meteor | header (shortened name) + "Your accounts" | live, Android Mises |
+  | MyNearWallet | its stored active account and `[data-test-id="currentUser"]` | from its open source |
+  | HOT (HERE), Bitte | header / account menu, title, address | generic only |
+  | Sender, Nightly | browser extensions and mobile apps, no web wallet page; dApps signed in with them use the site's NEAR sign-in | generic only |
 
 ## What changed in 0.2.3
 

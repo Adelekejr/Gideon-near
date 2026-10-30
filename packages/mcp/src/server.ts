@@ -55,7 +55,7 @@ const checkFields = {
   address_book: z.array(z.object({ account: z.string(), label: z.string().optional() })).optional().describe("Known-good recipients, for the lookalike check."),
 };
 
-const reason = z.object({ rule: z.string(), status: z.string(), code: z.string(), title: z.string(), detail: z.string() });
+const reason = z.object({ rule: z.string(), status: z.string(), code: z.string(), title: z.string(), detail: z.string(), link: z.string().optional().describe("Where to read more, e.g. the public scam report (R14).") });
 const checkOutput = z.object({
   verdict: z.enum(["SAFE", "ATTENTION", "BLOCKED"]),
   agent_action: z.enum(["SEND", "ASK_HUMAN", "DO_NOT_SEND"]),
@@ -90,7 +90,10 @@ export function summarize(r: CheckResult) {
           ...(r.account.balanceNear !== undefined ? { balance_near: r.account.balanceNear } : {}),
           ...(r.account.createdAt ? { created: r.account.createdAt } : {}) }
       : null,
-    reasons: shown.map((f) => ({ rule: f.rule, status: f.status, code: f.code, title: f.title, detail: f.detail })),
+    reasons: shown.map((f) => {
+      const link = f.evidence?.find((e) => e.url)?.url;
+      return { rule: f.rule, status: f.status, code: f.code, title: f.title, detail: f.detail, ...(link ? { link } : {}) };
+    }),
     fix: r.headline?.fix ?? [],
     couldnt_check: r.findings.filter((f) => f.status === "COULD_NOT_CHECK").map((f) => `${f.rule}: ${f.detail}`),
     receipt: r.receipt,
@@ -102,7 +105,7 @@ function asText(s: ReturnType<typeof summarize>): string {
   const lines = [`${s.verdict} → ${s.agent_action}`, s.agent_instruction, `Recipient: ${s.recipient} (${s.network})`];
   if (s.account) lines.push(`Account: ${s.account.summary}`);
   if (s.headline) lines.push(`Why: ${s.headline}`);
-  for (const x of s.reasons) lines.push(`- ${x.rule} ${x.status}: ${x.title}`);
+  for (const x of s.reasons) lines.push(`- ${x.rule} ${x.status}: ${x.title}${x.link ? ` (${x.link})` : ""}`);
   s.fix.forEach((f, i) => lines.push(`Fix ${i + 1}: ${f}`));
   lines.push(`Receipt sha256: ${s.receipt.sha256}`);
   return lines.join("\n");

@@ -34,16 +34,29 @@ export async function r07Lookalike(ctx: Ctx): Promise<RuleResult> {
     }
   }
 
+  // Sends made from this device: known even when the wallet's account can't be read or the indexer lags.
+  const device = [...new Set((input.deviceSends ?? []).map((a) => a.trim().toLowerCase()).filter(Boolean))];
+  if (!device.includes(to)) {
+    for (const cp of device) {
+      const m = lookalike(to, cp);
+      if (!m) continue;
+      return f("R7", "BLOCKED", "LOOKALIKE_OF_PAST_RECIPIENT", `Looks like ${cp.length <= 40 ? cp : short(cp, 12, 6)}, but it isn't`,
+        `You pasted ${to}. You've sent to ${cp} from this device before. ${m.reason}, which is how address-poisoning and typo scams work.${await missing()}`,
+        { fix: [`Send to ${cp} if that's who you meant. Copy it from your address book or from the receiver, never from your history.`, "If the receiver really changed accounts, confirm it with them another way."],
+          evidence: [{ label: "You pasted", value: short(to, 10, 8) }, { label: "You sent to", value: short(cp, 10, 8) }] });
+    }
+  }
+
   const hist = await senderHistory(ctx);
-  const compared = `${book.length} saved contact${book.length === 1 ? "" : "s"}`;
+  const compared = `${book.length} saved contact${book.length === 1 ? "" : "s"}${device.length ? ` and ${device.length} send${device.length === 1 ? "" : "s"} from this device` : ""}`;
   if (!hist) {
-    if (!book.length) return skipped("R7", "No address book or sender account to compare with.");
-    return f("R7", "PASS", "NO_LOOKALIKE", "No lookalike of your contacts", `Compared with ${compared}.`);
+    if (!book.length && !device.length) return skipped("R7", "No address book or sender account to compare with.");
+    return f("R7", "PASS", "NO_LOOKALIKE", "No lookalike of your contacts", `Compared with ${compared}. Gideon couldn't tell which account you're sending from, so your on-chain history wasn't compared.`);
   }
   if (!hist.ok) {
     // Info-only: a slow or rate-limited history never holds up the verdict. Contacts were compared above.
     return f("R7", "PASS", "HISTORY_UNAVAILABLE", book.length ? "No lookalike of your contacts" : "Couldn't compare with your history",
-      `Couldn't read your recent history in time (${hist.error}), so ${book.length ? `only your ${compared} were compared` : "no past recipients were compared"}. Check every character before you send.`);
+      `Couldn't read your recent history in time (${hist.error}), so ${book.length || device.length ? `only your ${compared} were compared` : "no past recipients were compared"}. Check every character before you send.`);
   }
 
   const { from, transfers, pastRecipients, counterparties } = hist.value;
@@ -60,7 +73,7 @@ export async function r07Lookalike(ctx: Ctx): Promise<RuleResult> {
       if (dust) return poisoning(ctx, cp, dust, ev(cp, "You sent to"));
       return f("R7", "BLOCKED", "LOOKALIKE_OF_PAST_RECIPIENT", `Looks like ${label(cp)}, but it isn't`,
         `You pasted ${to}. You've sent to ${cp} before. ${m.reason}, which is how address-poisoning and typo scams work.${await missing()}`,
-        { fix: [`Send to ${cp} if that's who you meant (copy it from your contacts, not your history).`, "If the receiver really changed accounts, confirm it with them another way."],
+        { fix: [`Send to ${cp} if that's who you meant. Copy it from your address book or from the receiver, never from your history.`, "If the receiver really changed accounts, confirm it with them another way."],
           evidence: ev(cp, "You sent to") });
     }
   }

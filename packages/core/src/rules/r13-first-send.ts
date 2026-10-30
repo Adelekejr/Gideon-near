@@ -14,6 +14,10 @@ const ACCOUNT_KINDS = ["near-named", "near-implicit", "eth-implicit", "hex64-upp
 export async function r13FirstSend(ctx: Ctx): Promise<RuleResult> {
   const { c, input } = ctx;
   if (!ACCOUNT_KINDS.includes(c.kind)) return skipped("R13", "Not a NEAR account.");
+  const device = (input.deviceSends ?? []).map((a) => a.trim().toLowerCase());
+  if (device.includes(c.normalized)) {
+    return f("R13", "PASS", "SENT_BEFORE", "You've sent here before", `You sent to ${c.normalized} from this device before.`);
+  }
   const from = senderOf(ctx);
   if (!from) return skipped("R13", input.from ? `Your account ${input.from} isn't on NEAR ${input.network}.` : "No sender account given.");
   const to = c.normalized;

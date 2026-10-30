@@ -36,7 +36,7 @@ export async function senderHistory(ctx: Ctx): Promise<Settled<SenderHistory> | 
   const from = senderOf(ctx);
   if (!from) return null;
   const net = ctx.input.network;
-  const r = await ctx.ask(`nearblocks-${net}`, `history:${from}`, (s) => s.recentTransfers(net, from), historyAsk(ctx));
+  const r = await ctx.ask(`history-${net}`, `history:${from}`, (s) => s.recentTransfers(net, from), historyAsk(ctx));
   if (!r.ok) return r;
   const pastRecipients: string[] = [];
   const counterparties = new Set<string>();

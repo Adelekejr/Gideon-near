@@ -1,5 +1,6 @@
 import type { CheckResult, Contact } from "@gideon/core";
 import type { NetworkMode } from "./network.js";
+import type { DeviceSend } from "./sender.js";
 
 /** Everything the extension keeps, all in chrome.storage.local on this device. */
 export interface Settings {
@@ -34,6 +35,8 @@ export interface LastCheck {
   couldNotCheck: boolean;
   title: string;
   at: string;
+  /** The sender used for the check, if Gideon could tell. */
+  from?: string;
 }
 
 export interface Stored {
@@ -41,6 +44,10 @@ export interface Stored {
   contacts: Contact[];
   stats: Stats;
   last: LastCheck | null;
+  /** Your own accounts: typed in the popup, or read in full from a wallet header before. */
+  myAccounts: string[];
+  /** Sends started from this device on wallet pages (recipient, network, time). */
+  sends: DeviceSend[];
 }
 
 export function withDefaults(raw: Partial<Record<keyof Stored, unknown>>): Stored {
@@ -58,6 +65,8 @@ export function withDefaults(raw: Partial<Record<keyof Stored, unknown>>): Store
     contacts: Array.isArray(raw.contacts) ? (raw.contacts as Contact[]).filter((c) => c && typeof c.account === "string") : [],
     stats: { checked: 0, stopped: 0, ...((raw.stats as Stats | undefined) ?? {}) },
     last: (raw.last as LastCheck | null | undefined) ?? null,
+    myAccounts: Array.isArray(raw.myAccounts) ? (raw.myAccounts as unknown[]).filter((a): a is string => typeof a === "string") : [],
+    sends: Array.isArray(raw.sends) ? (raw.sends as DeviceSend[]).filter((s) => s && typeof s.to === "string" && (s.network === "testnet" || s.network === "mainnet")) : [],
   };
 }
 
@@ -77,7 +86,7 @@ export function removeContact(list: Contact[], account: string): Contact[] {
 /* ---------- chrome.storage wrappers (extension pages, content script, worker) ---------- */
 
 export async function load(): Promise<Stored> {
-  const raw = await chrome.storage.local.get(["settings", "contacts", "stats", "last"]);
+  const raw = await chrome.storage.local.get(["settings", "contacts", "stats", "last", "myAccounts", "sends"]);
   return withDefaults(raw);
 }
 

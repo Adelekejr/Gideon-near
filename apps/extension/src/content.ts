@@ -1,10 +1,13 @@
+import type { Network } from "@gideon/core";
 import { addContact, load, saveContacts, withDefaults, type Settings } from "./lib/settings.js";
 import { ClipboardWatch, copyTampered } from "./lib/clipboard.js";
-import { findSendButtons, isRecipientField, isTextField, shouldCheck, type Field } from "./lib/detect.js";
+import { findSendButtons, plainTrim, isRecipientField, isTextField, shouldCheck, type Field } from "./lib/detect.js";
 import { card, checking, failed, tamperCard, toneOf } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
 import { sendCheck, type CheckResponse } from "./lib/messages.js";
-import { collectSignals, pageHint, recipientScope, signedInAccount } from "./lib/network.js";
+import { collectSignals, pageHint, recipientScope } from "./lib/network.js";
+import { pageAccounts } from "./lib/wallets.js";
+import { rememberSend, senderHint, type SenderHint } from "./lib/sender.js";
 import { placement } from "./lib/place.js";
 import { asShift, loadShift, themeOf, type Shift } from "./lib/shift.js";
 import { playAll } from "./lib/motion.js";
@@ -53,6 +56,8 @@ interface Panel {
   seq: number;
   held: HTMLElement[];
   prevOutline: string;
+  /** The answer showing for `value`, to remember the send if you press Send. */
+  shown?: { to: string; network: Network; verdict: string; from?: string };
 }
 
 let panel: Panel | null = null;
@@ -191,8 +196,37 @@ document.addEventListener("click", (e) => {
   if (isHeld(e.target)) {
     e.preventDefault();
     e.stopImmediatePropagation();
+    return;
   }
+  noteSend(e.target);
 }, true);
+
+/**
+ * You pressed the page's Send button for a recipient Gideon checked (and didn't stop): remember it
+ * on this device, so a lookalike of it is caught next time even before the explorers catch up.
+ * Recipients Gideon stopped are never remembered, even if you sent anyway.
+ */
+// The last verdict shown, kept after the card is dismissed (you usually dismiss it, then press Send).
+let lastShown: { field: Field; value: string; to: string; network: Network; verdict: string; from?: string } | null = null;
+function pageStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function noteSend(t: EventTarget | null): void {
+  const c = lastShown;
+  if (!c || c.verdict === "BLOCKED" || !(t instanceof Node) || !c.field.isConnected) return;
+  if (plainTrim(c.field.value) !== plainTrim(c.value)) return;
+  if (!findSendButtons(c.field).some((b) => b.contains(t))) return;
+  const s = { network: c.network, to: c.to, at: Date.now(), ...(c.from ? { from: c.from } : {}) };
+  void chrome.storage.local.get("sends").then((raw) => {
+    const list = Array.isArray(raw.sends) ? raw.sends : [];
+    return chrome.storage.local.set({ sends: rememberSend(list, s) });
+  }).catch(() => undefined);
+}
 document.addEventListener("submit", (e) => {
   const f = panel?.field?.form;
   if (f && panel!.held.length && e.target === f) {
@@ -264,19 +298,20 @@ async function run(field: Field, value: string, copied: string | null, force = f
   p.seq = seq;
   p.value = value;
   let page;
-  let from: string | null = null;
+  let sender: SenderHint = {};
   try {
     const signals = collectSignals(document, recipientScope(field));
     page = settings.networkMode === "auto" ? pageHint(location.href, signals) : undefined;
     // The wallet's signed-in account is the sender: its history feeds the lookalike and first-send checks.
-    from = signedInAccount(signals);
+    sender = senderHint(signals, pageAccounts(document, location.href, pageStorage()));
   } catch {
     page = undefined;
   }
   const req = {
-    input: { to: value, ...(from ? { from } : {}), ...(copied ? { clipboard: { copied } } : {}) },
+    input: { to: value, ...(copied ? { clipboard: { copied } } : {}) },
     host: location.host,
     ...(page ? { page } : {}),
+    ...(sender.account || sender.shown || sender.ambiguous ? { sender } : {}),
   };
   const res = await sendCheck(req, LIMITS.pageWaitMs);
   if (p.seq !== seq || p.field !== field) return; // a newer check replaced this one
@@ -303,7 +338,9 @@ function render(p: Panel, field: Field, res: Extract<CheckResponse, { ok: true }
   const held = r.verdict === "BLOCKED" && settings.holdSend;
   if (held) hold(p, field);
   else release(p);
-  show(field, card(r, { held, actions: actionsFor(r, held), ...(res.net ? { net: res.net } : {}) }), tone, animate);
+  p.shown = { to: r.classification.normalized, network: r.input.network, verdict: r.verdict, ...(r.input.from ? { from: r.input.from } : {}) };
+  lastShown = { field, value: p.value, ...p.shown };
+  show(field, card(r, { held, actions: actionsFor(r, held), ...(res.net ? { net: res.net } : {}), ...(res.sender ? { sender: res.sender } : {}) }), tone, animate);
 }
 
 /* ---------- events ---------- */
@@ -349,7 +386,7 @@ document.addEventListener("paste", (e) => {
   const pasted = e.clipboardData?.getData("text/plain") ?? "";
   const copied = settings.clipboardCheck ? watch.copiedFor() : null;
   setTimeout(() => {
-    const value = (field.value || pasted).trim();
+    const value = plainTrim(field.value || pasted);
     if (shouldCheck(field, value)) void run(field, value, copied);
   }, 0);
 }, true);
@@ -359,7 +396,7 @@ document.addEventListener("input", (e) => {
   if (!settings.checkOnPaste || !isTextField(e.target)) return;
   if ((e as InputEvent).inputType === "insertFromPaste") return; // handled by the paste listener
   const field = e.target;
-  const value = field.value.trim();
+  const value = plainTrim(field.value);
   if (!value) {
     if (panel?.field === field) hide();
     return;
@@ -367,7 +404,7 @@ document.addEventListener("input", (e) => {
   if (!isRecipientField(field) && panel?.field !== field) return;
   clearTimeout(timers.get(field));
   timers.set(field, window.setTimeout(() => {
-    const v = field.value.trim();
+    const v = plainTrim(field.value);
     if (shouldCheck(field, v)) void run(field, v, null);
     else if (panel?.field === field) hide();
   }, LIMITS.debounceMs));

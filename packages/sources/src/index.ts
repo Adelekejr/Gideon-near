@@ -4,8 +4,9 @@ import { NearRpc, type RpcOptions } from "./nearRpc.js";
 import { NearBlocks } from "./nearblocks.js";
 import { ForeignChains, type ForeignOptions } from "./foreign.js";
 import { OneClick } from "./oneclick.js";
+import { FastNearTx, mergedHistory } from "./fastnear.js";
 
-export { NearRpc, NearBlocks, ForeignChains, OneClick };
+export { NearRpc, NearBlocks, ForeignChains, OneClick, FastNearTx, mergedHistory };
 export { nearAiExplainer } from "./nearai.js";
 export { SourceError, request, type Fetch, type HttpOptions } from "./http.js";
 
@@ -22,6 +23,7 @@ export function liveSources(o: LiveSourcesOptions = {}): Sources {
   const rpc = new NearRpc({ ...http, ...o.rpc });
   const nb = new NearBlocks(http);
   const fx = new ForeignChains({ ...http, ...o.foreign });
+  const fast = new FastNearTx(http);
   const oc = new OneClick({ ...http, baseUrl: o.oneClickBaseUrl });
   return {
     viewAccount: (n, a) => rpc.viewAccount(n, a),
@@ -31,7 +33,8 @@ export function liveSources(o: LiveSourcesOptions = {}): Sources {
     ethTx: (h) => fx.ethTx(h),
     btcTx: (h) => fx.btcTx(h),
     oneClickStatus: (d) => oc.status(d),
-    recentTransfers: (n, a) => nb.recentTransfers(n, a),
+    // Fresh (FastNEAR) and deep (NearBlocks, whose free testnet index can lag weeks) merged.
+    recentTransfers: (n, a) => mergedHistory(() => fast.recentTransfers(n, a), () => nb.recentTransfers(n, a)),
     nearTx: (n, h) => nb.nearTx(n, h),
     communityFlags: (n, reg, a) => rpc.communityFlags(n, reg, a),
     accountCreated: (n, a) => nb.accountCreated(n, a),
