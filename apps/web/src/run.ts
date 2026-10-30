@@ -1,4 +1,4 @@
-import { check, type CheckInput, type CheckResult, type Network, type Sources } from "@gideon/core";
+import { check, checkDrainer, DrainerCache, type CheckInput, type CheckResult, type Network, type Sources } from "@gideon/core";
 import { liveSources, replaySources, type Recording } from "@gideon/sources";
 import casesJson from "../../../demo/cases.json";
 import fixtures from "../../../demo/fixtures.json";
@@ -31,6 +31,18 @@ export const HISTORY_MS = 3000;
 
 export function runCheck(input: CheckInput, replay = false): Promise<CheckResult> {
   return check(input, sources(replay), { historyTimeoutMs: HISTORY_MS });
+}
+
+const drainers = new DrainerCache();
+/** Time limit for the drained-wallet check (R18), which runs after the verdict shows. */
+export const DRAINER_MS = 8000;
+
+/**
+ * The drained-wallet check on a finished result: looks at the recipient's recent senders and
+ * returns the result with R18 merged in. Never throws; with recorded answers it doesn't run.
+ */
+export function runDrainer(r: CheckResult, replay = false): Promise<CheckResult> {
+  return checkDrainer(r, sources(replay), { cache: drainers }, { timeoutMs: DRAINER_MS }).catch(() => r);
 }
 
 /** Build a CheckInput from check.html query params. */

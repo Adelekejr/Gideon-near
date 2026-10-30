@@ -12,3 +12,5 @@ export { REPORTED_SCAMS, reportedScam, type ReportedScam } from "./reported-scam
 export { oddCharacters, plainVersion, type OddChar } from "./rules/r15-fake-letters.js";
 export { yoctoToNear, fmtDate } from "./context.js";
 export { withTimeout, TimeoutError } from "./time.js";
+export { disguisedAs, type Disguise } from "./rules/r17-disguised-name.js";
+export { drainerCheck, drainerPrecheck, drainerWanted, drainedBy, withDrainer, checkDrainer, drainerInputOf, drainerShown, verdictFinding, DrainerCache, DRAINER_DEFAULTS, type DrainerInput, type DrainerOptions, type DrainedSender } from "./drainer.js";

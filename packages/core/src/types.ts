@@ -7,7 +7,7 @@ export type Status = "BLOCKED" | "ATTENTION" | "PASS" | "COULD_NOT_CHECK" | "SKI
 export type Verdict = "BLOCKED" | "ATTENTION" | "SAFE";
 
 export type RuleId =
-  | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12" | "R13" | "R14" | "R15" | "R16";
+  | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12" | "R13" | "R14" | "R15" | "R16" | "R17" | "R18";
 
 export type Destination = "wallet" | "exchange" | "intents" | "unknown";
 
@@ -289,6 +289,34 @@ export interface Sources {
    * R13 (first send). Native NEAR sends and calls only: token transfers go to the token contract.
    */
   sentCount?(network: Network, from: string, to: string): Promise<number>;
+  /**
+   * Optional (R18, drained-wallet check): the account's newest transactions where it really
+   * received something (newest first), plus how many such transactions it has in total.
+   */
+  inboundTxs?(network: Network, accountId: string, limit: number): Promise<{ total: number; txs: ChainTx[] }>;
+  /**
+   * Optional (R18): transactions the account signed at or before this block height, newest first.
+   */
+  signedTxsUpTo?(network: Network, accountId: string, blockHeight: number, limit: number): Promise<ChainTx[]>;
+}
+
+/** One action of a NEAR transaction, as much as R18 needs. */
+export type ChainAction =
+  | { kind: "transfer"; depositYocto: string }
+  | { kind: "addKey"; publicKey: string; fullAccess: boolean }
+  | { kind: "deleteKey"; publicKey: string }
+  | { kind: "other" };
+
+/** A NEAR transaction with its signing key and actions (R18). */
+export interface ChainTx {
+  hash: string;
+  signer: string;
+  /** The public key that signed it. */
+  signerKey: string;
+  receiver: string;
+  timestampMs: number;
+  blockHeight: number;
+  actions: ChainAction[];
 }
 
 /** One report in the community flag registry (contracts/flag-registry). */

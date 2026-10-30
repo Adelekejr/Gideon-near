@@ -1,4 +1,4 @@
-import type { Network, Transfer } from "@gideon/core";
+import type { ChainAction, ChainTx, Network, Transfer } from "@gideon/core";
 import { NETWORKS } from "@gideon/core";
 import { json, request, SourceError, type HttpOptions } from "./http.js";
 
@@ -16,6 +16,36 @@ export class FastNearTx {
     if (res.status === 429) throw new SourceError("FastNEAR rate limit reached");
     if (!res.ok) throw new SourceError(`FastNEAR HTTP ${res.status}`);
     return json<T>(res, url);
+  }
+
+  /** Transactions by hash, in the order of `rows` (newest first), with the indexer's block height. */
+  private async txs(network: Network, rows: { transaction_hash?: string; tx_block_height?: number }[]): Promise<ChainTx[]> {
+    const height = new Map(rows.filter((r) => r.transaction_hash).map((r) => [r.transaction_hash!, Number(r.tx_block_height ?? 0)]));
+    const hashes = [...height.keys()];
+    const batches: string[][] = [];
+    for (let i = 0; i < hashes.length; i += 20) batches.push(hashes.slice(i, i + 20));
+    const got = await Promise.all(batches.map((b) => this.post<{ transactions?: any[] }>(network, "/v0/transactions", { tx_hashes: b })));
+    const byHash = new Map<string, ChainTx>();
+    for (const g of got) for (const t of g.transactions ?? []) {
+      const x = chainTx(t, height);
+      if (x) byHash.set(x.hash, x);
+    }
+    return hashes.map((h) => byHash.get(h)).filter((x): x is ChainTx => !!x);
+  }
+
+  /** The account's newest transactions where it really received something, and how many it has. */
+  async inboundTxs(network: Network, accountId: string, limit: number): Promise<{ total: number; txs: ChainTx[] }> {
+    type Row = { transaction_hash?: string; tx_block_height?: number };
+    const a = await this.post<{ account_txs?: Row[]; txs_count?: number }>(network, "/v0/account", { account_id: accountId, is_real_receiver: true, limit: Math.min(limit, 200) });
+    const rows = a.account_txs ?? [];
+    return { total: Number(a.txs_count ?? rows.length), txs: await this.txs(network, rows) };
+  }
+
+  /** Transactions the account signed at or before `blockHeight`, newest first. */
+  async signedTxsUpTo(network: Network, accountId: string, blockHeight: number, limit: number): Promise<ChainTx[]> {
+    type Row = { transaction_hash?: string; tx_block_height?: number };
+    const a = await this.post<{ account_txs?: Row[] }>(network, "/v0/account", { account_id: accountId, is_real_signer: true, to_tx_block_height: blockHeight, limit: Math.min(limit, 200) });
+    return this.txs(network, a.account_txs ?? []);
   }
 
   /** The newest transactions: up to 20 the account signed, plus up to 20 of any kind (incoming, dust). */
@@ -76,4 +106,21 @@ export function mergedHistory(a: () => Promise<Transfer[]>, b: () => Promise<Tra
       });
     });
   });
+}
+
+/** One FastNEAR /v0/transactions entry → ChainTx (null when it's missing what R18 needs). */
+export function chainTx(t: any, height: Map<string, number> = new Map()): ChainTx | null {
+  const tx = t?.transaction;
+  if (!tx?.hash || !tx?.signer_id || !tx?.receiver_id || !tx?.public_key) return null;
+  const actions: ChainAction[] = (Array.isArray(tx.actions) ? tx.actions : []).map((a: any): ChainAction => {
+    if (a?.Transfer) return { kind: "transfer", depositYocto: String(a.Transfer.deposit ?? "0") };
+    if (a?.AddKey) return { kind: "addKey", publicKey: String(a.AddKey.public_key ?? ""), fullAccess: a.AddKey.access_key?.permission === "FullAccess" };
+    if (a?.DeleteKey) return { kind: "deleteKey", publicKey: String(a.DeleteKey.public_key ?? "") };
+    return { kind: "other" };
+  });
+  const ts = Number(t?.execution_outcome?.block_timestamp ?? 0);
+  return {
+    hash: tx.hash, signer: tx.signer_id, signerKey: tx.public_key, receiver: tx.receiver_id,
+    timestampMs: Math.floor(ts / 1e6), blockHeight: height.get(tx.hash) ?? Number(t?.execution_outcome?.block_height ?? 0), actions,
+  };
 }

@@ -1,7 +1,8 @@
 import type { CheckResult, Finding, Status } from "@gideon/core";
 import { NETWORKS, explorerTxUrl } from "@gideon/core";
 import { initChrome, stopper, esc, footer, playVerdict, recordWatch } from "./chrome";
-import { runCheck } from "./run";
+import { runCheck, runDrainer } from "./run";
+import { drainerWanted } from "@gideon/core";
 import { getContacts } from "./state";
 import { gate, nearToYocto, sendKey, sendNetwork, type GateKind } from "./sendgate";
 import { connector, sendNear, type Connected } from "./wallet";
@@ -19,6 +20,8 @@ let sending = false;
 let sent: { key: string; hash?: string } | null = null;
 let sendError: string | null = null;
 let lastPlayed: string | null = null;
+/** The drained-wallet check (R18) is still looking; Send waits for it (the verdict is already showing). */
+let drainerPending = false;
 
 initChrome("Send", () => note(`The site’s network switch doesn’t change sending. This page signs on NEAR ${NET} (set by VITE_GIDEON_SEND_NETWORK).`));
 $("netbadge").className = `netbadge ${NET}`;
@@ -55,13 +58,22 @@ async function doCheck() {
   } catch (e) {
     checked = null;
     checkError = e instanceof Error ? e.message : String(e);
-  } finally { checking = false; update(); }
+  } finally { checking = false; drainerPending = !!checked && drainerWanted(checked.result); update(); }
+  // Then the drained-wallet check, time-limited; it updates the verdict if it finds something.
+  const first = checked;
+  if (!first || !drainerPending) return;
+  const merged = await runDrainer(first.result);
+  if (checked !== first) return; // a newer check replaced this one
+  drainerPending = false;
+  checked = { key: first.key, result: merged };
+  if (merged.verdict !== first.result.verdict) { confirmed = false; recordWatch(merged.input.to, merged.verdict, NET, true); }
+  update();
 }
 
 async function doSend() {
   const g = current();
   const y = yocto();
-  if (!g.canSend || !who || !y || !checked) return;
+  if (!g.canSend || drainerPending || !who || !y || !checked) return;
   const k = key();
   // Send exactly the account that was checked.
   const receiver = checked.result.classification.normalized;
@@ -137,6 +149,7 @@ function update() {
   if (r && ["safe", "attention", "blocked"].includes(g.kind)) {
     const report = new URLSearchParams({ to: target, amount: amt, from: who?.accountId ?? "", net: NET, dest: "wallet" });
     body = `<div class="meta"><span>NEAR ${esc(NET)}</span><span>${r.ms} ms</span><span>${r.sources.length} lookups</span><span>verdict ${esc(r.verdict)}</span></div>${findingsList(r)}
+     ${drainerPending ? `<p class="vnote" style="margin-top:12px">Checking recent senders for hacked wallets…</p>` : ""}
      <p class="vnote" style="margin-top:12px"><a href="check.html?${esc(report.toString())}" target="_blank" rel="noopener">Full report ↗</a></p>`;
   }
   if (g.kind === "sent" && sent?.hash) body = `<p class="vnote" style="margin-top:14px">Transaction <a href="${esc(explorerTxUrl(NET, sent.hash))}" target="_blank" rel="noopener">${esc(sent.hash)} ↗</a></p>`;
@@ -146,7 +159,7 @@ function update() {
   const label = sendLabel[g.kind] ? `${sendLabel[g.kind]}${["safe", "attention"].includes(g.kind) ? ` ${esc(amt)} NEAR` : ""}` : "Send (check first)";
   const go = `<div class="go">
    ${g.showConfirm ? `<label class="confirm"><input type="checkbox" id="ok"${confirmed ? " checked" : ""}><span>I read why Gideon flagged this and I still want to send ${esc(amt)} NEAR to <b class="mono">${esc(target)}</b>.</span></label>` : ""}
-   <button class="btn sendbtn ${btnCls}" id="send" type="button"${g.canSend ? "" : " disabled"}>${label}</button>
+   <button class="btn sendbtn ${btnCls}" id="send" type="button"${g.canSend && !drainerPending ? "" : " disabled"}>${label}</button>
    ${g.kind === "blocked" ? `<p class="vnote">Blocked sends can’t be overridden here. Fix the address and check again.</p>` : ""}
    ${sendError ? `<p class="vnote" style="color:var(--ink)"><b>Not sent:</b> ${esc(sendError)}</p>` : ""}
    ${noteText ? `<p class="vnote">${esc(noteText)}</p>` : ""}
@@ -155,7 +168,7 @@ function update() {
   const el = $("gate");
   el.className = `verdict ${vk === "idle" ? "" : vk}`;
   // The Arrow G plays once per new check result; later re-renders (ticking the box, sending) show the final pose.
-  const playKey = r && ["safe", "attention", "blocked"].includes(g.kind) ? `${checked!.key}|${r.checkedAt}` : null;
+  const playKey = r && ["safe", "attention", "blocked"].includes(g.kind) ? `${checked!.key}|${r.checkedAt}|${r.verdict}` : null;
   const fresh = playKey !== null && playKey !== lastPlayed;
   el.innerHTML = `<div class="l"><div class="tagline">${chip}</div><h2 class="h2">${esc(title)}</h2><p class="why">${why}</p>${body}${go}</div>
    <div class="vstage">${stopper(fresh ? "idle" : vk)}<span class="cap">GIDEON · ${tag}</span></div>`;

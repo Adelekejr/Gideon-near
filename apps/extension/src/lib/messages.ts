@@ -25,6 +25,13 @@ export type CheckResponse =
   | { ok: true; result: CheckResult; net?: NetUsed; sender?: SenderUsed }
   | { ok: false; error: string; /** This page's copy of Gideon was replaced by an update or reload: reload the page. */ orphaned?: true };
 
+/** Ask the worker for the drained-wallet check (R18) on a finished result; the answer is the merged result. */
+export interface DrainerRequest {
+  type: "gideon:drainer";
+  result: CheckResult;
+}
+export type DrainerResponse = { ok: true; result: CheckResult } | { ok: false; error: string };
+
 type Send = (msg: CheckRequest) => Promise<CheckResponse | undefined>;
 const viaRuntime: Send = (msg) => chrome.runtime.sendMessage(msg);
 
@@ -69,4 +76,16 @@ export function sendCheck(req: Omit<CheckRequest, "type">, timeoutMs?: number, s
     return !again.ok && (!alive() || ORPHANED.test(again.error)) ? gone : again;
   });
   return withTimeout(asked, timeoutMs, "The check").catch((e: unknown): CheckResponse => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+}
+
+/**
+ * The follow-up drained-wallet check. Never throws or hangs: any failure, time-out or orphaned
+ * script answers null and the card simply stays as it is.
+ */
+export function sendDrainer(result: CheckResult, timeoutMs?: number, send: (m: DrainerRequest) => Promise<DrainerResponse | undefined> = (m) => chrome.runtime.sendMessage(m), alive: () => boolean = extensionAlive): Promise<CheckResult | null> {
+  if (!alive()) return Promise.resolve(null);
+  const asked = Promise.resolve()
+    .then(() => send({ type: "gideon:drainer", result }))
+    .then((r) => (r?.ok ? r.result : null));
+  return withTimeout(asked, timeoutMs, "The drained-wallet check").catch(() => null);
 }

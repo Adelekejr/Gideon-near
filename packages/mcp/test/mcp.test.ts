@@ -31,6 +31,35 @@ async function connect(deps: Parameters<typeof createGideonServer>[0]) {
 const call = async (c: Client, name: string, args: Record<string, unknown>) => (await c.callTool({ name, arguments: args })) as any;
 
 describe("gideon MCP server", () => {
+  it("adds the drained-wallet check (R18): two swept senders BLOCK, and the receipt still verifies", async () => {
+    const to = "collector.testnet";
+    const T = NOW - 3_600_000;
+    const victim = (name: string, i: number) => {
+      const add = { hash: `a${i}`, signer: name, signerKey: `old-${name}`, receiver: name, timestampMs: T - 60_000, blockHeight: 100 + i * 10, actions: [{ kind: "addKey" as const, publicKey: `new-${name}`, fullAccess: true }] };
+      const drain = { hash: `d${i}`, signer: name, signerKey: `new-${name}`, receiver: to, timestampMs: T, blockHeight: 101 + i * 10, actions: [{ kind: "transfer" as const, depositYocto: "1000" }] };
+      return { name, add, drain };
+    };
+    const vs = [victim("a.testnet", 1), victim("b.testnet", 2)];
+    const dust = { amountYocto: "50000000000000000000000", codeHash: "11111111111111111111111111111111", storageUsage: 182 };
+    const c = await connect({ sources: sources({
+      viewAccount: async (_n, a) => (a === to ? person() : dust),
+      inboundTxs: async () => ({ total: 2, txs: vs.map((v) => v.drain) }),
+      signedTxsUpTo: async (_n, a, h) => { const v = vs.find((x) => x.name === a)!; return [v.drain, v.add].filter((x) => x.blockHeight <= h); },
+    }) });
+    const r = await call(c, "gideon_check", { recipient: to, network: "testnet", amount: "1", destination: "wallet" });
+    expect(r.structuredContent.verdict).toBe("BLOCKED");
+    expect(r.structuredContent.reasons.some((x: { rule: string }) => x.rule === "R18")).toBe(true);
+    const e = await call(c, "gideon_explain", { result: r.structuredContent.result });
+    expect(e.isError).toBeFalsy();
+    expect(e.structuredContent.verdict).toBe("BLOCKED");
+  });
+
+  it("without a transaction source the drained-wallet check stays silent", async () => {
+    const c = await connect({ sources: sources({ viewAccount: person }) });
+    const r = await call(c, "gideon_check", { recipient: "kemi-rent.testnet", network: "testnet", amount: "1", destination: "wallet" });
+    expect(r.structuredContent.verdict).toBe("SAFE");
+  });
+
   it("lists the three read-only tools and tells agents the policy", async () => {
     const c = await connect({ sources: sources() });
     const { tools } = await c.listTools();

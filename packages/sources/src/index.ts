@@ -40,6 +40,8 @@ export function liveSources(o: LiveSourcesOptions = {}): Sources {
     accountCreated: (n, a) => nb.accountCreated(n, a),
     sentCount: (n, f, t) => nb.sentCount(n, f, t),
     accountExistedAt: (n, a, t) => rpc.accountExistedAt(n, a, t),
+    inboundTxs: (n, a, l) => fast.inboundTxs(n, a, l),
+    signedTxsUpTo: (n, a, h, l) => fast.signedTxsUpTo(n, a, h, l),
   };
 }
 

@@ -91,6 +91,19 @@ export interface CardOptions {
   net?: { network: string; why: string };
   /** Which sender the check used, e.g. { account: "alice-wallet.near", why: "from your wallet's header" }. */
   sender?: { account: string | null; why: string };
+  /** The drained-wallet check (R18) is still looking at recent senders. */
+  drainerPending?: boolean;
+}
+
+/**
+ * "senders → …": the drained-wallet check (R18) while it runs, then its answer when it isn't
+ * already the card's headline. Nothing when it was skipped, failed or ran out of time.
+ */
+export function drainerLine(r: CheckResult, pending = false): string {
+  const x = r.findings.find((f) => f.rule === "R18");
+  if (!x) return pending ? `<div class="gn"><b>senders →</b> checking recent senders for hacked wallets…</div>` : "";
+  if (x.status === "SKIPPED" || r.headline?.rule === "R18") return "";
+  return `<div class="gn"><b>senders →</b> ${esc(x.title)}</div>`;
 }
 
 /** "sender → alice-wallet.near · from your wallet's header", or why it couldn't tell. */
@@ -118,6 +131,7 @@ ${accountLine(r)}
 ${fix ? `<div class="gf"><b>fix →</b> ${esc(fix)}</div>` : ""}
 ${o.net ? netLine(o.net) : ""}
 ${o.sender ? senderLine(o.sender) : ""}
+${drainerLine(r, o.drainerPending)}
 <details class="more"><summary>Details · ${r.findings.filter((f) => f.status !== "SKIPPED").length} checks · ${esc(r.input.network)} · ${r.ms} ms</summary>${findingsList(r)}</details>
 ${o.actions ? `<div class="gacts">${o.actions}</div>` : ""}
 </div></div>`;

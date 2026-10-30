@@ -8,7 +8,7 @@ engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 ```bash
 npm install
 npm run build:extension      # → apps/extension/dist
-npm run zip:extension        # → apps/extension/gideon-extension-0.2.5.zip
+npm run zip:extension        # → apps/extension/gideon-extension-0.2.6.zip
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
@@ -36,6 +36,20 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 Tests are in `test/` and run with the root `npm test`.
 
 What the extension reads, keeps and sends: [PRIVACY.md](PRIVACY.md).
+
+## What changed in 0.2.6
+
+- **Fake address names (R17).** A NEAR name made to look like another chain's address
+  (`0x5290…eed.near`, `TXYZ….tg`, `bc1q….near`) is blocked: "This is a NEAR name made to look like
+  an Ethereum (EVM) address". A name that only partly looks like one gets a "Look again". Ordinary
+  names such as `0xbob.near` pass.
+- **Drained wallets (R18).** After the verdict shows, Gideon looks at the accounts that recently
+  sent NEAR to the address. If two or more look hacked (a new full-access key added minutes
+  before, used first to send here, account left nearly empty), the card changes to BLOCKED
+  "Funds from hacked wallets were swept into this address"; one gives a "Look again". The card
+  shows "senders → checking recent senders for hacked wallets…" while this runs (at most 8 s).
+  Skipped for your own accounts, contacts and exchanges. If it fails, nothing changes.
+- **Long addresses wrap** inside the card instead of running past its edge.
 
 ## What changed in 0.2.5
 

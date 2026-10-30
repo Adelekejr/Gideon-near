@@ -2,12 +2,14 @@ import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import { readFileSync } from "node:fs";
 import {
-  check, explain, NETWORKS, resolveNetwork, verifyReceipt,
+  check, checkDrainer, DrainerCache, explain, NETWORKS, resolveNetwork, verifyReceipt,
   type CheckInput, type CheckResult, type Explainer, type Network, type Sources, type Verdict,
 } from "@gideon/core";
 import { liveSources, nearAiExplainer, replaySources, sourcesOptionsFromEnv } from "@gideon/sources";
 
 export const VERSION = "0.1.0";
+/** Time limit for the drained-wallet check (R18) after the main check. */
+const DRAINER_MS = 8000;
 
 /** What an agent must do with each verdict. This is the contract of the server. */
 export const AGENT_ACTION = { SAFE: "SEND", ATTENTION: "ASK_HUMAN", BLOCKED: "DO_NOT_SEND" } as const satisfies Record<Verdict, string>;
@@ -117,6 +119,8 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
   const explainer = deps.explainer !== undefined ? deps.explainer
     : env.NEARAI_API_KEY ? nearAiExplainer({ apiKey: env.NEARAI_API_KEY, model: env.NEARAI_MODEL || undefined }) : null;
   const net = (n?: string): Network => resolveNetwork(n ?? env.GIDEON_NETWORK);
+  // Drained-wallet answers (R18) per network and recipient, 10 minutes; failures aren't kept.
+  const drainers = new DrainerCache();
   const registryFor = (n: Network, arg?: string) => (arg ?? env.GIDEON_FLAG_REGISTRY ?? NETWORKS[n].flagRegistry ?? "") || null;
 
   async function runCheck(a: { [K in keyof typeof checkFields]?: unknown } & { recipient: string }): Promise<CheckResult> {
@@ -132,12 +136,10 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
       addressBook: a.address_book as CheckInput["addressBook"],
     };
     const reg = registryFor(n);
-    return check(input, sources, {
-      now: deps.now,
-      receiptKey: env.GIDEON_RECEIPT_KEY || undefined,
-      flagRegistry: reg ?? "",
-      historyTimeoutMs: HISTORY_MS,
-    });
+    const receiptKey = env.GIDEON_RECEIPT_KEY || undefined;
+    const r = await check(input, sources, { now: deps.now, receiptKey, flagRegistry: reg ?? "", historyTimeoutMs: HISTORY_MS });
+    // Then the drained-wallet check (R18): the recipient's recent senders, time-limited and silent if it fails.
+    return checkDrainer(r, sources, { cache: drainers }, { timeoutMs: DRAINER_MS }, receiptKey).catch(() => r);
   }
 
   const server = new McpServer({ name: "gideon", version: VERSION }, { instructions: INSTRUCTIONS });

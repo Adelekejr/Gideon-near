@@ -1,7 +1,8 @@
 import { explain, explorerAccountUrl, type CheckResult, type Finding, type Status } from "@gideon/core";
 import { initChrome, stopper, esc, footer, playVerdict, recordWatch, tearSlip, reveal, LOGO } from "./chrome";
 import { getNetwork } from "./state";
-import { inputFromQuery, runCheck, CASES } from "./run";
+import { inputFromQuery, runCheck, runDrainer, CASES } from "./run";
+import { drainerWanted } from "@gideon/core";
 
 const RULE_NAMES: Record<string, string> = {
   R1: "Format & network", R2: "Pasted hash", R3: "Account on chain", R4: "Ethereum-style account", R5: "Token",
@@ -10,6 +11,8 @@ const RULE_NAMES: Record<string, string> = {
   R14: "Reported scam",
   R15: "Fake letters",
   R16: "Other network",
+  R17: "Fake address name",
+  R18: "Drained wallets",
 };
 const ST: Record<Status, [string, string]> = {
   BLOCKED: ["block", "BLOCK"], ATTENTION: ["warn", "LOOK"], PASS: ["safe", "PASS"], COULD_NOT_CHECK: ["cnc", "COULDN’T CHECK"], SKIPPED: ["skip", "—"],
@@ -25,7 +28,14 @@ document.getElementById("loading")!.innerHTML = `${stopper("idle")}<div><span cl
 if (!input.to.trim() && !q.get("example")) {
   location.replace("index.html");
 } else {
-  runCheck(input, replay).then(render, (e) => {
+  // The verdict shows first; the drained-wallet check (R18) then updates the report when it answers.
+  runCheck(input, replay).then(async (r) => {
+    const pending = drainerWanted(r) && !replay;
+    await render(r, { pending });
+    if (!pending) return;
+    const merged = await runDrainer(r, replay).catch(() => r);
+    await render(merged, { prev: r });
+  }, (e) => {
     out.innerHTML = `<section class="verdict warn" style="margin-top:32px"><div class="l"><div class="tagline"><span class="chip warn big">COULDN’T CHECK</span></div><h1 class="vh">Gideon couldn’t finish this check.</h1><p class="why">${esc(e?.message ?? e)}</p><p class="why">That is not a “safe”. Don’t send until a check completes.</p></div><div class="vstage">${stopper("idle")}<span class="cap">GIDEON · <b>NOT VERIFIED</b></span></div></section>`;
     void playVerdict(out.querySelector(".vstage .gs"), "warn");
   });
@@ -44,7 +54,12 @@ function evidenceHTML(f: Finding) {
     : `<div><b>${esc(e.label)} →</b> ${esc(e.value)}</div>`).join("")}</div>`;
 }
 
-async function render(r: CheckResult) {
+async function render(r: CheckResult, o: { pending?: boolean; prev?: CheckResult } = {}) {
+  // An update after the drained-wallet check: replay the Arrow G only if the verdict changed.
+  const changed = !o.prev || o.prev.verdict !== r.verdict;
+  const r18 = r.findings.find((f) => f.rule === "R18");
+  const senders = o.pending ? `<p class="small acct">Checking recent senders for hacked wallets…</p>`
+    : r18 && r18.status !== "SKIPPED" && r.headline?.rule !== "R18" ? `<p class="small acct"><b>Senders:</b> ${esc(r18.title)}</p>` : "";
   const v = r.verdict === "BLOCKED" ? "block" : r.verdict === "SAFE" ? "safe" : "warn";
   const h = r.headline;
   const cnc = h?.status === "COULD_NOT_CHECK";
@@ -80,10 +95,10 @@ ${caseInfo ? `<p class="notice" style="margin-top:28px">Example: ${esc(caseInfo.
  <div class="tagline"><span class="chip big ${v}">${chip}</span><span class="lbl">${h ? esc(h.code) : "ALL CLEAR"}</span></div>
  <h1 class="vh">${esc(title)}</h1>
  <div class="meta"><span>NEAR ${esc(r.input.network)}</span><span>${r.ms} ms</span><span>${r.sources.length} lookups${failed.length ? ` · ${failed.length} failed` : ""}</span><span>${vsum.length} rules ran</span><span>${esc(r.engine)}</span></div></div>
- <div class="vstage">${stopper("idle")}<span class="cap">GIDEON · <b>${tag}</b></span></div></section>
+ <div class="vstage">${stopper(changed ? "idle" : v)}<span class="cap">GIDEON · <b>${tag}</b></span></div></section>
 <div class="rgrid"><div>
  <div class="panel rv"><div class="hd"><span class="lbl">01 / What you pasted</span><span class="lbl">${esc(r.classification.label)}</span></div><div class="bd">${addrBlock}${anno}</div></div>
- <div class="panel rv"><div class="hd"><span class="lbl">02 / ${v === "safe" ? "Why it’s fine" : v === "block" ? "Why it’s stopped" : "Why to look again"}</span></div><div class="bd"><p class="why">${esc(why)}</p>${acct}${h ? evidenceHTML(h) : ""}
+ <div class="panel rv"><div class="hd"><span class="lbl">02 / ${v === "safe" ? "Why it’s fine" : v === "block" ? "Why it’s stopped" : "Why to look again"}</span></div><div class="bd"><p class="why">${esc(why)}</p>${acct}${senders}${h ? evidenceHTML(h) : ""}
   ${ex.by !== "built-in" ? `<p class="small" style="margin-top:12px">Plain-words version (${esc(ex.by)}): ${esc(ex.text)}</p>` : ""}</div></div>
  ${fix.length ? `<div class="panel rv"><div class="hd"><span class="lbl">03 / How to fix it</span></div><div class="bd"><ol class="fix">${fix.map((f) => `<li>${esc(f)}</li>`).join("")}</ol>
   <div class="actions"><a class="btn" href="index.html#check">Check another address <span class="ar">→</span></a><button class="btn ghost" id="copyfix">Copy fix steps</button></div></div></div>`
@@ -106,9 +121,12 @@ ${caseInfo ? `<p class="notice" style="margin-top:28px">Example: ${esc(caseInfo.
 </div></div>
 ${footer(`GIDEON · ${esc(r.engine)} · NEAR ${esc(r.input.network)}`)}`;
   tearSlip(document.getElementById("slip")!, r.receipt.sha256);
-  reveal(out);
-  recordWatch(r.input.to, r.verdict, r.input.network);
-  void playVerdict(out.querySelector(".vstage .gs"), v);
+  if (o.prev) out.querySelectorAll<HTMLElement>(".rv").forEach((el) => { el.dataset.rv = "1"; el.classList.add("in"); });
+  else reveal(out);
+  if (changed) {
+    recordWatch(r.input.to, r.verdict, r.input.network, !!o.prev);
+    void playVerdict(out.querySelector(".vstage .gs"), v);
+  }
 
   document.getElementById("copyfix")?.addEventListener("click", (e) => {
     navigator.clipboard?.writeText(fix.map((x, i) => `${i + 1}. ${x}`).join("\n"));

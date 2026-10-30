@@ -2,7 +2,9 @@ import { exchangesFor, tokensFor, type CheckInput, type Contact, type Network } 
 import { isAccount, rememberAccount } from "./lib/sender.js";
 import { plainTrim } from "./lib/detect.js";
 import { addContact, load, removeContact, saveContacts, saveSettings, type LastCheck, type Settings } from "./lib/settings.js";
-import { sendCheck, type CheckRequest } from "./lib/messages.js";
+import { sendCheck, sendDrainer, type CheckRequest } from "./lib/messages.js";
+import { drainerWanted } from "@gideon/core";
+import { LIMITS } from "./lib/limits.js";
 import type { NetworkMode } from "./lib/network.js";
 import { card, checking, esc, failed, LOGO, short } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
@@ -180,17 +182,32 @@ $<HTMLFormElement>("f").addEventListener("submit", async (e) => {
     ...($<HTMLInputElement>("amount").value.trim() ? { amount: $<HTMLInputElement>("amount").value.trim() } : {}),
   };
   const go = $<HTMLButtonElement>("go");
+  const asked = ++drainerSeq;
   go.disabled = true;
   go.firstChild!.textContent = "Checking live NEAR data… ";
   $("result").innerHTML = checking(to);
   const res = await sendCheck({ input, host: "" }).catch((err: unknown) => ({ ok: false as const, error: String(err) }));
   go.disabled = false;
   go.firstChild!.textContent = "Check this send ";
-  $("result").innerHTML = res?.ok ? card(res.result, res.net ? { net: res.net } : {}) : failed(res?.error ?? "The extension didn't answer.");
+  const pending = !!res?.ok && drainerWanted(res.result);
+  const netOpt = res?.ok && res.net ? { net: res.net } : {};
+  $("result").innerHTML = res?.ok ? card(res.result, { ...netOpt, ...(pending ? { drainerPending: true } : {}) }) : failed(res?.error ?? "The extension didn't answer.");
   playAll($("result"));
-  const s = await load();
-  $("sChecked").textContent = String(s.stats.checked);
-  $("sStopped").textContent = String(s.stats.stopped);
+  const showStats = async () => {
+    const s = await load();
+    $("sChecked").textContent = String(s.stats.checked);
+    $("sStopped").textContent = String(s.stats.stopped);
+  };
+  await showStats();
+  // The verdict shows first; the drained-wallet check (R18) then updates the card, or leaves it as is.
+  if (res?.ok && pending) {
+    const merged = await sendDrainer(res.result, LIMITS.drainerWaitMs);
+    if (asked !== drainerSeq) return; // a newer check replaced this one
+    $("result").innerHTML = card(merged ?? res.result, netOpt);
+    if (merged && merged.verdict !== res.result.verdict) playAll($("result"));
+    await showStats();
+  }
 });
+let drainerSeq = 0;
 
 void init();

@@ -183,9 +183,11 @@ export function nearMark(h = 13): string {
 const WATCH_KEY = "gideon.watch";
 interface WatchItem { to: string; v: StopState; t: number; net?: string }
 /** Remember a real check (this browser only) so it shows in the watch log as YOU. */
-export function recordWatch(to: string, verdict: string, net?: string) {
+export function recordWatch(to: string, verdict: string, net?: string, replace = false) {
   try {
     const list: WatchItem[] = JSON.parse(localStorage.getItem(WATCH_KEY) ?? "[]");
+    // A later answer for the same check (the drained-wallet check) updates its line instead of adding one.
+    if (replace && list.length) list.shift();
     list.unshift({ to: to.length > 30 ? to.slice(0, 10) + "…" + to.slice(-8) : to, v: verdictState(verdict), t: Date.now(), net });
     localStorage.setItem(WATCH_KEY, JSON.stringify(list.slice(0, 6)));
   } catch { /* ignore */ }

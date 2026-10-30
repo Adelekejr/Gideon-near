@@ -23,4 +23,11 @@ export const LIMITS = {
   cacheMs: 3 * 60_000,
   /** One follow-up to fill in a creation date that missed the first answer. */
   refillAfterMs: 2500,
+  /**
+   * The drained-wallet check (R18), run after the card shows: the whole look at recent senders.
+   * Past it the card just stays as it is.
+   */
+  drainerMs: 8000,
+  /** The page stops waiting for the drained-wallet answer after this. */
+  drainerWaitMs: 10_000,
 } as const;

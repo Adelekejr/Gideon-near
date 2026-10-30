@@ -4,14 +4,14 @@ import { addressLike, ClipboardWatch, copyTampered } from "./lib/clipboard.js";
 import { findSendButtons, plainTrim, isRecipientField, isTextField, shouldCheck, type Field } from "./lib/detect.js";
 import { card, checking, failed, tamperCard, toneOf, updated } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
-import { extensionAlive, sendCheck, type CheckResponse } from "./lib/messages.js";
+import { extensionAlive, sendCheck, sendDrainer, type CheckResponse } from "./lib/messages.js";
 import { collectSignals, pageHint, recipientScope } from "./lib/network.js";
 import { pageAccounts } from "./lib/wallets.js";
 import { rememberSend, senderHint, type SenderHint } from "./lib/sender.js";
 import { placement } from "./lib/place.js";
 import { asShift, loadShift, themeOf, type Shift } from "./lib/shift.js";
 import { playAll } from "./lib/motion.js";
-import type { CheckResult, Contact } from "@gideon/core";
+import { drainerWanted, type CheckResult, type Contact } from "@gideon/core";
 import { LIMITS } from "./lib/limits.js";
 import { missingOptional } from "./lib/runcache.js";
 
@@ -340,20 +340,42 @@ async function run(field: Field, value: string, copied: string | null, force = f
     show(field, failed(res.error), "warn");
     return;
   }
-  render(p, field, res);
-  // The verdict is already showing. If only the creation date missed the time limit, ask once
-  // more in a moment (the worker remembers the account) and fill it in quietly.
+  // The verdict shows first. The drained-wallet check (R18) then looks at the recipient's recent
+  // senders in the background and updates this card when it answers (silently stays if it fails).
+  const drainer = drainerWanted(res.result);
+  render(p, field, res, true, drainer);
+  const current = (): boolean => p.seq === seq && p.field === field;
+  const withDrainer = async (r: Extract<CheckResponse, { ok: true }>): Promise<void> => {
+    if (!drainerWanted(r.result)) return;
+    const merged = await sendDrainer(r.result, LIMITS.drainerWaitMs);
+    if (!current()) return;
+    latest = { ...r, result: merged ?? r.result };
+    // Re-animate only when the answer changed.
+    render(p, field, latest, !!merged && merged.verdict !== r.result.verdict);
+  };
+  let latest = res;
+  const drained = drainer ? withDrainer(res) : Promise.resolve();
+  // If only the creation date missed the time limit, ask once more in a moment (the worker
+  // remembers the account) and fill it in quietly, keeping the drained-wallet answer.
   if (missingOptional(res.result)) {
     setTimeout(async () => {
-      if (p.seq !== seq || p.field !== field) return;
+      if (!current()) return;
       const again = await sendCheck(req, LIMITS.pageWaitMs);
-      if (p.seq !== seq || p.field !== field || !again.ok) return;
-      render(p, field, again, false);
+      if (!current() || !again.ok) return;
+      await drained;
+      if (!current()) return;
+      // Keep a shown drained-wallet answer: merge it into the new result first (the worker's cache answers at once).
+      const shown = latest.result.findings.some((f) => f.rule === "R18" && f.status !== "SKIPPED");
+      if (!shown) return render(p, field, again, false);
+      const merged = await sendDrainer(again.result, LIMITS.drainerWaitMs);
+      if (!current()) return;
+      latest = merged ? { ...again, result: merged } : latest;
+      render(p, field, latest, false);
     }, LIMITS.refillAfterMs);
   }
 }
 
-function render(p: Panel, field: Field, res: Extract<CheckResponse, { ok: true }>, animate = true): void {
+function render(p: Panel, field: Field, res: Extract<CheckResponse, { ok: true }>, animate = true, drainerPending = false): void {
   const r = res.result;
   const tone = toneOf(r);
   const held = r.verdict === "BLOCKED" && settings.holdSend;
@@ -361,7 +383,7 @@ function render(p: Panel, field: Field, res: Extract<CheckResponse, { ok: true }
   else release(p);
   p.shown = { to: r.classification.normalized, network: r.input.network, verdict: r.verdict, ...(r.input.from ? { from: r.input.from } : {}) };
   lastShown = { field, value: p.value, ...p.shown };
-  show(field, card(r, { held, actions: actionsFor(r, held), ...(res.net ? { net: res.net } : {}), ...(res.sender ? { sender: res.sender } : {}) }), tone, animate);
+  show(field, card(r, { held, actions: actionsFor(r, held), ...(res.net ? { net: res.net } : {}), ...(res.sender ? { sender: res.sender } : {}), ...(drainerPending ? { drainerPending } : {}) }), tone, animate);
 }
 
 /* ---------- events ---------- */

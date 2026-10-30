@@ -1,7 +1,7 @@
-import { check, type CheckResult } from "@gideon/core";
+import { check, checkDrainer, DrainerCache, drainerWanted, type CheckResult } from "@gideon/core";
 import { liveSources } from "@gideon/sources";
 import { load, type LastCheck } from "./lib/settings.js";
-import type { CheckRequest, CheckResponse, NetUsed } from "./lib/messages.js";
+import type { CheckRequest, CheckResponse, DrainerRequest, DrainerResponse, NetUsed } from "./lib/messages.js";
 import { resolveNetwork, walletNetworkHint } from "./lib/resolve.js";
 import { titleOf } from "./lib/view.js";
 import { cachedSources, TtlCache } from "./lib/cache.js";
@@ -16,6 +16,8 @@ import { rememberAccount, resolveSender, sendsOn, type SenderUsed } from "./lib/
  */
 const sources = cachedSources(liveSources({ timeoutMs: LIMITS.requestMs }), LIMITS.cacheMs, Date.now, LIMITS.historyCacheMs);
 const results = new TtlCache<CheckResult>(LIMITS.cacheMs);
+// Drained-wallet answers per network and recipient (10 min); failures and time-outs aren't kept.
+const drainers = new DrainerCache();
 
 export async function runRequest(req: CheckRequest): Promise<{ result: CheckResult; net: NetUsed; sender?: SenderUsed }> {
   const t0 = Date.now();
@@ -64,6 +66,33 @@ export async function runRequest(req: CheckRequest): Promise<{ result: CheckResu
   });
   return { result, net, ...(sender ? { sender } : {}) };
 }
+
+/**
+ * The drained-wallet check (R18), asked for after the card already shows the verdict. It looks
+ * at the recipient's last few senders (time-limited, cached) and returns the result with it merged.
+ */
+export async function runDrainer(req: DrainerRequest): Promise<CheckResult> {
+  const r = req.result;
+  if (!drainerWanted(r)) return r;
+  const { myAccounts, stats, last } = await load();
+  const merged = await checkDrainer(r, sources, { myAccounts, cache: drainers }, { timeoutMs: LIMITS.drainerMs });
+  // A stop found only now still counts, and the popup's "last check" line follows it.
+  if (merged.verdict !== r.verdict && last && last.verdict !== merged.verdict && last.to === r.input.to && last.at === r.checkedAt) {
+    await chrome.storage.local.set({
+      stats: { checked: stats.checked, stopped: stats.stopped + (merged.verdict === "BLOCKED" ? 1 : 0) },
+      last: { ...last, verdict: merged.verdict, title: titleOf(merged) },
+    });
+  }
+  return merged;
+}
+
+chrome.runtime.onMessage.addListener((msg: DrainerRequest, _sender, reply: (r: DrainerResponse) => void) => {
+  if (msg?.type !== "gideon:drainer") return false;
+  runDrainer(msg)
+    .then((result) => reply({ ok: true, result }))
+    .catch((e: unknown) => reply({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+  return true; // async reply
+});
 
 chrome.runtime.onMessage.addListener((msg: CheckRequest, _sender, reply: (r: CheckResponse) => void) => {
   if (msg?.type !== "gideon:check") return false;
