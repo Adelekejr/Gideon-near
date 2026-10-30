@@ -17,6 +17,8 @@ import { parseTxRequest, type ParsedRequest } from "./input.js";
  *   T2  calls a brand-new contract with little history, or one linked to drained wallets (R18)
  *   T3  sends your whole token (or NEAR) balance to an account Gideon hasn't seen before
  *   T4  lets an account Gideon hasn't seen before move your NFT (nft_approve, nft_transfer_call)
+ *   T5  removes a key (DeleteKey): an app key is fine; a full-access key needs a second look; your
+ *       last full-access key is blocked (it would lock you out). Read from the account's live keys.
  * False positives stay low: well-known contracts, your contacts and accounts you've sent to are
  * never "new"; a contract is only "new" when it's under 30 days old AND has under 1,000
  * transactions; "whole balance" means 95% or more.
@@ -26,6 +28,19 @@ export const NEW_CONTRACT_DAYS = 30;
 export const LOW_HISTORY_TXS = 1000;
 export const WHOLE_BALANCE_SHARE = 0.95;
 const DAY = 86_400_000;
+
+/** Transaction-card text added in 0.3.0. */
+export const TX_TEXT = {
+  deleteKey: "This removes one key from your account",
+  deleteFull: "This removes a full control key from your account",
+  deleteLastFull: "This removes your last full control key. You would be locked out.",
+  deleteKeyMissing: (a: string) => `This removes a key that isn't on ${a}`,
+  deleteKeyUnknown: "Couldn't check: the key this removes",
+  unreadable: "Gideon couldn't read this request",
+  unreadableDetail: "It couldn't be decoded, so Gideon can't say it's safe. Check every detail in your wallet, or don't approve it.",
+  walletUnreadable: "Your wallet couldn't read this request",
+  walletUnreadableDetail: "Don't approve anything on this screen. Go back and start again from the app, or remove the key from Gideon's account page.",
+} as const;
 
 /** Big, long-running contracts and services. Never "new", never "unseen". */
 const WELL_KNOWN: Record<Network, string[]> = {
@@ -294,6 +309,43 @@ export async function checkTransaction(input: TxCheckInput, sources: Sources, op
     })());
   }
 
+  // DeleteKey: which key it removes, from the account's live keys.
+  for (const t of txs) {
+    const dels = t.actions.filter((a): a is Extract<TxAction, { type: "DeleteKey" }> => a.type === "DeleteKey");
+    if (!dels.length) continue;
+    const acct = t.receiverId;
+    work.push((async () => {
+      let live: Awaited<ReturnType<NonNullable<Sources["accessKeys"]>>> | undefined;
+      if (sources.accessKeys && nearKind(acct)) live = await ask(() => sources.accessKeys!(network, acct)).catch(() => undefined);
+      for (const d of dels) {
+        const ev: Evidence[] = [acctEv("Account", acct), { label: "Key", value: short(d.publicKey, 16, 6) }];
+        if (live === undefined) {
+          findings.push(f("T5", "COULD_NOT_CHECK", "DELETE_KEY_UNKNOWN", TX_TEXT.deleteKeyUnknown,
+            "A data source didn't answer, so Gideon couldn't see which key this removes. Check the key shown in your wallet before you approve.", { evidence: ev }));
+          continue;
+        }
+        const k = live?.find((x) => x.publicKey === d.publicKey);
+        if (!k) {
+          findings.push(f("T5", "ATTENTION", "DELETE_KEY_MISSING", TX_TEXT.deleteKeyMissing(acct),
+            "Your wallet will likely reject it. Check that this is the right account and key.", { evidence: ev }));
+          continue;
+        }
+        if (k.permission === "FullAccess") {
+          const removedFull = new Set(dels.map((x) => x.publicKey).filter((pk) => live!.some((y) => y.publicKey === pk && y.permission === "FullAccess")));
+          const left = live!.filter((y) => y.permission === "FullAccess" && !removedFull.has(y.publicKey)).length;
+          findings.push(left === 0
+            ? f("T5", "BLOCKED", "DELETE_LAST_FULL_KEY", TX_TEXT.deleteLastFull,
+              "Without a full control key no one can sign for this account again, and its funds are stuck for good.", { evidence: ev })
+            : f("T5", "ATTENTION", "DELETE_FULL_KEY", TX_TEXT.deleteFull,
+              "Make sure it isn't the key your wallet signs with, or your seed-phrase backup.", { evidence: ev }));
+          continue;
+        }
+        findings.push(f("T5", "PASS", "DELETE_APP_KEY", TX_TEXT.deleteKey,
+          `It's an app key for ${k.permission.receiverId}. Removing it signs you out of that app; it can't move your funds.`, { evidence: ev }));
+      }
+    })());
+  }
+
   await Promise.all(work);
 
   if (txs.some((t) => t.partial)) {
@@ -316,5 +368,20 @@ export async function checkTransaction(input: TxCheckInput, sources: Sources, op
     engine: ENGINE_VERSION, kind: "transaction", network, verdict, headline: headlineOf(findings, verdict) ?? findings[0] ?? null, findings,
     transactions: txs, ...(parsed.signIn ? { signIn: parsed.signIn } : {}), ...(signer ? { signer } : {}), ...(origin ? { origin } : {}),
     source: parsed.source, checkedAt: new Date(now).toISOString(), ms: Date.now() - t0,
+  };
+}
+
+/**
+ * The answer when a request can't be decoded (a wallet link Gideon can't read), or the wallet itself
+ * says it couldn't read it. Never SAFE: Gideon can't vouch for what it couldn't read.
+ */
+export function unreadableRequest(o: { network?: Network; wallet?: boolean; now?: number } = {}): TxCheckResult {
+  const now = o.now ?? Date.now();
+  const finding = o.wallet
+    ? f("T1", "COULD_NOT_CHECK", "WALLET_UNREADABLE", TX_TEXT.walletUnreadable, TX_TEXT.walletUnreadableDetail)
+    : f("T1", "COULD_NOT_CHECK", "UNREADABLE_REQUEST", TX_TEXT.unreadable, TX_TEXT.unreadableDetail);
+  return {
+    engine: ENGINE_VERSION, kind: "transaction", network: o.network ?? "mainnet", verdict: "ATTENTION", headline: finding, findings: [finding],
+    transactions: [], source: "sign-link", checkedAt: new Date(now).toISOString(), ms: 0,
   };
 }

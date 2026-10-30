@@ -212,3 +212,48 @@ describe("the demo request: full access plus a whole-balance send", () => {
     expect(r.findings.map((x) => x.code)).toEqual(["FULL_ACCESS_KEY", "WHOLE_BALANCE_UNSEEN"]);
   });
 });
+
+describe("T5 removes a key (DeleteKey)", () => {
+  const ACC = "hammed-stampdue.testnet";
+  const del = (pk: string) => b64({ signerId: ACC, receiverId: ACC, actions: [{ type: "DeleteKey", publicKey: pk }] });
+  const keys = (list: Array<[string, boolean]>): Partial<Sources> => ({
+    accessKeys: async () => list.map(([publicKey, full]) => ({ publicKey, nonce: "1", permission: full ? "FullAccess" as const : { receiverId: "guestbook.near-examples.testnet", methodNames: [], allowanceYocto: "250000000000000000000000" } })),
+  });
+  it("removing an app key: SAFE, and the card says what it does (never 'Nothing risky found')", async () => {
+    const r = await checkTransaction({ request: del(KEY2) }, empty(keys([[KEY, true], [KEY2, false]])), opts);
+    expect(r.verdict).toBe("SAFE");
+    expect(r.headline).toMatchObject({ rule: "T5", code: "DELETE_APP_KEY", title: "This removes one key from your account" });
+    expect(r.headline!.detail).toMatch(/app key for guestbook\.near-examples\.testnet/);
+    expect(r.findings.some((x) => x.code === "NOTHING_FOUND")).toBe(false);
+  });
+  it("removing one of two full-access keys: ATTENTION", async () => {
+    const r = await checkTransaction({ request: del(KEY2) }, empty(keys([[KEY, true], [KEY2, true]])), opts);
+    expect(r.verdict).toBe("ATTENTION");
+    expect(r.headline).toMatchObject({ rule: "T5", code: "DELETE_FULL_KEY", title: "This removes a full control key from your account" });
+  });
+  it("removing the last full-access key: BLOCKED (locked out)", async () => {
+    const r = await checkTransaction({ request: del(KEY) }, empty(keys([[KEY, true], [KEY2, false]])), opts);
+    expect(r.verdict).toBe("BLOCKED");
+    expect(r.headline).toMatchObject({ rule: "T5", code: "DELETE_LAST_FULL_KEY", title: "This removes your last full control key. You would be locked out." });
+  });
+  it("a key that isn't on the account: ATTENTION", async () => {
+    const r = await checkTransaction({ request: del(KEY2) }, empty(keys([[KEY, true]])), opts);
+    expect(r.verdict).toBe("ATTENTION");
+    expect(r.headline).toMatchObject({ code: "DELETE_KEY_MISSING", title: `This removes a key that isn't on ${ACC}` });
+  });
+  it("key list down: COULD_NOT_CHECK, never SAFE", async () => {
+    const r = await checkTransaction({ request: del(KEY2) }, empty({ accessKeys: async () => { throw new Error("down"); } }), opts);
+    expect(r.verdict).not.toBe("SAFE");
+    expect(r.findings.find((x) => x.rule === "T5")).toMatchObject({ status: "COULD_NOT_CHECK", code: "DELETE_KEY_UNKNOWN" });
+  });
+  it("Hammed's real 0.2.9 link (no callback_url) and the fixed one both decode to the same DeleteKey", async () => {
+    const fixed = "https://wallet.meteorwallet.app/connect/testnet/sign?transactions=FwAAAGhhbW1lZC1zdGFtcGR1ZS50ZXN0bmV0ALdO1ozks1MKZz83Gp9bDzJ9HxzUcxZxilftIU5haVzDAAAAAAAAAAAXAAAAaGFtbWVkLXN0YW1wZHVlLnRlc3RuZXQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAGAB8HGSLFEMb7cTeJZNSy%2FNXFppiyPBXqKG2jfcJKiOb5&callback_url=https%3A%2F%2Ftestnet.nearblocks.io%2Faddress%2Fhammed-stampdue.testnet";
+    const req = parseTxRequest(fixed);
+    expect(req.transactions[0]).toMatchObject({ signerId: ACC, receiverId: ACC, publicKey: "ed25519:DLZLLsmQK9RMa3FM3hXG6yYYrnPZrW8ZgMdiNwpiGiCz", actions: [{ type: "DeleteKey", publicKey: "ed25519:367v9Si3jhADqFHgydztH89dAjFkwD5ChoxJiP8RCMep" }] });
+    const r = await checkTransaction({ request: fixed }, empty({ accessKeys: async () => [
+      { publicKey: "ed25519:DLZLLsmQK9RMa3FM3hXG6yYYrnPZrW8ZgMdiNwpiGiCz", nonce: "1", permission: "FullAccess" },
+      { publicKey: "ed25519:367v9Si3jhADqFHgydztH89dAjFkwD5ChoxJiP8RCMep", nonce: "0", permission: { receiverId: "guestbook.near-examples.testnet", methodNames: [], allowanceYocto: "250000000000000000000000" } },
+    ] }), opts);
+    expect(r.headline!.title).toBe("This removes one key from your account");
+  });
+});

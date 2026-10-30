@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accountHealth, deleteKeyLinks, HEALTH_TEXT, readNonce } from "../src/health.js";
+import { accountHealth, deleteKeyLinks, HEALTH_TEXT, readNonce, removeKeyPlan } from "../src/health.js";
 import { parseTxRequest } from "../src/tx/input.js";
 import type { AccessKeyEntry, ChainTx, KeyRecord, Sources } from "../src/types.js";
 import { NOW, acct, empty } from "./helpers.js";
@@ -28,9 +28,9 @@ function src(o: { keys: AccessKeyEntry[] | null; recs?: KeyRecord[]; hist?: Chai
     ...o.over,
   });
 }
-const run = (s: Sources, account = ME) => accountHealth({ account }, s, { now: NOW });
+const run = (s: Sources, account = ME) => accountHealth({ account }, s, { now: NOW, retryDelayMs: 0 });
 
-describe("account health: normal accounts stay clean or amber", () => {
+describe("account health: normal accounts stay clean, with a tidy-up list", () => {
   it("one wallet key and limited app keys: no warning signs, wallet key marked", async () => {
     const r = await run(src({
       keys: [FA(1, "120000000000017"), FC(2, "social.near"), FC(3, "app.example.near", ["vote"])],
@@ -44,18 +44,38 @@ describe("account health: normal accounts stay clean or amber", () => {
     expect(r.keys.find((k) => k.publicKey === K(1))!.uses).toBe(17);
   });
 
-  it("any-method app key with no gas limit is amber, never red", async () => {
+  it("any-method app key with no gas limit goes on the tidy-up list: CLEAN, not flagged", async () => {
     const r = await run(src({ keys: [FA(1), FC(2, "social.near", [], null)], hist: [tx(K(2), NOW - DAY, [{ kind: "other" }], "social.near")] }));
-    expect(r.status).toBe("attention");
-    expect(r.summary).toBe("1 key needs your attention.");
+    expect(r.status).toBe("clean");
+    expect(r.summary).toBe("No warning signs found. 1 key you can tidy up.");
     expect(r.red).toBe(false);
+    expect(r.counts).toMatchObject({ flagged: 0, tidy: 1 });
     const k = r.keys.find((x) => x.publicKey === K(2))!;
-    expect(k.flags.map((f) => f.text)).toEqual(["This app key can call any method on social.near.", "No spending limit on gas fees."]);
+    expect(k.tidy).toBe(true);
+    expect(k.flags.map((f) => [f.level, f.text])).toEqual([["tidy", "This app key can call any method on social.near."], ["tidy", "No spending limit on gas fees."]]);
   });
 
-  it("an app key unused for 6+ months: amber with months", async () => {
+  it("an app key unused for 6+ months: tidy-up with months", async () => {
     const r = await run(src({ keys: [FA(1), FC(2, "social.near")], recs: [rec(2, false, NOW - 400 * DAY)] }));
-    expect(r.keys.find((x) => x.publicKey === K(2))!.flags).toEqual([{ level: "amber", code: "UNUSED", text: "Not used in 13 months; you can remove it." }]);
+    expect(r.status).toBe("clean");
+    expect(r.keys.find((x) => x.publicKey === K(2))!.flags).toEqual([{ level: "tidy", code: "UNUSED", text: "Not used in 13 months; you can remove it." }]);
+  });
+
+  it("Hammed's testnet shape (one full key + an any-method guest-book key): CLEAN, ready-to-sign removal for the app key only", async () => {
+    const r = await accountHealth({ account: "me.testnet" }, src({ keys: [FA(1, "120000000000004"), FC(2, "guestbook.near-examples.testnet", [], "250000000000000000000000")] }), { now: NOW, retryDelayMs: 0 });
+    expect(r.status).toBe("clean");
+    const app = r.keys.find((k) => k.publicKey === K(2))!;
+    const full = r.keys.find((k) => k.publicKey === K(1))!;
+    expect(full.remove).toBeUndefined();
+    expect(app.remove).toMatchObject({
+      accountId: "me.testnet", networkId: "testnet", publicKey: K(2), kind: "app",
+      action: { type: "DeleteKey", params: { publicKey: K(2) } },
+      nearMcp: { tool: "account_delete_access_keys", args: { accountId: "me.testnet", networkId: "testnet", publicKey: K(2) } },
+      nearCli: `near account delete-keys me.testnet public-keys ${K(2)} network-config testnet sign-with-keychain send`,
+    });
+    expect(app.remove!.links.meteor).toContain("&callback_url=https%3A%2F%2Ftestnet.nearblocks.io%2Faddress%2Fme.testnet");
+    const req = parseTxRequest(app.remove!.links.meteor);
+    expect(req.transactions[0]).toMatchObject({ signerId: "me.testnet", receiverId: "me.testnet", actions: [{ type: "DeleteKey", publicKey: K(2) }] });
   });
 
   it("several old full-access keys (like a seed-phrase backup) are not flagged", async () => {
@@ -124,7 +144,7 @@ describe("account health: red needs evidence", () => {
     expect(r.keys[0]!.flags[0]!.why).toBe("It sent funds out 1 min after taking control, and the account was left nearly empty.");
   });
 
-  it("an app key for a brand-new contract with little history: red, but not 'someone else controls it'", async () => {
+  it("an app key for a brand-new contract with little history: LOOK AGAIN (amber), not red, not 'someone else controls it'", async () => {
     const r = await run(src({
       keys: [FA(1), FC(2, "fresh-drop.near")],
       hist: [tx(K(2), NOW - DAY, [{ kind: "other" }], "fresh-drop.near")],
@@ -135,9 +155,10 @@ describe("account health: red needs evidence", () => {
       },
     }));
     expect(r.status).toBe("attention");
-    expect(r.red).toBe(true);
+    expect(r.red).toBe(false);
+    expect(r.counts.flagged).toBe(1);
     expect(r.moveFundsNow).toBe(false);
-    expect(r.keys[0]!.flags[0]).toMatchObject({ level: "red", code: "RISKY_CONTRACT", text: "App key for a risky contract (fresh-drop.near). It is new or linked to known drainers." });
+    expect(r.keys[0]!.flags[0]).toMatchObject({ level: "amber", code: "RISKY_CONTRACT", why: HEALTH_TEXT.riskyContractWhy, text: "App key for a risky contract (fresh-drop.near). It is new or linked to known drainers." });
   });
 });
 
@@ -168,6 +189,20 @@ describe("account health: dates and failures", () => {
     expect(r.status).toBe("clean");
     expect(r.notes).toContain(HEALTH_TEXT.noHistory);
   });
+
+  it("history blinks once: one quiet retry, no note", async () => {
+    let n = 0;
+    const r = await run(src({ keys: [FA(1)], over: { signedTxs: async () => { if (n++ === 0) throw new Error("blink"); return []; } } }));
+    expect(n).toBe(2);
+    expect(r.notes).not.toContain(HEALTH_TEXT.noHistory);
+    expect(r.sources.find((s) => s.source.startsWith("fastnear:signed:") && !s.ok)!.optional).toBe(true);
+  });
+
+  it("the key list blinks once: retried, still answers", async () => {
+    let n = 0;
+    const r = await run(src({ keys: [], over: { accessKeys: async () => { if (n++ === 0) throw new Error("blink"); return [FA(1)]; } } }));
+    expect(r.status).toBe("clean");
+  });
 });
 
 describe("remove-key links (unsigned)", () => {
@@ -182,5 +217,20 @@ describe("remove-key links (unsigned)", () => {
     const t = deleteKeyLinks("testnet", "me.testnet", K(2));
     expect(t.mynearwallet).toBeNull();
     expect(t.meteor).toMatch(/^https:\/\/wallet\.meteorwallet\.app\/connect\/testnet\/sign\?transactions=/);
+  });
+
+  it("always carries the callback Meteor requires (its parser rejects a link without callback_url)", () => {
+    for (const [net, a, home] of [["testnet", "me.testnet", "https://testnet.nearblocks.io/address/me.testnet"], ["mainnet", ME, "https://nearblocks.io/address/me.near"]] as const) {
+      const l = deleteKeyLinks(net, a, K(2));
+      const q = new URL(l.meteor).searchParams;
+      // Meteor: z.object({ callback_url: z.string().min(2), transactions: z.string().min(2) })
+      expect(q.get("callback_url")).toBe(home);
+      expect(q.get("transactions")!.length).toBeGreaterThan(2);
+      expect(q.get("transactions")).toBe(l.transaction);
+      if (l.mynearwallet) expect(new URL(l.mynearwallet).searchParams.get("callbackUrl")).toBe(home);
+    }
+    const own = deleteKeyLinks("testnet", "me.testnet", K(2), { callbackUrl: "https://example.org/keys?account=me.testnet" });
+    expect(new URL(own.meteor).searchParams.get("callback_url")).toBe("https://example.org/keys?account=me.testnet");
+    expect(removeKeyPlan("testnet", "me.testnet", K(2)).links.callbackUrl).toBe("https://testnet.nearblocks.io/address/me.testnet");
   });
 });

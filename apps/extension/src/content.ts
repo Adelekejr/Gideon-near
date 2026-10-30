@@ -12,7 +12,7 @@ import { rememberSend, senderHint, type SenderHint } from "./lib/sender.js";
 import { placement } from "./lib/place.js";
 import { asShift, loadShift, themeOf, type Shift } from "./lib/shift.js";
 import { playAll } from "./lib/motion.js";
-import { drainerWanted, type CheckResult, type Contact } from "@gideon/core";
+import { drainerWanted, unreadableRequest, type CheckResult, type Contact } from "@gideon/core";
 import { LIMITS } from "./lib/limits.js";
 import { missingOptional } from "./lib/runcache.js";
 
@@ -488,6 +488,14 @@ async function scanApproval(): Promise<void> {
   if (found.key === approvalKey) return;
   approvalKey = found.key;
   const seq = ++approvalSeq;
+  const why0 = found.from === "url" ? "from the wallet link" : "from the approval screen";
+  if (found.unreadable) {
+    // Never "looks right" for a request nobody could read.
+    const r = unreadableRequest({ ...(found.network ? { network: found.network } : {}), wallet: found.unreadable === "wallet" });
+    show(null, txCard(r, { ...(found.network ? { net: { network: found.network, why: why0 } } : {}), actions: '<button data-act="dismiss" class="g">Dismiss</button>' }), "warn");
+    approvalShown = true;
+    return;
+  }
   const res = await sendTx({
     request: found.request, host: location.host,
     ...(found.network ? { network: found.network } : {}),

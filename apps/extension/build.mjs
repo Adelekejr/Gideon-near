@@ -22,7 +22,8 @@ for (const name of ["background", "content", "popup"]) {
     logLevel: "warn",
     root: here,
     resolve: { alias },
-    define: { "process.env.NODE_ENV": '"production"' },
+    // GIDEON_SITE: the website's address once it's live (the popup's "Remove with any wallet" link). Empty by default.
+    define: { "process.env.NODE_ENV": '"production"', __GIDEON_SITE__: JSON.stringify(process.env.GIDEON_SITE ?? "") },
     build: {
       outDir: dist,
       emptyOutDir: false,

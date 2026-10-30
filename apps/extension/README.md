@@ -8,7 +8,7 @@ engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 ```bash
 npm install
 npm run build:extension      # → apps/extension/dist
-npm run zip:extension        # → apps/extension/gideon-extension-0.2.9.zip
+npm run zip:extension        # → apps/extension/gideon-extension-0.3.0.zip
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
@@ -38,6 +38,24 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 Tests are in `test/` and run with the root `npm test`.
 
 What the extension reads, keeps and sends: [PRIVACY.md](PRIVACY.md).
+
+## What changed in 0.3.0
+
+- **Removal links that Meteor can read.** Meteor's sign page needs a `callback_url`; 0.2.9's
+  "Open in Meteor" links had none, so Meteor showed "Couldn't parse the correct arguments for
+  signing the transaction". Every link now carries one (the account on NearBlocks).
+- **A DeleteKey request is never "looks right".** The transaction card names it: "Removes a
+  key from your account", and it is red when it removes a full control key (STOPPED for the
+  last one). A sign link Gideon can't decode, or a wallet screen that says it couldn't read the
+  request, shows "Gideon couldn't read this request" / "Your wallet couldn't read this request"
+  instead of a verdict.
+- **"You can tidy these up".** App keys that can call any method, have no gas-fee limit, or
+  went unused for 6 months are listed quietly under this heading. They aren't flagged and
+  don't change a CLEAN result. Red is for danger only: a risky contract's app key is now amber.
+- **One quiet retry** before "Couldn't read this account's history" or the key list fails.
+- **"Remove with any wallet"** opens the website's account page for that key, where any NEAR
+  wallet can sign the removal. Shown only when built with `GIDEON_SITE` (see the main README).
+- No new permissions or hosts.
 
 ## What changed in 0.2.9
 

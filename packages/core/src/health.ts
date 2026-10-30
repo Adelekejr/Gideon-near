@@ -23,7 +23,10 @@ import { withTimeout } from "./time.js";
  *        an account older than a day), and the account has 2 or more full-access keys;
  *  - an app key is red when its contract is new (under 30 days and under 1,000 transactions, like T2)
  *    or linked to drained wallets (R18 on the contract).
- * Amber: an app key for any method, with no gas-fee limit, or unused for 6 months or more.
+ *  - an app key whose contract is new or linked to drained wallets is a real concern (amber, LOOK AGAIN):
+ *    an app key can't move NEAR, so it isn't red.
+ * Tidy-up (0.3.0): an app key for any method, with no gas-fee limit, or unused for 6 months or more is
+ * listed under "You can tidy these up". It isn't flagged and doesn't change a CLEAN result.
  * Old extra full-access keys are never flagged as "unused": one may be a seed-phrase backup.
  */
 
@@ -50,6 +53,11 @@ export const HEALTH_TEXT = {
   whyDrain: (m: number) => `It sent funds out ${m === 0 ? "within a minute" : `${m} min`} after taking control, and the account was left nearly empty.`,
   whyRecent: (d: number) => `Added ${d === 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`} by another key of this account.`,
   noHistory: "Couldn't read this account's history, so some checks didn't run.",
+  // Beyond the approved text, new in 0.3.0:
+  tidyHeading: "You can tidy these up",
+  tidyNote: "Not a risk. Old or broad app keys you can remove when you like.",
+  cleanTidy: (n: number) => `No warning signs found. ${n === 1 ? "1 key" : `${n} keys`} you can tidy up.`,
+  riskyContractWhy: "An app key can't move your NEAR, but it can act for you in that app.",
 } as const;
 
 export const RECENT_FULL_KEY_DAYS = 14;
@@ -63,7 +71,8 @@ const HISTORY_LIMIT = 200;
 export type HealthStatus = "clean" | "attention" | "danger" | "not-found" | "could-not-check";
 
 export interface KeyFlag {
-  level: "red" | "amber";
+  /** red = danger, amber = a real concern (LOOK AGAIN), tidy = optional clean-up (not flagged). */
+  level: "red" | "amber" | "tidy";
   code: "UNKNOWN_FULL_KEY" | "RISKY_CONTRACT" | "ANY_METHOD" | "NO_ALLOWANCE" | "UNUSED";
   text: string;
   /** Why, in plain words (red flags). */
@@ -90,6 +99,10 @@ export interface KeyReport {
   flags: KeyFlag[];
   /** The wallet can build a DeleteKey for this key type (ed25519, secp256k1). */
   removable: boolean;
+  /** Only tidy-up notes (no red or amber flag). */
+  tidy: boolean;
+  /** Ready-to-sign removal (unsigned) for every removable key except the only full-access key. */
+  remove?: RemoveKeyPlan;
 }
 
 export interface AccountHealthResult {
@@ -104,7 +117,8 @@ export interface AccountHealthResult {
   moveFundsNow: boolean;
   advice: string | null;
   keys: KeyReport[];
-  counts: { full: number; app: number; flagged: number };
+  /** flagged = keys with a red or amber flag; tidy = keys with only tidy-up notes. */
+  counts: { full: number; app: number; flagged: number; tidy: number };
   notes: string[];
   sources: SourceCall[];
   explorerUrl: string;
@@ -125,6 +139,10 @@ export interface AccountHealthOptions {
   /** Contract checks (age, drained-wallet) limit. Default 8 s. */
   contractTimeoutMs?: number;
   drainerCache?: DrainerCache;
+  /** Wait before the one quiet retry of a failed key or history read. Default 1.5 s. */
+  retryDelayMs?: number;
+  /** Where the wallet returns after a removal (Meteor needs one). Default: the account on NearBlocks. */
+  callbackUrl?: string;
 }
 
 export function healthNetwork(account: string, network?: Network): Network {
@@ -163,15 +181,20 @@ export async function accountHealth(input: AccountHealthInput, sources: Sources,
   };
   const base = (status: HealthStatus, summary: string): AccountHealthResult => ({
     engine: ENGINE_VERSION, kind: "account-health", account, network, status, red: false, summary, moveFundsNow: false, advice: null,
-    keys: [], counts: { full: 0, app: 0, flagged: 0 }, notes, sources: calls, explorerUrl: explorerAccountUrl(network, account),
+    keys: [], counts: { full: 0, app: 0, flagged: 0, tidy: 0 }, notes, sources: calls, explorerUrl: explorerAccountUrl(network, account),
     checkedAt: new Date(now).toISOString(), ms: Date.now() - t0,
   });
 
+  // One quiet retry for the reads that matter most (keys, key records, history): public APIs blink.
+  const wait = opts.retryDelayMs ?? 1500;
+  const retry = <T>(name: string, fn: () => Promise<T>, optional = true): Promise<T> =>
+    ask(name, fn, true).catch(() => new Promise<void>((r) => setTimeout(r, wait)).then(() => ask(`${name}:retry`, fn, optional)));
+
   if (!sources.accessKeys) return base("could-not-check", HEALTH_TEXT.couldNotCheck);
-  const keysP = ask(`rpc:view_access_key_list:${account}`, () => sources.accessKeys!(network, account), false);
+  const keysP = retry(`rpc:view_access_key_list:${account}`, () => sources.accessKeys!(network, account), false);
   const infoP = ask(`rpc:view_account:${account}`, () => sources.viewAccount(network, account)).catch(() => null);
-  const recsP = sources.keyRecords ? ask(`nearblocks:keys:${account}`, () => sources.keyRecords!(network, account)).catch(() => null) : Promise.resolve(null);
-  const histP = sources.signedTxs ? ask(`fastnear:signed:${account}`, () => sources.signedTxs!(network, account, HISTORY_LIMIT)).catch(() => null) : Promise.resolve(null);
+  const recsP = sources.keyRecords ? retry(`nearblocks:keys:${account}`, () => sources.keyRecords!(network, account)).catch(() => null) : Promise.resolve(null);
+  const histP = sources.signedTxs ? retry(`fastnear:signed:${account}`, () => sources.signedTxs!(network, account, HISTORY_LIMIT)).catch(() => null) : Promise.resolve(null);
 
   let live: AccessKeyEntry[] | null;
   try { live = await keysP; } catch { return base("could-not-check", HEALTH_TEXT.couldNotCheck); }
@@ -240,6 +263,7 @@ export async function accountHealth(input: AccountHealthInput, sources: Sources,
       probableWalletKey: false,
       flags: [],
       removable: /^(ed25519|secp256k1):/.test(k.publicKey),
+      tidy: false,
       _addMs: addMs,
       _lastMs: last?.timestampMs ?? null,
     };
@@ -277,12 +301,12 @@ export async function accountHealth(input: AccountHealthInput, sources: Sources,
     if (why) r.flags.push({ level: "red", code: "UNKNOWN_FULL_KEY", text: HEALTH_TEXT.unknownFull(r._addMs != null ? fmtDate(r._addMs) : null), why });
   }
 
-  // App keys: amber lines, then contract risk (a few contracts, never your own account or well-known ones).
+  // App keys: tidy-up notes, then contract risk (a few contracts, never your own account or well-known ones).
   for (const r of reports.filter((x) => x.kind === "app")) {
-    if (r.methods!.length === 0 && r.contract !== account) r.flags.push({ level: "amber", code: "ANY_METHOD", text: HEALTH_TEXT.anyMethod(r.contract!) });
-    if (r.allowanceYocto === null) r.flags.push({ level: "amber", code: "NO_ALLOWANCE", text: HEALTH_TEXT.noAllowance });
+    if (r.methods!.length === 0 && r.contract !== account) r.flags.push({ level: "tidy", code: "ANY_METHOD", text: HEALTH_TEXT.anyMethod(r.contract!) });
+    if (r.allowanceYocto === null) r.flags.push({ level: "tidy", code: "NO_ALLOWANCE", text: HEALTH_TEXT.noAllowance });
     const idle = idleDays(r, now, historyComplete, oldestSeen);
-    if (idle != null && idle >= UNUSED_DAYS) r.flags.push({ level: "amber", code: "UNUSED", text: HEALTH_TEXT.unused(Math.floor(idle / 30)) });
+    if (idle != null && idle >= UNUSED_DAYS) r.flags.push({ level: "tidy", code: "UNUSED", text: HEALTH_TEXT.unused(Math.floor(idle / 30)) });
   }
   const contracts = [...new Set(reports.filter((r) => r.kind === "app" && r.contract && r.contract !== account && !wellKnown(network, r.contract)).map((r) => r.contract!))];
   const risky = new Set<string>();
@@ -306,7 +330,7 @@ export async function accountHealth(input: AccountHealthInput, sources: Sources,
     calls.push({ source: `contract:${ct}`, ok: true, ms: Date.now() - s, optional: true });
     if (a || b) risky.add(ct);
   }));
-  for (const r of reports) if (r.kind === "app" && risky.has(r.contract!)) r.flags.unshift({ level: "red", code: "RISKY_CONTRACT", text: HEALTH_TEXT.riskyContract(r.contract!) });
+  for (const r of reports) if (r.kind === "app" && risky.has(r.contract!)) r.flags.unshift({ level: "amber", code: "RISKY_CONTRACT", text: HEALTH_TEXT.riskyContract(r.contract!), why: HEALTH_TEXT.riskyContractWhy });
 
   // The probable wallet key: the full-access key (no red flag) that signed last, else used most, else newest.
   const fa = reports.filter((r) => r.kind === "full" && !r.flags.some((x) => x.level === "red"));
@@ -316,16 +340,29 @@ export async function accountHealth(input: AccountHealthInput, sources: Sources,
   }
 
   const keys: KeyReport[] = reports.map(({ _addMs, _lastMs, ...k }) => k);
-  const levelRank = (k: KeyReport) => (k.flags.some((f) => f.level === "red") ? 0 : k.flags.length ? 1 : 2);
+  const concern = (k: KeyReport) => k.flags.some((f) => f.level !== "tidy");
+  for (const k of keys) k.tidy = k.flags.length > 0 && !concern(k);
+  const levelRank = (k: KeyReport) => (k.flags.some((f) => f.level === "red") ? 0 : concern(k) ? 1 : k.tidy ? 3 : 2);
   keys.sort((a, b) => levelRank(a) - levelRank(b) || Number(b.kind === "full") - Number(a.kind === "full"));
-  const flagged = keys.filter((k) => k.flags.length).length;
+  const fullCount = keys.filter((k) => k.kind === "full").length;
+  const walletKey = keys.find((k) => k.probableWalletKey)?.publicKey;
+  for (const k of keys) {
+    if (!k.removable || (k.kind === "full" && fullCount === 1)) continue;
+    k.remove = removeKeyPlan(network, account, k.publicKey, {
+      ...(walletKey && walletKey !== k.publicKey ? { walletKey } : {}),
+      ...(opts.callbackUrl ? { callbackUrl: opts.callbackUrl } : {}),
+      walletKeyWarning: k.probableWalletKey, kind: k.kind,
+    });
+  }
+  const flagged = keys.filter(concern).length;
+  const tidy = keys.filter((k) => k.tidy).length;
   const danger = keys.some((k) => k.flags.some((f) => f.code === "UNKNOWN_FULL_KEY"));
   const red = keys.some((k) => k.flags.some((f) => f.level === "red"));
   const status: HealthStatus = danger ? "danger" : flagged ? "attention" : "clean";
   return {
-    ...base(status, danger ? HEALTH_TEXT.danger : flagged ? HEALTH_TEXT.attention(flagged) : HEALTH_TEXT.clean),
+    ...base(status, danger ? HEALTH_TEXT.danger : flagged ? HEALTH_TEXT.attention(flagged) : tidy ? HEALTH_TEXT.cleanTidy(tidy) : HEALTH_TEXT.clean),
     red, moveFundsNow: danger, advice: danger ? HEALTH_TEXT.moveFunds : null, keys,
-    counts: { full: keys.filter((k) => k.kind === "full").length, app: keys.filter((k) => k.kind === "app").length, flagged },
+    counts: { full: fullCount, app: keys.filter((k) => k.kind === "app").length, flagged, tidy },
   };
 }
 
@@ -350,22 +387,68 @@ export interface DeleteKeyLinks {
   mynearwallet: string | null;
   /** The confirmation to show before opening. */
   confirm: string;
+  /** The unsigned transaction in the links (base64 Borsh). */
+  transaction: string;
+  /** Where the wallet returns after signing. */
+  callbackUrl: string;
 }
 
 /**
  * Unsigned wallet links that ask the account's own wallet to delete one key. The wallet fills in its
  * signing key, nonce and block hash; `walletKey` is only a placeholder. Gideon never signs.
+ *
+ * Meteor's /connect/{network}/sign page needs a callback_url (2+ characters): without one it shows
+ * "Couldn't parse the correct arguments for signing the transaction". So a callback is always set,
+ * by default the account on NearBlocks.
  */
 export function deleteKeyLinks(network: Network, account: string, publicKey: string, o: { walletKey?: string; callbackUrl?: string } = {}): DeleteKeyLinks {
-  const tx = encodeTransaction({
+  const tx = toBase64(encodeTransaction({
     signerId: account, publicKey: o.walletKey ?? publicKey, receiverId: account, nonce: "0",
     actions: [{ type: "DeleteKey", publicKey }],
-  });
-  const txs = encodeURIComponent(toBase64(tx));
-  const cb = o.callbackUrl ? encodeURIComponent(o.callbackUrl) : "";
+  }));
+  const callbackUrl = o.callbackUrl && o.callbackUrl.length >= 2 ? o.callbackUrl : explorerAccountUrl(network, account);
+  const txs = encodeURIComponent(tx);
+  const cb = encodeURIComponent(callbackUrl);
   return {
-    meteor: `https://wallet.meteorwallet.app/connect/${network}/sign?transactions=${txs}${cb ? `&callback_url=${cb}` : ""}`,
-    mynearwallet: network === "mainnet" ? `https://app.mynearwallet.com/sign?transactions=${txs}${cb ? `&callbackUrl=${cb}` : ""}` : null,
+    meteor: `https://wallet.meteorwallet.app/connect/${network}/sign?transactions=${txs}&callback_url=${cb}`,
+    mynearwallet: network === "mainnet" ? `https://app.mynearwallet.com/sign?transactions=${txs}&callbackUrl=${cb}` : null,
     confirm: HEALTH_TEXT.confirm(short(publicKey.replace(/^[a-z0-9]+:/, ""), 6, 4)),
+    transaction: tx,
+    callbackUrl,
+  };
+}
+
+/** Everything a person, a wallet or an AI agent needs to remove one key. Nothing here is signed. */
+export interface RemoveKeyPlan {
+  accountId: string;
+  networkId: Network;
+  publicKey: string;
+  kind: "full" | "app";
+  /** The one action, in the wallet-selector / NEAR Connect format. */
+  action: { type: "DeleteKey"; params: { publicKey: string } };
+  /** The same as a near-mcp (@nearai/near-mcp) tool call. */
+  nearMcp: { tool: "account_delete_access_keys"; args: { accountId: string; networkId: Network; publicKey: string } };
+  /** The same with near-cli-rs (signs with your keychain, asks before sending). */
+  nearCli: string;
+  /** Unsigned base64 transaction (placeholder signer key, nonce 0, zero block hash: the wallet fills them in). */
+  transaction: string;
+  links: { meteor: string; mynearwallet: string | null; callbackUrl: string };
+  /** True when this may be the key your wallet signs with (Meteor refuses to remove its own key). */
+  walletKeyWarning: boolean;
+  /** Ask the user first; an agent must not remove a key on its own. */
+  confirm: string;
+}
+
+export function removeKeyPlan(network: Network, account: string, publicKey: string, o: { walletKey?: string; callbackUrl?: string; walletKeyWarning?: boolean; kind?: "full" | "app" } = {}): RemoveKeyPlan {
+  const l = deleteKeyLinks(network, account, publicKey, o);
+  return {
+    accountId: account, networkId: network, publicKey, kind: o.kind ?? "app",
+    action: { type: "DeleteKey", params: { publicKey } },
+    nearMcp: { tool: "account_delete_access_keys", args: { accountId: account, networkId: network, publicKey } },
+    nearCli: `near account delete-keys ${account} public-keys ${publicKey} network-config ${network} sign-with-keychain send`,
+    transaction: l.transaction,
+    links: { meteor: l.meteor, mynearwallet: l.mynearwallet, callbackUrl: l.callbackUrl },
+    walletKeyWarning: o.walletKeyWarning ?? false,
+    confirm: l.confirm,
   };
 }

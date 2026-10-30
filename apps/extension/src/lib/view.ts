@@ -197,8 +197,24 @@ const HEALTH_CHIP: Record<AccountHealthResult["status"], [Tone, string]> = {
   danger: ["block", "DANGER"], attention: ["warn", "LOOK AGAIN"], clean: ["safe", "CLEAN"], "not-found": ["warn", "NOT FOUND"], "could-not-check": ["warn", "COULDN’T CHECK"],
 };
 
+declare const __GIDEON_SITE__: string | undefined;
+/**
+ * Gideon's website (its account page connects any NEAR wallet). Set at build time with
+ * GIDEON_SITE=https://… ; empty until the site is live, and then only the wallet links show.
+ */
+export const GIDEON_SITE: string = (typeof __GIDEON_SITE__ === "string" ? __GIDEON_SITE__ : "").replace(/\/+$/, "");
+/** The website's account page for one key, or null when no site is set. */
+export function siteKeyUrl(r: { account: string; network: string }, publicKey: string, site = GIDEON_SITE): string | null {
+  if (!/^https:\/\//.test(site)) return null;
+  return `${site}/keys?account=${encodeURIComponent(r.account)}&network=${r.network}&key=${encodeURIComponent(publicKey)}`;
+}
+export const HEALTH_UI_TEXT = {
+  // New in 0.3.0 (beyond the approved text):
+  anyWallet: "Remove with any wallet",
+} as const;
+
 /** Which key's remove step is open in the account health card, and whether the wallet-key box is ticked. */
-export interface HealthUi { open?: string | null; ticked?: boolean }
+export interface HealthUi { open?: string | null; ticked?: boolean; site?: string }
 
 /**
  * The popup's "Check my account" card: same head and lines as the send card. It never signs:
@@ -213,16 +229,18 @@ export function healthCard(r: AccountHealthResult, ui: HealthUi = {}): string {
   const row = (k: KeyReport): string => {
     const what = k.kind === "full" ? "Full control key" : `App key: ${esc(k.contract)}`;
     const when = k.addedAt ? `Added ${esc(fmtDate(Date.parse(k.addedAt)))}` : esc(HEALTH_TEXT.addedUnknown);
-    const flags = k.flags.map((f) => `<li class="s-${f.level === "red" ? "blocked" : "attention"}"><i>${f.level === "red" ? "✕" : "!"}</i><span>${esc(f.text)}${f.why ? ` ${esc(f.why)}` : ""}</span></li>`).join("");
+    const flags = k.flags.map((f) => `<li class="s-${f.level === "red" ? "blocked" : f.level === "tidy" ? "skipped" : "attention"}"><i>${f.level === "red" ? "✕" : f.level === "tidy" ? "·" : "!"}</i><span>${esc(f.text)}${f.why ? ` ${esc(f.why)}` : ""}</span></li>`).join("");
     let act = "";
     if (k.removable && !(k.kind === "full" && full === 1) && (k.flags.length || ui.open === k.publicKey)) {
       if (ui.open === k.publicKey) {
         const l = deleteKeyLinks(r.network, r.account, k.publicKey, wallet && wallet !== k.publicKey ? { walletKey: wallet } : {});
         const locked = k.probableWalletKey && !ui.ticked;
         const link = (href: string, name: string) => locked ? `<button type="button" class="btn" disabled>Open in ${name} ↗</button>` : `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Open in ${name} ↗</a>`;
+        const site = siteKeyUrl(r, k.publicKey, ui.site ?? GIDEON_SITE);
+        const any = site ? (locked ? `<button type="button" class="btn" disabled>${esc(HEALTH_UI_TEXT.anyWallet)} ↗</button>` : `<a class="btn" href="${esc(site)}" target="_blank" rel="noopener noreferrer">${esc(HEALTH_UI_TEXT.anyWallet)} ↗</a>`) : "";
         act = `${k.probableWalletKey ? `<label class="tg"><input type="checkbox" data-tick="1"${ui.ticked ? " checked" : ""}><i></i><span>${esc(HEALTH_TEXT.walletKey)}</span></label>` : ""}
 <div class="gf"><b>confirm →</b> ${esc(l.confirm)}</div>
-<div class="gacts">${link(l.meteor, "Meteor")}${l.mynearwallet ? link(l.mynearwallet, "MyNearWallet") : ""}<button type="button" class="g" data-close="1">Cancel</button></div>`;
+<div class="gacts">${any}${link(l.meteor, "Meteor")}${l.mynearwallet ? link(l.mynearwallet, "MyNearWallet") : ""}<button type="button" class="g" data-close="1">Cancel</button></div>`;
       } else {
         act = `<div class="gacts"><button type="button" data-rm="${esc(k.publicKey)}">${esc(HEALTH_TEXT.removeButton)}</button></div>`;
       }
@@ -231,7 +249,8 @@ export function healthCard(r: AccountHealthResult, ui: HealthUi = {}): string {
     }
     return `<div class="gf"><b>key →</b> ${esc(short(k.publicKey))}<br>${what} · ${when}${k.uses != null ? ` · used ${k.uses}×` : ""}${k.probableWalletKey ? `<br>${esc(HEALTH_TEXT.walletKey)}` : ""}</div>${flags ? `<ul class="fl">${flags}</ul>` : ""}${act}`;
   };
-  const flagged = r.keys.filter((k) => k.flags.length);
+  const flagged = r.keys.filter((k) => k.flags.length && !k.tidy);
+  const tidy = r.keys.filter((k) => k.tidy);
   const rest = r.keys.filter((k) => !k.flags.length);
   return `<div class="gw t-${tone}" role="alert">
 ${head(tone, chip, r.summary)}
@@ -240,6 +259,7 @@ ${r.advice ? `<div class="gr"><b>${esc(r.advice)}</b></div>` : ""}
 <div class="ga"><b>account →</b> ${esc(r.account)} · ${esc(r.network)} · ${r.counts.full} full · ${r.counts.app} app</div>
 ${r.notes.map((n) => `<div class="gn">${esc(n)}</div>`).join("")}
 ${flagged.map(row).join("")}
+${tidy.length ? `<details class="more" open><summary>${esc(HEALTH_TEXT.tidyHeading)} · ${tidy.length}</summary><div class="gn">${esc(HEALTH_TEXT.tidyNote)}</div>${tidy.map(row).join("")}</details>` : ""}
 ${rest.length ? `<details class="more"${ui.open && rest.some((k) => k.publicKey === ui.open) ? " open" : ""}><summary>Details · ${rest.length} ${rest.length === 1 ? "key" : "keys"} · ${r.ms} ms</summary>${rest.map(row).join("")}</details>` : ""}
 <div class="gn">${esc(HEALTH_TEXT.footer)}</div>
 </div></div>`;

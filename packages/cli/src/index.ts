@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { accountHealth, check, checkDrainer, deleteKeyLinks, HEALTH_TEXT, healthNetwork, checkTransaction, explain, newReceiptKey, resolveNetwork, verifyReceipt, type CheckInput, type CheckResult, type Contact, type Destination, type TxCheckResult, type AccountHealthResult } from "@gideon/core";
+import { accountHealth, check, checkDrainer, HEALTH_TEXT, healthNetwork, checkTransaction, explain, newReceiptKey, resolveNetwork, verifyReceipt, type CheckInput, type CheckResult, type Contact, type Destination, type TxCheckResult, type AccountHealthResult } from "@gideon/core";
 import { liveSources, nearAiExplainer, sourcesOptionsFromEnv } from "@gideon/sources";
 
 const HELP = `gideon — check a NEAR send before you make it
@@ -33,7 +33,8 @@ const HELP = `gideon — check a NEAR send before you make it
                                 account health: list the account's keys and flag ones that
                                 could let someone else act for it (read-only, signs nothing)
     --network testnet|mainnet   default: from the name (.near = mainnet), else testnet
-    --links                     also print unsigned "remove key" wallet links
+    --links                     ready-to-sign remove requests (unsigned) for every removable key;
+                                flagged and tidy-up keys always get one
     --json                      print the full result JSON
   gideon keygen                 new receipt signing key (set GIDEON_RECEIPT_KEY)
   gideon verify-receipt <result.json>
@@ -140,23 +141,29 @@ function printKeys(r: AccountHealthResult, links: boolean) {
   console.log(`${C.b}${col}${r.summary}${C.x}`);
   if (r.advice) console.log(`${C.r}${r.advice}${C.x}`);
   console.log("");
-  const wallet = r.keys.find((k) => k.probableWalletKey)?.publicKey;
+  const tidy = r.keys.filter((k) => k.tidy).length;
   for (const k of r.keys) {
+    if (k.tidy && k === r.keys.find((x) => x.tidy)) console.log(` ${C.b}${HEALTH_TEXT.tidyHeading}${C.x} ${C.d}· ${tidy} · ${HEALTH_TEXT.tidyNote}${C.x}`);
     const when = k.addedAt ? `Added ${new Date(k.addedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}` : HEALTH_TEXT.addedUnknown;
     const what = k.kind === "full" ? "Full control key" : `App key: ${k.contract}`;
-    const icon = k.flags.some((f) => f.level === "red") ? `${C.r}✖` : k.flags.length ? `${C.y}!` : `${C.g}✓`;
+    const icon = k.flags.some((f) => f.level === "red") ? `${C.r}✖` : k.tidy ? `${C.d}·` : k.flags.length ? `${C.y}!` : `${C.g}✓`;
     console.log(` ${icon}${C.x} ${k.publicKey}`);
     console.log(`     ${what} ${C.d}· ${when}${k.uses != null ? ` · used ${k.uses}×` : ""}${C.x}`);
     if (k.probableWalletKey) console.log(`     ${C.y}${HEALTH_TEXT.walletKey}${C.x}`);
     for (const f of k.flags) {
-      console.log(`     ${f.level === "red" ? C.r : C.y}${f.text}${C.x}`);
+      console.log(`     ${f.level === "red" ? C.r : f.level === "tidy" ? C.d : C.y}${f.text}${C.x}`);
       if (f.why) console.log(`       ${C.d}${f.why}${C.x}`);
     }
-    if (links && k.removable && k.flags.length) {
-      const l = deleteKeyLinks(r.network, r.account, k.publicKey, wallet && wallet !== k.publicKey ? { walletKey: wallet } : {});
-      console.log(`     ${C.d}${HEALTH_TEXT.removeButton}: ${l.confirm}${C.x}`);
-      console.log(`       Meteor: ${l.meteor}`);
-      if (l.mynearwallet) console.log(`       MyNearWallet: ${l.mynearwallet}`);
+    // Ready-to-sign removal (unsigned): for flagged and tidy-up keys, or every removable key with --links.
+    const p = k.remove;
+    if (p && (links || (k.flags.length && !k.probableWalletKey))) {
+      console.log(`     ${C.d}${HEALTH_TEXT.removeButton} (unsigned; you sign in your wallet): ${p.confirm}${C.x}`);
+      if (p.walletKeyWarning) console.log(`       ${C.y}${HEALTH_TEXT.walletKey}${C.x}`);
+      console.log(`       Meteor: ${p.links.meteor}`);
+      if (p.links.mynearwallet) console.log(`       MyNearWallet: ${p.links.mynearwallet}`);
+      console.log(`       near-cli-rs: ${p.nearCli}`);
+      console.log(`       near-mcp: ${p.nearMcp.tool} ${JSON.stringify(p.nearMcp.args)}`);
+      console.log(`       transaction (base64): ${p.transaction}`);
     }
   }
   for (const n of r.notes) console.log(` ${C.d}· ${n}${C.x}`);

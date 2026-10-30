@@ -6,12 +6,12 @@ import { sendHealth } from "../src/lib/messages.js";
 const WALLET = "ed25519:DLZLLsmQK9RMa3FM3hXG6yYYrnPZrW8ZgMdiNwpiGiCz";
 const OTHER = "ed25519:3yL6vEMhYcWiJ48tYWUnYw6TeiKN6rkFdWkavnfpc4xW";
 const key = (k: Partial<KeyReport> & { publicKey: string }): KeyReport => ({
-  kind: "full", addedAt: "2026-10-29T10:00:00.000Z", addedFrom: "nonce", uses: 1, lastUsedAt: null, probableWalletKey: false, flags: [], removable: true, ...k,
+  kind: "full", addedAt: "2026-10-29T10:00:00.000Z", addedFrom: "nonce", uses: 1, lastUsedAt: null, probableWalletKey: false, flags: [], removable: true, tidy: false, ...k,
 });
 const result = (keys: KeyReport[], status: AccountHealthResult["status"] = "attention"): AccountHealthResult => ({
   engine: "test", kind: "account-health", account: "alice.testnet", network: "testnet", status, red: status === "danger",
   summary: status === "clean" ? HEALTH_TEXT.clean : HEALTH_TEXT.danger, moveFundsNow: status === "danger", advice: status === "danger" ? HEALTH_TEXT.moveFunds : null,
-  keys, counts: { full: keys.filter((k) => k.kind === "full").length, app: keys.filter((k) => k.kind === "app").length, flagged: keys.filter((k) => k.flags.length).length },
+  keys, counts: { full: keys.filter((k) => k.kind === "full").length, app: keys.filter((k) => k.kind === "app").length, flagged: keys.filter((k) => k.flags.length && !k.tidy).length, tidy: keys.filter((k) => k.tidy).length },
   notes: [], sources: [], explorerUrl: "https://testnet.nearblocks.io/address/alice.testnet", checkedAt: "", ms: 1,
 });
 const red = { level: "red" as const, code: "UNKNOWN_FULL_KEY" as const, text: HEALTH_TEXT.unknownFull("29 Oct 2026") };
@@ -52,6 +52,25 @@ describe("Check my account card", () => {
     expect(h).toContain('class="gw t-safe"');
     expect(h).toContain("CLEAN");
     expect(h).toContain("Details · 1 key");
+  });
+  it("tidy-up keys sit in a quiet 'You can tidy these up' list under CLEAN, not flagged", () => {
+    const tidyFlag = { level: "tidy" as const, code: "ANY_METHOD" as const, text: HEALTH_TEXT.anyMethod("guestbook.near-examples.testnet") };
+    const h = healthCard(result([key({ publicKey: WALLET, probableWalletKey: true }), key({ publicKey: OTHER, kind: "app", contract: "guestbook.near-examples.testnet", flags: [tidyFlag], tidy: true })], "clean"));
+    expect(h).toContain('class="gw t-safe"');
+    expect(h).toContain("CLEAN");
+    expect(h).not.toContain("LOOK AGAIN");
+    expect(h).toContain(`${HEALTH_TEXT.tidyHeading} · 1`);
+    expect(h).toContain('class="s-skipped"');
+    expect(h).not.toContain("s-attention");
+    expect(h).toContain(HEALTH_TEXT.removeButton);
+  });
+  it("the remove step links to the website's any-wallet page (when set) and a Meteor link with a callback", () => {
+    const keys = [key({ publicKey: WALLET, probableWalletKey: true }), key({ publicKey: OTHER, kind: "app", contract: "x.testnet", flags: [{ level: "tidy", code: "UNUSED", text: "x" }], tidy: true })];
+    const h = healthCard(result(keys, "clean"), { open: OTHER, site: "https://gideon.example" });
+    expect(h).toContain(`href="https://gideon.example/keys?account=alice.testnet&amp;network=testnet&amp;key=${encodeURIComponent(OTHER)}"`);
+    expect(h).toContain("Remove with any wallet");
+    expect(h).toContain("callback_url=https%3A%2F%2Ftestnet.nearblocks.io%2Faddress%2Falice.testnet");
+    expect(healthCard(result(keys, "clean"), { open: OTHER })).not.toContain("Remove with any wallet"); // no site set
   });
   it("sendHealth answers { ok: false } instead of throwing", async () => {
     expect(await sendHealth({ account: "a.testnet", network: "testnet" }, 50, async () => { throw new Error("no worker"); })).toEqual({ ok: false, error: "no worker" });

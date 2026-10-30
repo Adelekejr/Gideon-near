@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Window } from "happy-dom";
-import { checkTransaction, encodeTransaction, toBase64 } from "@gideon/core";
+import { checkTransaction, encodeTransaction, toBase64, unreadableRequest, TX_TEXT } from "@gideon/core";
 import { approvalFromScreen, approvalFromUrl, findApproval } from "../src/lib/approval.js";
 import { esc, TX_FOOTER, txCard } from "../src/lib/view.js";
 import { empty } from "../../../packages/core/test/helpers.js";
@@ -98,5 +98,30 @@ describe("transaction card", () => {
     const html = txCard(r);
     expect(html.split("This site is asking for FULL ACCESS").length).toBe(3); // headline + Details, not repeated
     expect(html).toContain(esc("This sends your whole NEAR balance to nobody-x.testnet, which Gideon hasn't seen before."));
+  });
+});
+
+describe("requests nobody could read are never 'looks right'", () => {
+  const ACC = "hammed-stampdue.testnet";
+  const tx = toBase64(encodeTransaction({ signerId: ACC, publicKey: "ed25519:DLZLLsmQK9RMa3FM3hXG6yYYrnPZrW8ZgMdiNwpiGiCz", receiverId: ACC, actions: [{ type: "DeleteKey", publicKey: "ed25519:367v9Si3jhADqFHgydztH89dAjFkwD5ChoxJiP8RCMep" }] }));
+  it("Meteor's own parse error on screen wins over the decoded link (Hammed's phone, 30 Oct)", () => {
+    const url = `https://wallet.meteorwallet.app/connect/testnet/sign?transactions=${encodeURIComponent(tx)}`;
+    const d = page(url, "<div>Couldn't parse the correct arguments for signing the transaction</div>");
+    const found = findApproval(d, url)!;
+    expect(found).toMatchObject({ unreadable: "wallet", network: "testnet" });
+    const r = unreadableRequest({ network: "testnet", wallet: true });
+    expect(r.verdict).toBe("ATTENTION");
+    const h = txCard(r);
+    expect(h).toContain(esc(TX_TEXT.walletUnreadable));
+    expect(h).not.toContain("LOOKS RIGHT");
+  });
+  it("a wallet link whose transactions don't decode: unreadable, not ignored", () => {
+    const url = "https://wallet.meteorwallet.app/connect/testnet/sign?transactions=AAAA&callback_url=https%3A%2F%2Fx.example";
+    expect(approvalFromUrl(url)).toMatchObject({ unreadable: "request", network: "testnet" });
+    const h = txCard(unreadableRequest({ network: "testnet" }));
+    expect(h).toContain(esc(TX_TEXT.unreadable));
+    expect(h).not.toContain("LOOKS RIGHT");
+    // Other sites with a junk transactions= value stay ignored.
+    expect(approvalFromUrl("https://news.example/?transactions=AAAA")).toBeNull();
   });
 });

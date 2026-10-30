@@ -295,7 +295,7 @@ describe("gideon_account_health", () => {
   const K1 = "ed25519:DLZLLsmQK9RMa3FM3hXG6yYYrnPZrW8ZgMdiNwpiGiCz";
   const K2 = "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp";
   const DAY = 86_400_000;
-  it("flags an any-method app key, gives an unsigned remove link, never for the wallet key", async () => {
+  it("puts an any-method app key on the tidy list (clean) and gives a ready-to-sign removal, never for the wallet key", async () => {
     const c = await connect({ sources: sources({
       viewAccount: person,
       accessKeys: async () => [
@@ -307,10 +307,18 @@ describe("gideon_account_health", () => {
     }) });
     const r = await call(c, "gideon_account_health", { account: "me.near" });
     const s = r.structuredContent;
-    expect(s).toMatchObject({ status: "attention", red: false, move_funds_now: false, network: "mainnet" });
+    expect(s).toMatchObject({ status: "clean", red: false, move_funds_now: false, network: "mainnet", counts: { flagged: 0, tidy: 1 } });
     expect(s.keys.find((k: any) => k.public_key === K1).probable_wallet_key).toBe(true);
     expect(s.remove_links.map((l: any) => l.public_key)).toEqual([K2]);
-    expect(s.remove_links[0].mynearwallet).toMatch(/^https:\/\/app\.mynearwallet\.com\/sign\?transactions=/);
+    expect(s.remove_links[0].mynearwallet).toMatch(/^https:\/\/app\.mynearwallet\.com\/sign\?transactions=.*&callbackUrl=https%3A%2F%2Fnearblocks\.io%2Faddress%2Fme\.near$/);
+    expect(s.remove_links[0]).toMatchObject({
+      kind: "app", tidy: true, flagged: false, callback_url: "https://nearblocks.io/address/me.near",
+      action: { type: "DeleteKey", params: { publicKey: K2 } },
+      near_mcp: { tool: "account_delete_access_keys", args: { accountId: "me.near", networkId: "mainnet", publicKey: K2 } },
+      near_cli: `near account delete-keys me.near public-keys ${K2} network-config mainnet sign-with-keychain send`,
+    });
+    expect(new URL(s.remove_links[0].meteor).searchParams.get("transactions")).toBe(s.remove_links[0].transaction_base64);
+    expect(r.content[0].text).toMatch(/near-mcp: account_delete_access_keys \{"accountId":"me\.near"/);
     expect(r.content[0].text).toMatch(/never sign them yourself/);
   });
   it("a missing account and bad input", async () => {

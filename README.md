@@ -44,21 +44,44 @@ four things:
 Well-known contracts (`wrap.near`, `game.hot.tg`, `token.sweat`, `app.nearcrowd.near`) check SAFE.
 A request Gideon can't fully decode is "couldn't check", never safe. Nothing is ever signed.
 
-**Account health: who can act for your account** (0.2.9: website `keys.html`, extension popup
-"Check my account", MCP tool `gideon_account_health`, CLI `gideon keys`). Gideon lists the
-account's keys from public data and marks the ones to look at:
+**Account health: who can act for your account** (0.2.9, reworked in 0.3.0: website `keys.html`,
+extension popup "Check my account", MCP tool `gideon_account_health`, CLI `gideon keys`). Gideon
+lists the account's keys from public data. Red is for danger only:
 
 | Key | Example (checked live) | Level |
 | --- | --- | --- |
-| A full control key added recently by another key of the account, or one that removed the other full control keys or sent the funds out soon after it was added | `chvlryx.near` (one key removed 71 others within an hour), `kaifojor.near` (funds out 1 and 6 min after two keys were added) | red: "Move your funds now" |
-| An app key for a contract that is new (under 30 days, little history) or linked to accounts that drained other wallets | | red |
-| An app key that can call any method, has no gas-fee limit, or hasn't been used for 6 months | `illia.near`, `adelekejr.near` | amber |
+| A full control key added recently by another key of the account, or one that removed the other full control keys or sent the funds out soon after it was added | `chvlryx.near` (one key removed 71 others within an hour), `kaifojor.near` (funds out 1 and 6 min after two keys were added) | red: DANGER, "Move your funds now" |
+| An app key for a contract that is new (under 30 days, little history) or linked to accounts that drained other wallets | | amber: LOOK AGAIN ("An app key can't move your NEAR, but it can act for you in that app.") |
+| An app key that can call any method, has no gas-fee limit, or hasn't been used for 6 months | `illia.near`, `adelekejr.near`, `hammed-stampdue.testnet` | not flagged: listed under "You can tidy these up" |
 
-It marks the probable wallet key (the unflagged full control key used most recently or most often) and
-warns before you remove it. "Remove key in my wallet" builds an unsigned DeleteKey and opens it
-in Meteor (and MyNearWallet on mainnet); your wallet signs, never Gideon. The only full control
-key is never offered for removal. Old keys with no indexer record read "Added: unknown"; a key's
-add date comes from the indexer, the account's history, or the block in the key's nonce.
+The tidy-up list is not a warning: it isn't counted as flagged and an account with only tidy-up
+keys reads CLEAN ("No warning signs found. 1 key you can tidy up."). A failed key or history read
+is retried once, quietly, before Gideon says it couldn't read it.
+
+It marks the probable wallet key (the unflagged full control key used most recently or most
+often) and warns before you remove it. The only full control key is never offered for removal.
+Old keys with no indexer record read "Added: unknown"; a key's add date comes from the indexer,
+the account's history, or the block in the key's nonce.
+
+**Removing a key, with any NEAR wallet (0.3.0).** Every removable key comes with one unsigned
+DeleteKey on the account itself. Gideon never signs it:
+
+| Who | How |
+| --- | --- |
+| Web wallets in a tab (Meteor web, MyNearWallet, Bitte, Intear) | Website "Remove key in my wallet" (NEAR Wallet Selector), or the Meteor / MyNearWallet sign links |
+| Browser extensions (Meteor, Sender, Nightly, OKX, Coin98, Math, WELLDONE, Narwallets, XDEFI) and Ledger | Website "Remove key in my wallet" (injected modules) |
+| Phone apps (HOT, HERE, Meteor app browser, NEAR Mobile) | Website "Remove key in my wallet" (their own deep-link or relay modules; no WalletConnect projectId needed) |
+| AI agents | `gideon_account_health` returns `remove_links[]`: `near_mcp` (a ready `account_delete_access_keys` call for near-mcp), `near_cli` (near-cli-rs), `action`, `transaction_base64`, the Meteor and MyNearWallet links, and `confirm` (ask the person first) |
+| Terminal | `gideon keys <account>` prints the same for keys to tidy or flagged (`--links` for every removable key) |
+
+Meteor sign links now always carry `callback_url`. Meteor's sign page refuses a link without one
+("Couldn't parse the correct arguments for signing the transaction"); 0.2.9 links had none.
+The website page connects with no `contractId`, so the wallet shares the account name and is not
+asked to add a key. If the connected account isn't the checked one, the button stays off.
+The website opens from the extension's "Remove with any wallet" link
+(`/keys?account=…&network=…&key=…`) only when the extension is built with `GIDEON_SITE`
+set to the site's https address (`GIDEON_SITE=https://… npm run build -w @gideon/extension`);
+without it the extension shows the Meteor and MyNearWallet links only.
 
 ![Gideon blocks an account that doesn't exist on NEAR testnet](shots/desktop-check-blocked-nonexistent.png)
 
@@ -91,7 +114,7 @@ npm run build:web           # static build in apps/web/dist
 
 # the Chrome extension
 npm run build:extension     # unpacked build in apps/extension/dist
-npm run zip:extension       # apps/extension/gideon-extension-0.2.9.zip
+npm run zip:extension       # apps/extension/gideon-extension-0.3.0.zip
 npm run zip:firefox -w @gideon/extension   # Firefox / Firefox for Android build (see "Phones")
 
 # the MCP server for AI agents (see "AI agents (MCP server)")
@@ -178,7 +201,7 @@ Gideon is not on the Chrome Web Store. Install it from this repo:
 4. Pin Gideon from the puzzle-piece menu. It starts on **testnet**; switch to
    mainnet in the popup.
 
-`npm run zip:extension` also writes `apps/extension/gideon-extension-0.2.9.zip`.
+`npm run zip:extension` also writes `apps/extension/gideon-extension-0.3.0.zip`.
 To install from the zip, unzip it and load that folder the same way. Works in
 Chrome 111+ and other Chromium browsers (Edge, Brave, Arc).
 
@@ -238,12 +261,12 @@ linked below.
 
 Build the files on a computer and copy them to the phone:
 
-- `npm run zip:extension`: `apps/extension/gideon-extension-0.2.9.zip` (Chromium browsers)
-- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.2.9.zip` (Firefox)
+- `npm run zip:extension`: `apps/extension/gideon-extension-0.3.0.zip` (Chromium browsers)
+- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.3.0.zip` (Firefox)
 
 **Mises Browser** (Chromium). Menu → **Extensions** → turn on
 **Developer mode** → **+ (from .zip/.crx/.user.js)** → pick
-`gideon-extension-0.2.9.zip`. Keep it zipped. Mises unpacks it into its cache,
+`gideon-extension-0.3.0.zip`. Keep it zipped. Mises unpacks it into its cache,
 so clearing the browser's cache or data removes it; install again if so.
 After installing a new version, reload any wallet tab that was already open
 (otherwise its card says "Gideon was updated. Reload this page to keep checking.").
@@ -256,7 +279,7 @@ After installing a new version, reload any wallet tab that was already open
 sideloaded extensions (fixed in 1.8.2).
 
 **Yandex Browser.** Officially it installs from the Chrome Web Store and
-Opera add-ons. For testing: unzip `gideon-extension-0.2.9.zip` into a phone
+Opera add-ons. For testing: unzip `gideon-extension-0.3.0.zip` into a phone
 folder, open `browser://extensions`, turn on **Developer mode**, tap **Load
 unpacked extension** and pick `manifest.json` in that folder. Users reported
 in 2020 that newer builds stopped loading unpacked extensions, so this may not
@@ -545,6 +568,12 @@ The website deploys as a static site; `vercel.json` builds it with
 
 ## Honest limits
 
+- **Key removal is checked offline, not yet signed live.** The fixed Meteor sign link was checked
+  against Meteor's own link parser (its zod schema and Transaction decoding, replicated from its
+  public app code). The website's wallet list (NEAR Wallet Selector 10.1.4, 16 wallets) was
+  opened in headless Chromium, but no wallet has signed a removal through it yet. WalletConnect
+  is left out (it needs a paid Reown projectId). Meteor won't remove the key it signs with;
+  remove that one from another wallet.
 - **Free APIs have limits.** NearBlocks' free tier allows about 6 calls a
   minute, and TronGrid and the public RPCs can rate-limit or go down. When
   that happens Gideon says "couldn't check", not safe. Use the paid RPC

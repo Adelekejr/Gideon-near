@@ -11,6 +11,9 @@ import { decodeTransactions, parseWalletUrl, type Network } from "@gideon/core";
  *      address (the pop-up flow passes them by message): the "Approve Transaction(s)" heading, the
  *      From / To explorer links, and Meteor's own full-access wording. Other pages get only the
  *      generic part of this: an approval heading AND full-access wording on the same screen.
+ *   3. A wallet link Gideon can't decode, or a wallet screen saying it couldn't read the request
+ *      (Meteor: "Couldn't parse the correct arguments for signing the transaction"): marked
+ *      `unreadable`, so the card says so instead of "looks right".
  * Only the answer (the request, or signer / receiver / "asks for full access") goes to the
  * extension's worker. Never keys, never storage, never the clipboard.
  */
@@ -26,11 +29,16 @@ export interface ApprovalFound {
   signerId?: string;
   /** The site that asked (the wallet link's callback host), when known. */
   origin?: string;
+  /** Gideon couldn't decode the link ("request"), or the wallet says it couldn't ("wallet"). */
+  unreadable?: "request" | "wallet";
 }
 
 const METEOR = /(^|\.)meteorwallet\.app$/;
 const HEADING = /^\s*(approve|confirm|sign)\s+(the\s+)?transactions?(\s*\(s\))?\s*$/i;
 const FULL_ACCESS = /\bfull[\s-]access key\b|\bfull control of (this|your) account\b/i;
+const WALLET_HOST = /(^|\.)(meteorwallet\.app|mynearwallet\.com|wallet\.near\.org|bitte\.ai|wallet\.bitte\.ai)$/;
+/** What wallets show when they can't read a request (Meteor's couldnt_parse_arg_tx, and common forms). */
+const WALLET_ERROR = /couldn['’]t parse the correct arguments|could not parse the (correct )?arguments|(invalid|malformed|unable to (parse|decode)|failed to (parse|decode)) (the )?transactions?\b/i;
 const EXPLORER = /^https:\/\/(testnet\.)?nearblocks\.io\/address\/([a-z0-9._-]{2,64})\/?$/i;
 
 /** The request in the page address, or null. */
@@ -56,10 +64,13 @@ export function approvalFromUrl(href: string): ApprovalFound | null {
   }
   const raw = u.searchParams.get("transactions");
   if (!raw) return null;
+  const unreadable = (): ApprovalFound | null => WALLET_HOST.test(u.hostname)
+    ? { key: `url:${u.host}${u.pathname}?${raw}:unreadable`, request: raw, from: "url", unreadable: "request", ...(networkOf(u) ? { network: networkOf(u)! } : {}) }
+    : null;
   try {
-    if (!decodeTransactions(raw).length) return null;
+    if (!decodeTransactions(raw).length) return unreadable();
   } catch {
-    return null;
+    return unreadable();
   }
   return { key: `url:${u.host}${u.pathname}?${raw}`, request: raw, from: "url" };
 }
@@ -73,6 +84,26 @@ function visibleText(el: Element): string {
   };
   walk(el);
   return parts.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function networkOf(u: URL): Network | undefined {
+  const m = /\/connect\/(mainnet|testnet)\//.exec(u.pathname) ?? /(testnet)/.exec(u.hostname);
+  return m ? (m[1] as Network) : undefined;
+}
+
+/** A wallet screen that says it couldn't read the request, or null. */
+export function walletErrorFromScreen(doc: Document, href: string): ApprovalFound | null {
+  let u: URL;
+  try {
+    u = new URL(href);
+  } catch {
+    return null;
+  }
+  if (!WALLET_HOST.test(u.hostname) && !u.searchParams.has("transactions")) return null;
+  const body = doc.body ? visibleText(doc.body) : "";
+  if (!WALLET_ERROR.test(body)) return null;
+  const net = networkOf(u);
+  return { key: `wallet-error:${u.host}${u.pathname}?${u.searchParams.get("transactions") ?? ""}`, request: "", from: "screen", unreadable: "wallet", ...(net ? { network: net } : {}) };
 }
 
 /** The request shown on an approval screen, or null when this isn't one. */
@@ -121,5 +152,6 @@ export function approvalFromScreen(doc: Document, href: string): ApprovalFound |
 
 /** The address first (it has the whole request), then the screen. */
 export function findApproval(doc: Document, href: string): ApprovalFound | null {
-  return approvalFromUrl(href) ?? approvalFromScreen(doc, href);
+  // The wallet's own "couldn't read it" beats what Gideon read from the link.
+  return walletErrorFromScreen(doc, href) ?? approvalFromUrl(href) ?? approvalFromScreen(doc, href);
 }

@@ -1,6 +1,6 @@
 # Gideon extension: what it reads, keeps and sends
 
-This file describes the code in this folder (`src/`, `manifest.json`) as of version 0.2.9.
+This file describes the code in this folder (`src/`, `manifest.json`) as of version 0.3.0.
 If the code and this file ever disagree, that's a bug: please report it.
 
 ## Short version
@@ -78,7 +78,12 @@ The content script runs on web pages and reacts to four things:
 5. **The account you type into "Check my account"** in the popup (new in 0.2.9). Only that name.
    It is not stored (the field is filled from "Your accounts", which you already keep). The answer
    is shown in the popup and not kept. "Remove key in my wallet" builds an unsigned request in the
-   popup and opens your wallet's own page with it; Gideon never signs or sends it.
+   popup and opens your wallet's own page with it; Gideon never signs or sends it. Since 0.3.0
+   the link also tells the wallet where to go afterwards (`callback_url`: the account's page on
+   NearBlocks), and, only in builds made with `GIDEON_SITE`, a "Remove with any wallet" link opens
+   Gideon's website account page with **the account name, network and the public key** in its
+   address, so the site can show that removal. The extension itself sends nothing new and has no
+   new permissions or hosts. Opening either link is like opening any web page: that site sees it.
 
 Gideon can't see copies made in other apps or tabs, or what an app outside the browser does to
 your clipboard. It only knows what you copied on the same page.
