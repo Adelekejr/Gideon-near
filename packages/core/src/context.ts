@@ -102,6 +102,7 @@ async function readFacts(ctx: Ctx, sources: Sources): Promise<AccountFacts | nul
   let created: AccountFacts["created"] = "unavailable";
   let indexerLagBlocks: number | undefined;
   let indexedHeight: number | undefined;
+  let indexedNoDate = false;
   // Always look up the creation date (also in the wallet flow): a brand-new recipient is a scam signal.
   // Live sources cache it, so repeat checks don't spend NearBlocks' free budget.
   // Info-only lookups share one small time budget; when it runs out the date reads "unavailable".
@@ -114,6 +115,7 @@ async function readFacts(ctx: Ctx, sources: Sources): Promise<AccountFacts | nul
       const raw = await withTimeout(sources.accountCreated(net, id), left(until, ctx.limits.sourceTimeoutMs), "creation date lookup");
       ctx.calls.push({ source: key, ok: true, ms: Date.now() - t0, optional: true });
       const info = typeof raw === "number" ? { createdMs: raw, indexed: true } : raw;
+      indexedNoDate = !!info && info.indexed && !info.createdMs;
       if (info?.createdMs) {
         createdAt = new Date(info.createdMs).toISOString();
         created = "known";
@@ -123,6 +125,22 @@ async function readFacts(ctx: Ctx, sources: Sources): Promise<AccountFacts | nul
         indexedHeight = info.indexedHeight;
         indexerLagBlocks = Math.max(0, r.value.blockHeight - info.indexedHeight);
         created = "after-indexer";
+      }
+    } catch (e) {
+      ctx.calls.push({ source: key, ok: false, ms: Date.now() - t0, optional: true, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  // The indexer knows the account but has no creation date: it may date from the chain's launch
+  // (genesis accounts like illia.near have no creation transaction). One archival read settles it.
+  if (created === "unavailable" && indexedNoDate && sources.accountAtGenesis && Date.now() < until) {
+    const t0 = Date.now();
+    const key = `archival-${net}:genesis:${id}`;
+    try {
+      const atGenesis = await withTimeout(sources.accountAtGenesis(net, id), left(until, ctx.limits.sourceTimeoutMs), "genesis lookup");
+      ctx.calls.push({ source: key, ok: true, ms: Date.now() - t0, optional: true });
+      if (atGenesis) {
+        createdAt = new Date(Date.parse(NETWORKS[net].genesis.time)).toISOString();
+        created = "known";
       }
     } catch (e) {
       ctx.calls.push({ source: key, ok: false, ms: Date.now() - t0, optional: true, error: e instanceof Error ? e.message : String(e) });

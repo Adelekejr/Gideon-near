@@ -50,13 +50,19 @@ const KNOWN_BUSY = new Set([
   "ccb91e1db61e8d7e1d4ae3e043001140132959a86ee35a548b6563a46284a6ea",
 ]);
 const HOW_MANY_INBOUND = 40;
-const SIGNED_LOOKBACK = 12;
+// Room to see past a drainer deleting dozens of keys before sweeping (dolbabob.near's victims did 30 to 500).
+const SIGNED_FIRST = 20;
+const SIGNED_MORE = 40;
 
 export interface DrainedSender {
   account: string;
   /** The transfer into the recipient. */
   tx: string;
   minutesAfterKey: number;
+  /** The new key removed the owner's other keys before sending here. */
+  deletedOldKeys?: true;
+  /** A key not used before (not one added minutes ago) removed the owner's keys, then sent here. */
+  takeover?: { keysRemoved: number; atLeast: boolean };
   /** Sender balance now, in NEAR (null = account deleted). */
   leftNear: string | null;
 }
@@ -68,19 +74,48 @@ function nearStr(yocto: bigint): string {
   return n < 0.01 ? (n === 0 ? "0" : "<0.01") : n.toFixed(2).replace(/\.?0+$/, "");
 }
 
-/** Did this sender look drained by the transfer `t` into the recipient? */
-export function drainedBy(t: ChainTx, history: ChainTx[], now: AccountInfo | null, windowMs: number): { minutesAfterKey: number } | null {
+export interface DrainSign { minutesAfterKey: number; deletedOldKeys?: true; takeover?: { keysRemoved: number; atLeast: boolean } }
+
+/**
+ * Did this sender look drained by the transfer `t` into the recipient? Either:
+ * - new key: a full-access key added by a different key minutes before, whose first use was this
+ *   send (or deleting the owner's other keys, then this send); or
+ * - takeover: a key that hadn't signed anything before (or not for at least the window) wakes up,
+ *   deletes two or more of the owner's other keys and sends here, all within the window.
+ * In both, the account is left with under 0.1 NEAR (or deleted).
+ */
+export function drainedBy(t: ChainTx, history: ChainTx[], now: AccountInfo | null, windowMs: number): DrainSign | null {
   if (now && BigInt(now.amountYocto) >= DUST_YOCTO) return null;
   const before = history.filter((x) => x.hash !== t.hash && (x.blockHeight < t.blockHeight || (x.blockHeight === t.blockHeight && x.timestampMs <= t.timestampMs)));
+  const key = t.signerKey;
   // Newest first: the key's addition is the newest earlier tx that added it.
   const add = [...before].sort((a, b) => b.timestampMs - a.timestampMs)
-    .find((x) => x.actions.some((a) => a.kind === "addKey" && a.publicKey === t.signerKey && a.fullAccess));
-  if (!add || add.signerKey === t.signerKey) return null;
-  const gap = t.timestampMs - add.timestampMs;
-  if (gap < 0 || gap > windowMs) return null;
-  // First use: nothing between the addition and the transfer was signed with the new key.
-  if (before.some((x) => x.signerKey === t.signerKey && x.timestampMs >= add.timestampMs && x.hash !== add.hash)) return null;
-  return { minutesAfterKey: Math.max(0, Math.round(gap / 60_000)) };
+    .find((x) => x.actions.some((a) => a.kind === "addKey" && a.publicKey === key && a.fullAccess));
+  if (add && add.signerKey === key) return null;
+  const used = before.filter((x) => x.signerKey === key && x.hash !== add?.hash);
+  const deletes = (x: ChainTx) => x.signer === t.signer && x.actions.length > 0 && x.actions.every((a) => a.kind === "deleteKey" && a.publicKey !== key);
+  const mins = (ms: number) => Math.max(0, Math.round(ms / 60_000));
+
+  if (add) {
+    const gap = t.timestampMs - add.timestampMs;
+    if (gap >= 0 && gap <= windowMs) {
+      const between = used.filter((x) => x.timestampMs >= add.timestampMs);
+      if (between.every(deletes)) return { minutesAfterKey: mins(gap), ...(between.length ? { deletedOldKeys: true as const } : {}) };
+    }
+  }
+
+  // Takeover by a dormant key.
+  const recent = used.filter((x) => t.timestampMs - x.timestampMs <= windowMs);
+  if (!recent.length || recent.length !== used.length) return null;
+  if (!recent.every((x) => deletes(x) || (x.signer === t.signer && isTransferOnly(x)))) return null;
+  const gone = new Set(recent.flatMap((x) => x.actions.flatMap((a) => (a.kind === "deleteKey" ? [a.publicKey] : []))));
+  if (gone.size < 2) return null;
+  // If everything fetched is this burst, the key's older use can't be seen: then only a big
+  // lock-out (ten or more keys removed) counts.
+  const oldest = Math.min(...before.map((x) => x.timestampMs));
+  if (!add && t.timestampMs - oldest <= windowMs && gone.size < 10) return null;
+  const first = Math.min(...recent.map((x) => x.timestampMs));
+  return { minutesAfterKey: mins(t.timestampMs - first), deletedOldKeys: true, takeover: { keysRemoved: gone.size, atLeast: !add } };
 }
 
 const isTransferOnly = (t: ChainTx) => t.actions.length > 0 && t.actions.every((a) => a.kind === "transfer");
@@ -128,12 +163,20 @@ async function run(to: string, network: Network, sources: Sources, o: typeof DRA
   }
   if (!picked.length) return f("R18", "PASS", "NO_SENDERS", "No recent NEAR transfers to look at", "Nobody has sent plain NEAR to this account recently, so there were no senders to check.");
   const checked = await Promise.all(picked.map(async (t) => {
-    const [hist, now] = await Promise.all([sources.signedTxsUpTo!(network, t.signer, t.blockHeight, SIGNED_LOOKBACK), sources.viewAccount(network, t.signer)]);
+    // Balance first: a sender that still holds NEAR wasn't drained, so its history isn't read.
+    const now = await sources.viewAccount(network, t.signer);
+    if (now && BigInt(now.amountYocto) >= DUST_YOCTO) return { t, now, d: null };
+    let hist = await sources.signedTxsUpTo!(network, t.signer, t.blockHeight, SIGNED_FIRST);
+    // All of it signed by the sending key and no key addition in sight: read further back once.
+    if (hist.length >= SIGNED_FIRST && hist.every((x) => x.signerKey === t.signerKey)) {
+      const low = Math.min(...hist.map((x) => x.blockHeight));
+      hist = [...hist, ...(await sources.signedTxsUpTo!(network, t.signer, low - 1, SIGNED_MORE))];
+    }
     const d = drainedBy(t, hist, now, o.windowMs);
     return { t, now, d };
   }));
   const hits: DrainedSender[] = checked.filter((x) => x.d).map((x) => ({
-    account: x.t.signer, tx: x.t.hash, minutesAfterKey: x.d!.minutesAfterKey, leftNear: x.now ? nearStr(BigInt(x.now.amountYocto)) : null,
+    account: x.t.signer, tx: x.t.hash, minutesAfterKey: x.d!.minutesAfterKey, ...(x.d!.deletedOldKeys ? { deletedOldKeys: true as const } : {}), ...(x.d!.takeover ? { takeover: x.d!.takeover } : {}), leftNear: x.now ? nearStr(BigInt(x.now.amountYocto)) : null,
   }));
   // Exchange deposit sweeps leave every deposit account with the same tiny balance (e.g. all 0.0675 NEAR).
   const bal = new Map<string, number>();
@@ -145,22 +188,27 @@ async function run(to: string, network: Network, sources: Sources, o: typeof DRA
 function evidenceOf(h: DrainedSender, network: Network) {
   const left = h.leftNear === null ? "the account was then deleted" : `left with ${h.leftNear} NEAR`;
   const when = h.minutesAfterKey < 1 ? "under a minute" : `${h.minutesAfterKey} min`;
-  return { label: short(h.account, 18, 10), value: `new full-access key added ${when} before it sent here; ${left}`, url: explorerTxUrl(network, h.tx) };
+  const how = h.takeover
+    ? (h.takeover.atLeast
+      ? `a key it hadn't used before removed at least ${h.takeover.keysRemoved} of the owner's other keys, then sent here`
+      : `a key it hadn't used before removed ${h.takeover.keysRemoved} of the owner's other keys, starting ${when} before it sent here`)
+    : `new full-access key added ${when} before it sent here${h.deletedOldKeys ? "; it first removed the owner's other keys" : ""}`;
+  return { label: short(h.account, 18, 10), value: `${how}; ${left}`, url: explorerTxUrl(network, h.tx) };
 }
 
 export function verdictFinding(hits: DrainedSender[], looked: number, network: Network): Finding {
   const n = hits.length;
   if (n >= 2) {
     return f("R18", "BLOCKED", "DRAINER_COLLECTOR", "Funds from hacked wallets were swept into this address",
-      `${n} of the last ${looked} accounts that sent NEAR here look hacked: minutes before each send, someone added a new full-access key to the account, used that new key to send its NEAR here, and left it nearly empty. That's how wallet drainers collect stolen funds.`,
+      `${n} of the last ${looked} accounts that sent NEAR here look hacked: minutes before each send, someone took control of the account (added a new full-access key, or used a key it hadn't used before to remove the owner's other keys), sent its NEAR here, and left it nearly empty. That's how wallet drainers collect stolen funds.`,
       {
         fix: ["Don't send to this address.", "If you were asked to send here to “verify”, “unlock” or “migrate” a wallet, it's a scam.", "If you typed your seed phrase into a site or app, move what's left to a new wallet now."],
-        evidence: [{ label: "Pattern", value: `${n} accounts were swept into this address minutes after a new key was added` }, ...hits.map((h) => evidenceOf(h, network))],
+        evidence: [{ label: "Pattern", value: `${n} accounts were swept into this address minutes after someone took control of them` }, ...hits.map((h) => evidenceOf(h, network))],
       });
   }
   if (n === 1) {
     return f("R18", "ATTENTION", "DRAINED_SENDER", "Look again: a wallet that sent here looks hacked",
-      `One of the last ${looked} accounts that sent NEAR here looks drained: a new full-access key was added minutes before, its first use was sending here, and the account was left nearly empty. One case can be a coincidence, but wallet drainers collect funds this way.`,
+      `One of the last ${looked} accounts that sent NEAR here looks drained: minutes before, someone took control of it (a new full-access key, or a key it hadn't used before removing the owner's other keys), sent its NEAR here, and left it nearly empty. One case can be a coincidence, but wallet drainers collect funds this way.`,
       { fix: ["Check with the receiver that this is really their account before you send."], evidence: hits.map((h) => evidenceOf(h, network)) });
   }
   return f("R18", "PASS", "NO_DRAINED_SENDERS", "No sign of hacked wallets sending here",

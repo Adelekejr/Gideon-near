@@ -16,5 +16,5 @@ export async function r04EthImplicit(ctx: Ctx): Promise<RuleResult> {
   }
   return f("R4", "ATTENTION", "ETH_IMPLICIT_NEW", "This is an Ethereum-style address",
     "On NEAR, a 0x address only works with a wallet that supports Ethereum keys, and this one has never been used on NEAR. Did you mean to send on Ethereum or BSC instead?",
-    { fix: ["Ask the receiver which network they expect.", "If they want NEAR, get their NEAR account (name or 64-character account).", "If they want Ethereum or BSC, use a bridge or swap instead."], evidence: ev });
+    { fix: ["Ask the receiver which network they expect.", "If they want NEAR, get their NEAR account (name or 64-character account).", "If they want Ethereum or BSC, use a bridge or swap instead."], evidence: [{ label: "Account", value: c.normalized }] });
 }

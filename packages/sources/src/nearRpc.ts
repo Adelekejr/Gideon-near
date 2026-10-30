@@ -93,6 +93,15 @@ export class NearRpc {
     throw new SourceError("archival RPC: no block near that time");
   }
 
+  /** Did this account exist in the genesis block? (Genesis accounts have no creation transaction.) */
+  async accountAtGenesis(network: Network, accountId: string): Promise<boolean> {
+    const r = await this.call(network, "query", { request_type: "view_account", block_id: NETWORKS[network].genesis.height, account_id: accountId }, this.archival(network));
+    if (!r.error) return true;
+    const name = r.error.cause?.name ?? "";
+    if (name === "UNKNOWN_ACCOUNT") return false;
+    throw new SourceError(`archival RPC error: ${name || r.error.message || "unknown"}`);
+  }
+
   async viewFunction<T>(network: Network, contract: string, method: string, args: unknown): Promise<{ ok: true; value: T } | { ok: false; reason: "no-account" | "no-method" }> {
     const r = await this.call(network, "query", {
       request_type: "call_function", finality: "final", account_id: contract, method_name: method,

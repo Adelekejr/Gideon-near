@@ -16,9 +16,10 @@ export async function r05Token(ctx: Ctx): Promise<RuleResult> {
   if (!meta.ok) return couldNotCheck("R5", "the token contract", meta.error);
   const ev = [{ label: "Token contract", value: contract, url: explorerAccountUrl(net, contract) }];
   if (!meta.value) {
+    // Not linked: the contract may not exist, and an explorer page would make it look real.
     return f("R5", "BLOCKED", "NOT_A_TOKEN", "That contract isn't a token",
       `${contract} doesn't answer ft_metadata on ${net}, so it isn't a NEP-141 token. A transfer would fail or go somewhere unexpected.`,
-      { fix: ["Pick the token from your wallet's own list instead of pasting a contract."], evidence: ev });
+      { fix: ["Pick the token from your wallet's own list instead of pasting a contract."], evidence: [{ label: "Token contract", value: contract }] });
   }
 
   const known = tokenByContract(net, contract);

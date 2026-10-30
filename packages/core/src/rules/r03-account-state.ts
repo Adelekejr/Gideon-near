@@ -41,6 +41,8 @@ export async function r03AccountState(ctx: Ctx): Promise<RuleResult> {
   const ev = [{ label: "Account", value: a, url: explorerAccountUrl(net, a) }];
 
   if (!r.value) {
+    // No explorer link: explorers show a page for any name, which makes a missing account look real.
+    const plain = [{ label: "Account", value: a }];
     if (c.kind === "near-named") {
       const near = await closeMatches(ctx, a);
       return f("R3", "BLOCKED", "ACCOUNT_NOT_FOUND", `This account doesn't exist on ${where}`,
@@ -50,11 +52,11 @@ export async function r03AccountState(ctx: Ctx): Promise<RuleResult> {
             ...near.map((m) => `Did you mean ${m}? It's ${(input.addressBook ?? []).some((b) => b.account === m) ? "in your address book" : "in your recent history"}.`),
             "Check you're on the same network as the receiver.",
           ],
-          evidence: [...ev, ...near.map((m) => ({ label: "Close match", value: m, url: explorerAccountUrl(net, m) }))] });
+          evidence: [...plain, ...near.map((m) => ({ label: "Close match", value: m }))] });
     }
     return f("R3", "ATTENTION", "IMPLICIT_UNFUNDED", "This account has never been used",
       "The format is valid, but this 64-character account has never received anything. Sending creates it, and only whoever holds its private key can ever move the funds. That's only OK if the owner gave it to you from their own wallet.",
-      { fix: ["Make sure the receiver really controls this account (it came from their own wallet).", "Send a small test amount first."], evidence: ev });
+      { fix: ["Make sure the receiver really controls this account (it came from their own wallet).", "Send a small test amount first."], evidence: plain });
   }
 
   const extra = [

@@ -22,7 +22,7 @@ export async function r10Registry(ctx: Ctx): Promise<RuleResult> {
   if (r.value === null) {
     return f("R10", "COULD_NOT_CHECK", "REGISTRY_MISSING", "Couldn't check: community flag registry is missing",
       `The flag registry ${registry} isn't deployed on ${net.label}, so Gideon couldn't see whether anyone flagged this account.`,
-      { evidence: [regEv] });
+      { evidence: [{ label: "Registry", value: registry }] });
   }
   const flags = r.value;
   if (!flags.length) {

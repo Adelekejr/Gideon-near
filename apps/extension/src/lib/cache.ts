@@ -62,6 +62,10 @@ export function cachedSources(s: Sources, ttlMs = 3 * 60_000, now: () => number 
     ...(s.accountCreated
       ? { accountCreated: (n, a) => created.wrap(`${n}:${a}`, () => s.accountCreated!(n, a), hasDate) as ReturnType<NonNullable<Sources["accountCreated"]>> }
       : {}),
+    // Never changes either way, so both answers are kept.
+    ...(s.accountAtGenesis
+      ? { accountAtGenesis: (n, a) => existed.wrap(`${n}:${a}:genesis`, () => s.accountAtGenesis!(n, a)) }
+      : {}),
     ...(s.accountExistedAt
       ? { accountExistedAt: (n, a, t) => existed.wrap(`${n}:${a}:${Math.round(t / 3_600_000)}`, () => s.accountExistedAt!(n, a, t)) }
       : {}),

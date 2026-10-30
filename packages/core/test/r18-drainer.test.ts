@@ -39,7 +39,7 @@ describe("R18 drained wallets swept into the recipient", () => {
   it("2+ drained senders → BLOCKED, naming each one", async () => {
     const x = await check(sources(TO, [victim("a.near", TO, 1, T0), victim("b.near", TO, 10, T0 - MIN), normal("c.near", TO, T0 - 2 * MIN)]));
     expect(x).toMatchObject({ rule: "R18", status: "BLOCKED", code: "DRAINER_COLLECTOR", title: "Funds from hacked wallets were swept into this address" });
-    expect(x.evidence?.[0].value).toBe("2 accounts were swept into this address minutes after a new key was added");
+    expect(x.evidence?.[0].value).toBe("2 accounts were swept into this address minutes after someone took control of them");
     expect(x.evidence?.[1]).toMatchObject({ label: "a.near", value: "new full-access key added 1 min before it sent here; left with 0.05 NEAR" });
     expect(x.evidence?.[1].url).toMatch(/^https:\/\/nearblocks\.io\/txns\//);
   });
@@ -69,10 +69,60 @@ describe("R18 drained wallets swept into the recipient", () => {
     (fc.history[1].actions[0] as { fullAccess: boolean }).fullAccess = false;
     expect(drainedBy(fc.drain, fc.history, acct(0), 60 * MIN)).toBeNull();
     const used = victim("c.near", TO, 5, T0);
-    used.history.splice(1, 0, tx("c.near", "new-c.near", "c.near", T0 - 2 * MIN, used.drain.blockHeight - 120, [{ kind: "deleteKey", publicKey: "old-c.near" }]));
+    used.history.splice(1, 0, tx("c.near", "new-c.near", "y.near", T0 - 2 * MIN, used.drain.blockHeight - 120, send()));
     expect(drainedBy(used.drain, used.history, acct(0), 60 * MIN)).toBeNull();
+    const other = victim("e.near", TO, 5, T0);
+    other.history.splice(1, 0, tx("e.near", "new-e.near", "e.near", T0 - 2 * MIN, other.drain.blockHeight - 120, [{ kind: "other" }]));
+    expect(drainedBy(other.drain, other.history, acct(0), 60 * MIN)).toBeNull();
     const self = tx("d.near", "k", "d.near", T0 - MIN, 5, addFull("k"));
     expect(drainedBy(tx("d.near", "k", TO, T0, 6, send()), [self], acct(0), 60 * MIN)).toBeNull();
+  });
+
+  it("new key that first deletes the owner's old keys, then sweeps: counts", async () => {
+    const v = victim("a.near", TO, 4, T0);
+    const h = v.drain.blockHeight;
+    v.history.splice(1, 0, ...["k1", "k2", "k2"].map((k, i) => tx("a.near", "new-a.near", "a.near", T0 - (3 - i) * MIN, h - 100 + i, [{ kind: "deleteKey" as const, publicKey: `old-${k}` }])));
+    expect(drainedBy(v.drain, v.history, acct(0.05), 60 * MIN)).toEqual({ minutesAfterKey: 4, deletedOldKeys: true });
+    const w = victim("b.near", TO, 2, T0 - MIN);
+    w.history.splice(1, 0, tx("b.near", "new-b.near", "b.near", T0 - 2 * MIN, w.drain.blockHeight - 10, [{ kind: "deleteKey" as const, publicKey: "old-b.near" }]));
+    const x = await check(sources(TO, [v, w]));
+    expect(x).toMatchObject({ status: "BLOCKED", code: "DRAINER_COLLECTOR" });
+    expect(x.evidence?.[1].value).toBe("new full-access key added 4 min before it sent here; it first removed the owner's other keys; left with 0.05 NEAR");
+  });
+
+  it("takeover by a dormant key: deletes 2+ of the owner's keys minutes before sweeping", () => {
+    const at = T0, h = 50_000;
+    const add = tx("d.near", "old-d", "d.near", at - 90 * 86_400_000, 10, addFull("evil"));
+    const own = tx("d.near", "old-d", "y.near", at - 80 * 86_400_000, 20, send());
+    const dels = ["o1", "o2", "o3"].map((k, i) => tx("d.near", "evil", "d.near", at - (6 - i) * MIN, h - 10 + i, [{ kind: "deleteKey" as const, publicKey: k }]));
+    const drain = tx("d.near", "evil", TO, at, h, send());
+    expect(drainedBy(drain, [drain, ...dels, own, add], acct(0.02), 60 * MIN)).toEqual({ minutesAfterKey: 6, deletedOldKeys: true, takeover: { keysRemoved: 3, atLeast: false } });
+    // The same key used weeks earlier: not dormant.
+    const earlier = tx("d.near", "evil", "z.near", at - 20 * 86_400_000, 30, send());
+    expect(drainedBy(drain, [drain, ...dels, earlier, own, add], acct(0.02), 60 * MIN)).toBeNull();
+    // Only one key removed, or funds left: not counted.
+    expect(drainedBy(drain, [drain, dels[0], own, add], acct(0.02), 60 * MIN)).toBeNull();
+    expect(drainedBy(drain, [drain, ...dels, own, add], acct(3), 60 * MIN)).toBeNull();
+    // History that is all burst, no addition in sight: only a big lock-out (10+ keys) counts.
+    expect(drainedBy(drain, [drain, ...dels], acct(0.02), 60 * MIN)).toBeNull();
+    const many = Array.from({ length: 12 }, (_, i) => tx("d.near", "evil", "d.near", at - (20 - i) * MIN, h - 30 + i, [{ kind: "deleteKey" as const, publicKey: `m${i}` }]));
+    expect(drainedBy(drain, [drain, ...many], acct(0.02), 60 * MIN)).toMatchObject({ takeover: { keysRemoved: 12, atLeast: true } });
+  });
+
+  it("reads a sender's history only when it was left nearly empty, and further back only for a burst", async () => {
+    const asked: number[] = [];
+    const rich = normal("r.near", TO, T0);
+    const many = Array.from({ length: 25 }, (_, i) => tx("d.near", "evil", "d.near", T0 - (30 - i) * MIN, 900 + i, [{ kind: "deleteKey" as const, publicKey: `m${i}` }]));
+    const drain = tx("d.near", "evil", TO, T0 + MIN, 999, send());
+    const add = tx("d.near", "old", "d.near", T0 - 40 * MIN, 800, addFull("evil"));
+    const burst = { name: "d.near", drain, history: [drain, ...many.reverse(), add], left: 0.01 };
+    const s = sources(TO, [rich, burst]);
+    const inner = s.signedTxsUpTo!;
+    s.signedTxsUpTo = async (n, a, h, lim) => { asked.push(lim); return (await inner(n, a, h, lim)).slice(0, lim); };
+    const x = await check(s);
+    expect(asked).toEqual([20, 40]);
+    expect(x).toMatchObject({ status: "ATTENTION" });
+    expect(x.evidence?.[0].value).toContain("new full-access key added 41 min before it sent here; it first removed the owner's other keys");
   });
 
   it("skips exchanges: rich, busy, known, or senders with identical balances", async () => {
@@ -102,7 +152,7 @@ describe("R18 drained wallets swept into the recipient", () => {
 
   it("looks at 5 senders at most, in parallel", async () => {
     let busy = 0, peak = 0, asked = 0;
-    const vs = Array.from({ length: 8 }, (_, i) => normal(`n${i}.near`, TO, T0 - i * MIN));
+    const vs = Array.from({ length: 8 }, (_, i) => ({ ...normal(`n${i}.near`, TO, T0 - i * MIN), left: 0.01 + i / 1000 }));
     const s = sources(TO, vs);
     const inner = s.signedTxsUpTo!;
     s.signedTxsUpTo = async (...a) => { asked++; busy++; peak = Math.max(peak, busy); await new Promise((r) => setTimeout(r, 5)); busy--; return inner(...a); };

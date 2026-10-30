@@ -1,6 +1,6 @@
 # Gideon extension: what it reads, keeps and sends
 
-This file describes the code in this folder (`src/`, `manifest.json`) as of version 0.2.6.
+This file describes the code in this folder (`src/`, `manifest.json`) as of version 0.2.7.
 If the code and this file ever disagree, that's a bug: please report it.
 
 ## Short version
@@ -65,9 +65,9 @@ API keys are attached, and the page's address is not included.
 
 | Host | When | What it receives |
 | --- | --- | --- |
-| `rpc.mainnet.fastnear.com`, `free.rpc.fastnear.com`, `rpc.testnet.fastnear.com`, `test.rpc.fastnear.com` (and `archival-rpc.*.fastnear.com`) | Every check | The recipient account (does it exist, balance, contract). For tokens: the token contract and whether the recipient is registered with it. With an unclear network: the same name on the other network. |
+| `rpc.mainnet.fastnear.com`, `free.rpc.fastnear.com`, `rpc.testnet.fastnear.com`, `test.rpc.fastnear.com` (and `archival-rpc.*.fastnear.com`) | Every check | The recipient account (does it exist, balance, contract). For tokens: the token contract and whether the recipient is registered with it. With an unclear network: the same name on the other network. When the indexer has no creation date: whether the recipient existed at the chain's first block (archival). |
 | `tx.main.fastnear.com`, `tx.test.fastnear.com` | When your sending account is known | **Your account name**, to read your recent transactions (have you sent to this address before, does it look like someone you paid). |
-| `tx.main.fastnear.com`, `tx.test.fastnear.com` and the NEAR RPC hosts above | Drained-wallet check (R18), when the recipient is a NEAR account that isn't yours, a contact or a known exchange | The **recipient account**, to list who recently sent it NEAR; then the **account names of up to 40 of those senders**, to read their transactions up to that send and their current balance. Nothing about you is sent. |
+| `tx.main.fastnear.com`, `tx.test.fastnear.com` and the NEAR RPC hosts above | Drained-wallet check (R18), when the recipient is a NEAR account that isn't yours, a contact or a known exchange | The **recipient account**, to list who recently sent it NEAR (its last 40 incoming transactions); then the **account names of up to 5 of those senders at a time**, to read their current balance and, only for senders left nearly empty, their transactions up to that send. Nothing about you is sent. |
 | `api.nearblocks.io`, `api-testnet.nearblocks.io` | Account age, first-send and pasted-hash checks | The recipient; **your account name together with the recipient** (count of past sends between them); a pasted NEAR transaction hash. |
 | `1click.chaindefuser.com` | When the recipient looks like a NEAR Intents deposit address | That deposit address. |
 | `api.trongrid.io`, `ethereum-rpc.publicnode.com`, `mempool.space` | When what was pasted into a recipient field looks like a transaction hash from another chain | That hash. |

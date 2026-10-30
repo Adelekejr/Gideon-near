@@ -1,6 +1,5 @@
 import type { Ctx } from "../context.js";
 import { tokenByContract } from "../data.js";
-import { explorerAccountUrl } from "../networks.js";
 import { couldNotCheck, f, skipped, short, type RuleResult } from "./util.js";
 import type { Finding } from "../types.js";
 
@@ -45,7 +44,8 @@ export async function r06Intents(ctx: Ctx): Promise<RuleResult> {
   const req = st.quoteResponse?.quoteRequest ?? {};
   const quote = st.quoteResponse?.quote ?? {};
   const expected = req.originAsset;
-  const ev = [{ label: "1Click deposit address", value: short(addr), url: explorerAccountUrl("mainnet", addr) },
+  // Not linked: a fresh deposit address has no account on NEAR yet, and an explorer page would make it look real.
+  const ev = [{ label: "1Click deposit address", value: short(addr) },
     { label: "Swap status", value: st.status }, { label: "Expects", value: assetLabel(expected) }];
   const out: Finding[] = [];
 

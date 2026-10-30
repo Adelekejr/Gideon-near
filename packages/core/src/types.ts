@@ -285,6 +285,11 @@ export interface Sources {
    */
   accountExistedAt?(network: Network, accountId: string, atMs: number): Promise<boolean | null>;
   /**
+   * Optional: did the account exist in the chain's first block (genesis)? Read from archival RPC.
+   * Genesis accounts (e.g. illia.near) have no creation transaction, so the indexer has no date. null = unknown.
+   */
+  accountAtGenesis?(network: Network, accountId: string): Promise<boolean | null>;
+  /**
    * Optional: how many transactions `from` has signed with `to` as the receiver (any time). Feeds
    * R13 (first send). Native NEAR sends and calls only: token transfers go to the token contract.
    */

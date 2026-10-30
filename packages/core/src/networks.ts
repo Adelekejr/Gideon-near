@@ -22,6 +22,8 @@ export interface NetworkConfig {
   txApi: string;
   /** Community flag registry (contracts/flag-registry) read by R10. null until it is deployed. */
   flagRegistry: string | null;
+  /** The chain's first block. Accounts that existed there have no creation transaction, so indexers have no date for them. */
+  genesis: { height: number; time: string };
 }
 
 export const NETWORKS: Record<Network, NetworkConfig> = {
@@ -35,6 +37,7 @@ export const NETWORKS: Record<Network, NetworkConfig> = {
     nearblocksApi: "https://api-testnet.nearblocks.io",
     txApi: "https://tx.test.fastnear.com",
     flagRegistry: null,
+    genesis: { height: 42376888, time: "2020-07-31T03:39:42.911Z" },
   },
   mainnet: {
     id: "mainnet",
@@ -46,6 +49,7 @@ export const NETWORKS: Record<Network, NetworkConfig> = {
     nearblocksApi: "https://api.nearblocks.io",
     txApi: "https://tx.main.fastnear.com",
     flagRegistry: null,
+    genesis: { height: 9820210, time: "2020-07-21T16:55:51.591Z" },
   },
 };
 

@@ -8,7 +8,7 @@ engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 ```bash
 npm install
 npm run build:extension      # → apps/extension/dist
-npm run zip:extension        # → apps/extension/gideon-extension-0.2.6.zip
+npm run zip:extension        # → apps/extension/gideon-extension-0.2.7.zip
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
@@ -36,6 +36,20 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 Tests are in `test/` and run with the root `npm test`.
 
 What the extension reads, keeps and sends: [PRIVACY.md](PRIVACY.md).
+
+## What changed in 0.2.7
+
+- **Drained wallets (R18) catch more drainers.** A sender also counts as hacked when the new key
+  first removed the owner's other keys and then sent here, or when a key the account hadn't used
+  before removed the owner's keys and swept it. Collectors such as `dolbabob.near` are now BLOCKED.
+  Senders that still hold NEAR are no longer read in depth, so the check asks for less.
+- **No explorer links to accounts that don't exist.** For a missing account (`iliar.near`), an
+  unused 64-character or 0x account, a contract that isn't a token, or a 1Click deposit address,
+  the card shows the name as plain text. NearBlocks shows a page for any name, which made a missing
+  account look real. Existing accounts are still linked.
+- **Creation date for NEAR's oldest accounts.** Accounts from NEAR's launch (such as `illia.near`)
+  showed "Creation date unavailable", because the indexer has no creation transaction for them.
+  One quick archival read now dates them to 21 Jul 2020.
 
 ## What changed in 0.2.6
 
