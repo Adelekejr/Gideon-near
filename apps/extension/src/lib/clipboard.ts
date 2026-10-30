@@ -4,9 +4,12 @@ import { isStrongAddress } from "./detect.js";
 export const COPY_TTL_MS = 2 * 60_000;
 
 /** Only text shaped like an address is ever kept; anything else you copy is ignored. */
+/** A NEAR named account with at least one dot: alice.near, bob.testnet, carol.tg, x.sweat, … */
+const DOTTED_ACCOUNT = /^(([a-z\d]+[-_])*[a-z\d]+\.)+([a-z\d]+[-_])*[a-z\d]+$/i;
+
 export function addressLike(text: string): boolean {
   const t = text.trim();
-  return !!t && t.length <= 120 && (isStrongAddress(t) || /^[a-z\d._-]+\.(near|testnet)$/i.test(t));
+  return !!t && t.length <= 120 && (isStrongAddress(t) || (t.length <= 64 && DOTTED_ACCOUNT.test(t)));
 }
 
 /**

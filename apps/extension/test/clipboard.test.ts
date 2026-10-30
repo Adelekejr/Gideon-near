@@ -25,6 +25,9 @@ describe("ClipboardWatch", () => {
     expect((w as unknown as { copied: unknown }).copied).toBeNull();
     expect(addressLike("my password 123")).toBe(false);
     expect(addressLike("alice.near")).toBe(true);
+    expect(addressLike("carol.tg")).toBe(true);
+    expect(addressLike("v2_1.omni.hot.tg")).toBe(true);
+    expect(addressLike("hunter2")).toBe(false);
   });
   it("forgets on reset (window blur / tab switch)", () => {
     const w = new ClipboardWatch();

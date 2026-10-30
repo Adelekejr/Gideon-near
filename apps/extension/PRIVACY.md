@@ -43,7 +43,8 @@ The content script runs on web pages and reacts to three things:
 2. **Copy and cut on the page** (for the "what you copied isn't what you pasted" check, R9).
    - The selected text is looked at during the copy event only, to spot a page script that swaps
      it for a different address. It is dropped as soon as the event ends.
-   - It is **remembered only if it looks like an address**, in the page script's memory (not in
+   - It is **remembered only if it looks like an address** (a dotted NEAR name such as alice.near
+     or bob.tg, a 64-hex or 0x account, or another chain's address), in the page script's memory (not in
      storage), for at most **2 minutes**, and forgotten as soon as you switch tab or window.
      Any other copied text (a phrase, a password, a message) is not kept at all.
    - When you then paste into a field Gideon checks, the remembered address is compared with what
