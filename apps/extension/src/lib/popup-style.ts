@@ -5,7 +5,7 @@ html,body{margin:0;background:#0C0B09}
 html[data-theme=day],html[data-theme=day] body{background:#F2F0EB}
 html[data-theme=plan],html[data-theme=plan] body{background:#10283F}
 html[data-theme=signal],html[data-theme=signal] body{background:#FFF}
-.pp{display:block;width:380px;min-height:300px;padding:14px 14px 10px;background:var(--bg);position:relative}
+.pp{display:block;width:380px;min-height:300px;padding:14px 14px 10px;background:var(--bg);position:relative;overflow-wrap:anywhere}
 .pp[data-theme=plan]{background-image:linear-gradient(rgba(155,209,255,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(155,209,255,.07) 1px,transparent 1px);background-size:24px 24px}
 .hidden{display:none!important}
 .top{display:flex;align-items:center;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--line)}

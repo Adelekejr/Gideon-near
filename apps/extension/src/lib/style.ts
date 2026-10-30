@@ -31,7 +31,7 @@ export const STYLE = `
 .chip.block{background:var(--blocked)}.chip.warn{background:var(--attention)}.chip.safe{background:var(--safe)}
 .chip.idle{background:transparent;color:var(--mute);box-shadow:inset 0 0 0 1px var(--line)}
 /* the warning card */
-.gw{position:relative;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px;overflow:hidden;box-shadow:0 22px 50px -18px rgba(0,0,0,.5)}
+.gw{position:relative;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px;overflow:hidden;overflow-wrap:anywhere;box-shadow:0 22px 50px -18px rgba(0,0,0,.5)}
 .gw::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--mute)}
 .gw.t-block::before{background:var(--blocked)}.gw.t-warn::before{background:var(--attention)}.gw.t-safe::before{background:var(--safe)}
 .gh{display:flex;align-items:center;gap:12px;padding:12px 14px 10px 19px;border-bottom:1px solid var(--line)}
