@@ -30,4 +30,6 @@ export const LIMITS = {
   drainerMs: 8000,
   /** The page stops waiting for the drained-wallet answer after this. */
   drainerWaitMs: 10_000,
+  /** The page stops waiting for a transaction request's check (lookups plus drained-wallet links) after this. */
+  txWaitMs: 14_000,
 } as const;

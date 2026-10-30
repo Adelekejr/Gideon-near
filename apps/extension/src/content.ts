@@ -2,9 +2,10 @@ import type { Network } from "@gideon/core";
 import { addContact, load, saveContacts, withDefaults, type Settings } from "./lib/settings.js";
 import { addressLike, ClipboardWatch, copyTampered } from "./lib/clipboard.js";
 import { findSendButtons, plainTrim, isRecipientField, isTextField, shouldCheck, type Field } from "./lib/detect.js";
-import { card, checking, failed, tamperCard, toneOf, updated } from "./lib/view.js";
+import { card, checking, failed, tamperCard, toneOf, txCard, updated } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
-import { extensionAlive, sendCheck, sendDrainer, type CheckResponse } from "./lib/messages.js";
+import { extensionAlive, sendCheck, sendDrainer, sendTx, type CheckResponse } from "./lib/messages.js";
+import { findApproval } from "./lib/approval.js";
 import { collectSignals, pageHint, recipientScope } from "./lib/network.js";
 import { pageAccounts } from "./lib/wallets.js";
 import { rememberSend, senderHint, type SenderHint } from "./lib/sender.js";
@@ -25,6 +26,10 @@ import { missingOptional } from "./lib/runcache.js";
  * texts that are a NEAR account name or a "Testnet" / "Mainnet" badge (lib/network.ts),
  * to tell which network the wallet is on. Only the answer (testnet / mainnet / not sure,
  * and the account it came from) goes to the worker; no other page text leaves the page.
+ *
+ * On a wallet's approval screen it also reads the transaction request (lib/approval.ts: from the
+ * page address, or Meteor's approval screen) and shows Gideon's card before you press Approve.
+ * Only the request goes to the worker. Never keys, never the clipboard.
  */
 
 let settings: Settings = withDefaults({}).settings;
@@ -458,3 +463,65 @@ document.addEventListener("input", (e) => {
     else if (panel?.field === field) hide();
   }, LIMITS.debounceMs));
 }, true);
+
+/* ---------- wallet approval screens ---------- */
+
+let approvalKey = "";
+let approvalSeq = 0;
+let approvalShown = false;
+
+async function scanApproval(): Promise<void> {
+  if (orphaned || !extensionAlive()) return;
+  let found = null;
+  try {
+    found = findApproval(document, location.href);
+  } catch {
+    found = null;
+  }
+  if (!found) {
+    // The approval screen went away (approved, rejected or navigated): take its card down.
+    if (approvalShown && panel?.field === null) hide();
+    approvalKey = "";
+    approvalShown = false;
+    return;
+  }
+  if (found.key === approvalKey) return;
+  approvalKey = found.key;
+  const seq = ++approvalSeq;
+  const res = await sendTx({
+    request: found.request, host: location.host,
+    ...(found.network ? { network: found.network } : {}),
+    ...(found.signerId ? { signerId: found.signerId } : {}),
+    ...(found.origin ? { origin: found.origin } : {}),
+  }, LIMITS.txWaitMs);
+  if (seq !== approvalSeq || approvalKey !== found.key) return;
+  if (!res.ok) {
+    if (res.orphaned) orphaned = true;
+    approvalKey = ""; // try again on the next change
+    return;
+  }
+  const r = res.result;
+  const tone = r.verdict === "BLOCKED" ? "block" : r.verdict === "SAFE" ? "safe" : "warn";
+  const why = found.from === "url" ? "from the wallet link" : "from the approval screen";
+  // Name the network only when the link or screen showed it.
+  show(null, txCard(r, { ...(found.network ? { net: { network: found.network, why } } : {}), actions: '<button data-act="dismiss" class="g">Dismiss</button>' }), tone);
+  approvalShown = true;
+}
+
+let approvalTimer = 0;
+function scheduleApproval(): void {
+  if (approvalTimer) return;
+  approvalTimer = window.setTimeout(() => {
+    approvalTimer = 0;
+    void scanApproval();
+  }, 400);
+}
+void scanApproval();
+try {
+  // Wallets are single-page apps: the approval screen appears and changes without a page load.
+  new MutationObserver(scheduleApproval).observe(document.documentElement, { childList: true, subtree: true });
+} catch {
+  /* no observer: the address check above still ran */
+}
+window.addEventListener("popstate", scheduleApproval);
+window.addEventListener("hashchange", scheduleApproval);

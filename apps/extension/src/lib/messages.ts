@@ -1,4 +1,4 @@
-import { withTimeout, type CheckInput, type CheckResult, type Network } from "@gideon/core";
+import { withTimeout, type CheckInput, type CheckResult, type Network, type TxCheckResult } from "@gideon/core";
 import type { NetHint } from "./network.js";
 import type { SenderHint, SenderUsed } from "./sender.js";
 
@@ -90,4 +90,24 @@ export function sendDrainer(result: CheckResult, timeoutMs?: number, send: (m: D
     .then(() => send({ type: "gideon:drainer", result }))
     .then((r) => (r?.ok ? r.result : null));
   return withTimeout(asked, timeoutMs, "The drained-wallet check").catch(() => null);
+}
+
+/** Check a wallet's transaction request (found on the approval screen or in its address). */
+export interface TxRequestMsg {
+  type: "gideon:tx";
+  request: string | object;
+  network?: Network;
+  signerId?: string;
+  origin?: string;
+  host: string;
+}
+export type TxResponse = { ok: true; result: TxCheckResult } | { ok: false; error: string; orphaned?: true };
+
+/** Ask the worker to check a transaction request. Never throws or hangs. */
+export function sendTx(req: Omit<TxRequestMsg, "type">, timeoutMs?: number, send: (m: TxRequestMsg) => Promise<TxResponse | undefined> = (m) => chrome.runtime.sendMessage(m), alive: () => boolean = extensionAlive): Promise<TxResponse> {
+  if (!alive()) return Promise.resolve({ ok: false, error: "Gideon was updated. Reload this page to keep checking.", orphaned: true });
+  const asked = Promise.resolve()
+    .then(() => send({ type: "gideon:tx", ...req }))
+    .then((r): TxResponse => r ?? { ok: false, error: "The extension stopped before it answered." });
+  return withTimeout(asked, timeoutMs, "The check").catch((e: unknown): TxResponse => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
 }

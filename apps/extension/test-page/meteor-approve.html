@@ -1,0 +1,46 @@
+<!doctype html>
+<!--
+  A RECONSTRUCTION of Meteor Wallet's transaction approval screen, for testing Gideon's approval
+  card without a wallet. Not Meteor's markup: the strings come from Meteor's public app bundle
+  ("Approve Transaction(s)", the From / To explorer links, "Adds a Full Access Key: complete
+  control of this account", "This request gives full control of your account"). Nothing here
+  signs anything; the buttons do nothing.
+  Opened from a file or localhost, only Gideon's generic reading applies (approval heading AND
+  full-access wording). On wallet.meteorwallet.app the From / To links are read too.
+  Query: ?signer=you.testnet  ?to=contract.testnet  ?full=1 (asks for a full-access key)
+-->
+<html lang="en"><head><meta charset="utf-8"><title>Meteor Wallet approval (local reconstruction)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:#100f17;color:#f2f1f7}
+main{padding:18px 16px 40px;max-width:480px;margin:0 auto}
+h2{margin:6px 0 18px;font-size:22px}
+.row{display:flex;justify-content:space-between;background:#211e2b;border-radius:12px;padding:12px;margin:8px 0}
+.row a{color:#b9a8ff;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.warn{background:#3a1f1f;color:#ffb4a8;border-radius:12px;padding:12px;margin:12px 0;font-size:14px}
+.btns{display:flex;gap:10px;margin-top:26px}
+button{flex:1;height:50px;border:0;border-radius:12px;font-weight:700;font-size:16px}
+.ok{background:#7b5cff;color:#fff}.no{background:#2a2735;color:#f2f1f7}
+</style></head>
+<body><main>
+<h2>Approve Transaction(s)</h2>
+<div class="row"><span>From</span><a id="from"></a></div>
+<div class="row"><span>To</span><a id="to"></a></div>
+<div id="actions"></div>
+<div class="btns"><button class="no" type="button">Reject</button><button class="ok" type="button">Approve</button></div>
+</main>
+<script>
+const q = new URLSearchParams(location.search);
+const net = (q.get("signer") || "").endsWith(".near") ? "" : "testnet.";
+const link = (el, id) => { el.textContent = id; el.href = `https://${net}nearblocks.io/address/${id}`; };
+link(document.getElementById("from"), q.get("signer") || "hammed-stampdue.testnet");
+link(document.getElementById("to"), q.get("to") || q.get("signer") || "hammed-stampdue.testnet");
+const a = document.getElementById("actions");
+if (q.get("full") === "1") {
+  a.innerHTML = '<div class="row"><span>Adds a Full Access Key: complete control of this account</span></div>' +
+    '<div class="warn">This request gives full control of your account</div>';
+} else {
+  a.innerHTML = '<div class="row"><span>Function call</span></div>';
+}
+</script>
+</body></html>

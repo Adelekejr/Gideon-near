@@ -41,6 +41,13 @@ export class FastNearTx {
     return { total: Number(a.txs_count ?? rows.length), txs: await this.txs(network, rows) };
   }
 
+  /** T2: how many transactions the account has in total (as signer or receiver). */
+  async txCount(network: Network, accountId: string): Promise<number> {
+    const a = await this.post<{ txs_count?: number }>(network, "/v0/account", { account_id: accountId, limit: 1 });
+    if (typeof a.txs_count !== "number") throw new SourceError("FastNEAR gave no transaction count");
+    return a.txs_count;
+  }
+
   /** Transactions the account signed at or before `blockHeight`, newest first. */
   async signedTxsUpTo(network: Network, accountId: string, blockHeight: number, limit: number): Promise<ChainTx[]> {
     type Row = { transaction_hash?: string; tx_block_height?: number };

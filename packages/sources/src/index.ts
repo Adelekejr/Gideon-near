@@ -43,6 +43,9 @@ export function liveSources(o: LiveSourcesOptions = {}): Sources {
     accountAtGenesis: (n, a) => rpc.accountAtGenesis(n, a),
     inboundTxs: (n, a, l) => fast.inboundTxs(n, a, l),
     signedTxsUpTo: (n, a, h, l) => fast.signedTxsUpTo(n, a, h, l),
+    txCount: (n, a) => fast.txCount(n, a),
+    ftBalance: (n, c, a) => rpc.ftBalance(n, c, a),
+    nftToken: (n, c, t) => rpc.nftToken(n, c, t),
   };
 }
 

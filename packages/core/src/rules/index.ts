@@ -40,4 +40,4 @@ export const RULES: Rule[] = [
 ];
 
 /** When several rules block (R18, the drained-wallet check, runs after the main check: see drainer.ts), the most specific explanation leads. */
-export const HEADLINE_ORDER: RuleId[] = ["R14", "R18", "R15", "R17", "R9", "R2", "R6", "R7", "R8", "R5", "R16", "R1", "R3", "R4", "R11", "R13", "R10"];
+export const HEADLINE_ORDER: RuleId[] = ["T1", "T2", "T3", "T4", "R14", "R18", "R15", "R17", "R9", "R2", "R6", "R7", "R8", "R5", "R16", "R1", "R3", "R4", "R11", "R13", "R10"];

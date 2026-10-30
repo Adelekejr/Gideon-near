@@ -12,6 +12,8 @@ If the code and this file ever disagree, that's a bug: please report it.
   sign anything and holds no keys. Fields that look like they hold a secret are skipped entirely.
 - The only thing that leaves your device is the **address you are about to send to** (and, for
   some checks, **your own account name**), sent to public NEAR and blockchain APIs listed below.
+  On a wallet's approval screen, that is the **account names in the request** (yours, the contract
+  or person it goes to, the token or NFT contract), never the request itself.
   There is no Gideon server, no analytics, no tracking, no account.
 - Everything Gideon remembers stays in your browser's extension storage on this device.
 
@@ -20,7 +22,7 @@ If the code and this file ever disagree, that's a bug: please report it.
 | Manifest entry | Why |
 | --- | --- |
 | `permissions: ["storage"]` | Saves your settings, address book, "your accounts", stats, last check and the list of sends made on this device (see below). Nothing else. |
-| `content_scripts` on `http://*/*` and `https://*/*` (top frame only) | Wallets and exchanges live on many different sites, so Gideon can't know in advance which page has a send form. The script stays passive until you paste or type into a text field. |
+| `content_scripts` on `http://*/*` and `https://*/*` (top frame only) | Wallets and exchanges live on many different sites, so Gideon can't know in advance which page has a send form. The script reacts when you paste or type into a text field, and watches the page's address and headings for a wallet approval screen (see below). |
 | `host_permissions` (14 hosts, listed below) | The public APIs the checks call. No other site can be contacted. |
 | `web_accessible_resources: fonts/*.woff2` | The card's fonts. A side effect: a page could detect that Gideon is installed by trying to load one of these files. |
 
@@ -28,7 +30,7 @@ There is no `clipboardRead`, `tabs`, `history`, `cookies`, `webRequest` or `<all
 
 ## What the page script looks at
 
-The content script runs on web pages and reacts to three things:
+The content script runs on web pages and reacts to four things:
 
 1. **Paste and typing into a text field** (not `type=password`).
    It checks the value only when it is a single word under 120 characters **and** either looks
@@ -55,6 +57,24 @@ The content script runs on web pages and reacts to three things:
    check on and whose history to read. This is read in place and not stored, except the account
    name: when the wallet shows your full account it is added to "Your accounts".
 
+4. **A wallet's request to approve or sign a NEAR transaction** (new in 0.2.8). Gideon looks for it
+   in two places, and only reads; it never clicks, fills or changes anything on the wallet page,
+   and does not hold the Approve button:
+   - **The page address.** Wallet sign links carry the unsigned request in the URL:
+     MyNearWallet `…mynearwallet.com/sign?transactions=…`, Meteor's redirect flow
+     `wallet.meteorwallet.app/connect/<network>/sign?transactions=…`, and, on any other site, a
+     `transactions=` value only when it decodes as real NEAR transactions. A MyNearWallet sign-in
+     link (`/login?public_key=…` without a contract) is read as a full-access sign-in.
+   - **The approval screen itself**, when the address doesn't carry the request (Meteor's pop-up
+     flow). Only when the page shows a heading such as "Approve Transaction(s)". On
+     `wallet.meteorwallet.app` it reads the From / To explorer links and the wallet's own
+     full-access wording; on any other site it reacts only to that full-access wording. Text in
+     scripts and styles is ignored. This reading follows Meteor's public app code and has not
+     been checked against the live Meteor wallet.
+   The request is decoded and checked on your device; the card says "Gideon only read this request
+   from the page. It never touches your keys." Nothing from it is stored, and the check is not
+   counted in your stats.
+
 Gideon can't see copies made in other apps or tabs, or what an app outside the browser does to
 your clipboard. It only knows what you copied on the same page.
 
@@ -69,11 +89,12 @@ API keys are attached, and the page's address is not included.
 | `tx.main.fastnear.com`, `tx.test.fastnear.com` | When your sending account is known | **Your account name**, to read your recent transactions (have you sent to this address before, does it look like someone you paid). |
 | `tx.main.fastnear.com`, `tx.test.fastnear.com` and the NEAR RPC hosts above | Drained-wallet check (R18), when the recipient is a NEAR account that isn't yours, a contact or a known exchange | The **recipient account**, to list who recently sent it NEAR (its last 40 incoming transactions); then the **account names of up to 5 of those senders at a time**, to read their current balance and, only for senders left nearly empty, their transactions up to that send. Nothing about you is sent. |
 | `api.nearblocks.io`, `api-testnet.nearblocks.io` | Account age, first-send and pasted-hash checks | The recipient; **your account name together with the recipient** (count of past sends between them); a pasted NEAR transaction hash. |
+| NEAR RPC hosts, `tx.main.fastnear.com`, `tx.test.fastnear.com`, `api.nearblocks.io`, `api-testnet.nearblocks.io` | Transaction approval check | The **account names in the request**: the contract it calls (does it exist, when was it created, how many transactions, the drained-wallet check above); for a send, the recipient and **your account name** (your balance of that token, have you sent to them before); for an NFT approval, the NFT contract and token id. Not the request, not the page address. |
 | `1click.chaindefuser.com` | When the recipient looks like a NEAR Intents deposit address | That deposit address. |
 | `api.trongrid.io`, `ethereum-rpc.publicnode.com`, `mempool.space` | When what was pasted into a recipient field looks like a transaction hash from another chain | That hash. |
 
 These services see the request like any website would (including your IP address) and have their
-own privacy policies. Gideon sends nothing else: no page content, no copied text, no amounts, no
+own privacy policies. Gideon sends nothing else: no other page content, no copied text, no amounts, no
 identifiers, no usage data.
 
 ## What is stored on this device

@@ -129,6 +129,24 @@ export class NearRpc {
     return r.value != null;
   }
 
+  /** T3: `ft_balance_of`, the raw integer amount. null = no such token contract. */
+  async ftBalance(network: Network, contract: string, accountId: string): Promise<string | null> {
+    const r = await this.viewFunction<unknown>(network, contract, "ft_balance_of", { account_id: accountId });
+    if (!r.ok) return null;
+    const v = typeof r.value === "string" || typeof r.value === "number" ? String(r.value) : "";
+    if (!/^\d+$/.test(v)) throw new SourceError(`${contract} ft_balance_of returned an unexpected answer`);
+    return v;
+  }
+
+  /** T4: `nft_token`: the NFT's title and owner. null = no such token or collection. */
+  async nftToken(network: Network, contract: string, tokenId: string): Promise<{ title?: string; ownerId?: string } | null> {
+    const r = await this.viewFunction<{ owner_id?: unknown; metadata?: { title?: unknown } } | null>(network, contract, "nft_token", { token_id: tokenId });
+    if (!r.ok || !r.value) return null;
+    const title = typeof r.value.metadata?.title === "string" ? r.value.metadata.title.slice(0, 80) : undefined;
+    const ownerId = typeof r.value.owner_id === "string" ? r.value.owner_id : undefined;
+    return { ...(title ? { title } : {}), ...(ownerId ? { ownerId } : {}) };
+  }
+
   /** R10: `get_flags` on the community flag registry. null = registry account or contract missing. */
   async communityFlags(network: Network, registry: string, accountId: string): Promise<CommunityFlag[] | null> {
     const r = await this.viewFunction<unknown>(network, registry, "get_flags", { account_id: accountId });

@@ -7,6 +7,7 @@ import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import type { Sources } from "@gideon/core";
 import { createGideonServer } from "../src/server.js";
+import { encodeTransaction, toBase64 } from "@gideon/core";
 
 const NOW = Date.parse("2026-10-29T12:00:00Z");
 const down = async (): Promise<never> => { throw new Error("source down"); };
@@ -63,7 +64,7 @@ describe("gideon MCP server", () => {
   it("lists the three read-only tools and tells agents the policy", async () => {
     const c = await connect({ sources: sources() });
     const { tools } = await c.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(["gideon_check", "gideon_explain", "gideon_flags"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["gideon_check", "gideon_check_transaction", "gideon_explain", "gideon_flags"]);
     for (const t of tools) expect(t.annotations?.readOnlyHint).toBe(true);
     const ins = c.getInstructions() ?? "";
     expect(ins).toMatch(/BLOCKED.*do not send/i);
@@ -255,5 +256,37 @@ describe("gideon_check `from` (sender history)", () => {
     const c = await connect({ sources: sources() });
     const t = (await c.listTools()).tools.find((x) => x.name === "gideon_check")!;
     expect((t.inputSchema.properties as Record<string, any>).from.description).toMatch(/never sent/);
+  });
+
+  describe("gideon_check_transaction", () => {
+    const KEY = "ed25519:" + "1".repeat(43);
+    it("BLOCKS a full-access AddKey given as signer, receiver and actions", async () => {
+      const c = await connect({ sources: sources() });
+      const r = await call(c, "gideon_check_transaction", { signer: "me.testnet", receiver: "me.testnet", network: "testnet",
+        actions: [{ type: "AddKey", params: { publicKey: KEY, accessKey: { permission: "FullAccess" } } }] });
+      expect(r.structuredContent.verdict).toBe("BLOCKED");
+      expect(r.structuredContent.agent_action).toBe("DO_NOT_SEND");
+      expect(r.structuredContent.reasons[0].code).toBe("FULL_ACCESS_KEY");
+      expect(r.structuredContent.transactions[0].actions).toEqual(["AddKey FullAccess"]);
+    });
+    it("reads raw base64 and a sign link the same way", async () => {
+      const c = await connect({ sources: sources() });
+      const b64 = toBase64(encodeTransaction({ signerId: "me.testnet", publicKey: KEY, receiverId: "me.testnet", actions: [{ type: "AddKey", publicKey: KEY, fullAccess: true }] }));
+      const a = await call(c, "gideon_check_transaction", { request: b64 });
+      const b = await call(c, "gideon_check_transaction", { request: `https://testnet.mynearwallet.com/sign?transactions=${encodeURIComponent(b64)}&callbackUrl=https%3A%2F%2Fevil.example` });
+      expect([a.structuredContent.verdict, b.structuredContent.verdict]).toEqual(["BLOCKED", "BLOCKED"]);
+      expect(b.structuredContent.network).toBe("testnet");
+    });
+    it("a well-known call is SAFE with no lookups; bad input is a plain error", async () => {
+      const c = await connect({ sources: sources({ viewAccount: down }) });
+      const r = await call(c, "gideon_check_transaction", { signer: "me.near", receiver: "wrap.near", network: "mainnet",
+        actions: [{ type: "FunctionCall", params: { methodName: "near_deposit", args: {}, gas: "30000000000000", deposit: "1000000000000000000000000" } }] });
+      expect(r.structuredContent.verdict).toBe("SAFE");
+      const e = await call(c, "gideon_check_transaction", { request: "https://example.com/hi" });
+      expect(e.isError).toBe(true);
+      expect(e.content[0].text).toMatch(/isn't a wallet sign/);
+      const n = await call(c, "gideon_check_transaction", {});
+      expect(n.isError).toBe(true);
+    });
   });
 });

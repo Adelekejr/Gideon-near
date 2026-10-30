@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { check, checkDrainer, explain, newReceiptKey, resolveNetwork, verifyReceipt, type CheckInput, type CheckResult, type Contact, type Destination } from "@gideon/core";
+import { check, checkDrainer, checkTransaction, explain, newReceiptKey, resolveNetwork, verifyReceipt, type CheckInput, type CheckResult, type Contact, type Destination, type TxCheckResult } from "@gideon/core";
 import { liveSources, nearAiExplainer, sourcesOptionsFromEnv } from "@gideon/sources";
 
 const HELP = `gideon — check a NEAR send before you make it
@@ -20,6 +20,15 @@ const HELP = `gideon — check a NEAR send before you make it
     --json                      print the full result JSON
     --no-drainer                skip the drained-wallet check (R18: recent senders that look
                                 hacked); otherwise it runs after the main check, up to 8 s
+  gideon check-tx <link|base64|json|-> [options]
+                                check a transaction or sign-in BEFORE you approve it in your
+                                wallet: a MyNearWallet or Meteor sign/login link, base64
+                                transaction(s), or wallet-selector JSON ("-" reads stdin)
+    --network testnet|mainnet   when the request doesn't say
+    --signer <account>          the account that would sign, if the request doesn't name it
+    --mine <a,b>                your own accounts (never "unseen")
+    --book <file.json>          address book, as above
+    --json                      print the full result JSON
   gideon keygen                 new receipt signing key (set GIDEON_RECEIPT_KEY)
   gideon verify-receipt <result.json>
 
@@ -39,6 +48,7 @@ async function main(argv: string[]): Promise<number> {
     console.log(`hash ${v.hashOk ? "OK" : "MISMATCH"}; signature ${v.signatureOk === null ? "not signed" : v.signatureOk ? "OK" : "INVALID"}`);
     return v.hashOk && v.signatureOk !== false ? 0 : 2;
   }
+  if (cmd === "check-tx") return checkTx(rest);
   if (cmd !== "check") { console.error(HELP); return 64; }
 
   const { values, positionals } = parseArgs({
@@ -76,6 +86,44 @@ async function main(argv: string[]): Promise<number> {
   if (values.json) console.log(JSON.stringify(r, null, 2));
   else await print(r);
   return r.verdict === "SAFE" ? 0 : r.verdict === "ATTENTION" ? 1 : 2;
+}
+
+async function checkTx(rest: string[]): Promise<number> {
+  const { values, positionals } = parseArgs({
+    args: rest, allowPositionals: true,
+    options: { network: { type: "string" }, signer: { type: "string" }, mine: { type: "string" }, book: { type: "string" }, json: { type: "boolean" } },
+  });
+  const arg = positionals[0];
+  if (arg === undefined) { console.error(HELP); return 64; }
+  const request = arg === "-" ? readFileSync(0, "utf8") : arg;
+  const net = values.network ?? process.env.GIDEON_NETWORK;
+  const r = await checkTransaction({
+    request,
+    ...(net ? { network: resolveNetwork(net) } : {}),
+    ...(values.signer ? { signerId: values.signer } : {}),
+    ...(values.mine ? { myAccounts: values.mine.split(",").map((x) => x.trim()).filter(Boolean) } : {}),
+    ...(values.book ? { addressBook: JSON.parse(readFileSync(values.book, "utf8")) as Contact[] } : {}),
+  }, liveSources(sourcesOptionsFromEnv(process.env)));
+  if (values.json) console.log(JSON.stringify(r, null, 2));
+  else printTx(r);
+  return r.verdict === "SAFE" ? 0 : r.verdict === "ATTENTION" ? 1 : 2;
+}
+
+function printTx(r: TxCheckResult) {
+  const col = r.verdict === "BLOCKED" ? C.r : r.verdict === "ATTENTION" ? C.y : C.g;
+  console.log(`\n${C.b}${col}${r.verdict}${C.x}  ${C.d}(${r.network}${r.signer ? `, signer ${r.signer}` : ""}${r.origin ? `, from ${r.origin}` : ""})${C.x}`);
+  if (r.headline) console.log(`${C.b}${r.headline.title}${C.x}${r.headline.detail ? `\n${r.headline.detail}` : ""}`);
+  for (const [i, s] of (r.headline?.fix ?? []).entries()) console.log(`  ${i + 1}. ${s}`);
+  console.log("");
+  for (const t of r.transactions) {
+    const acts = t.actions.map((a) => a.type === "FunctionCall" ? `${a.methodName}()` : a.type === "AddKey" ? `AddKey(${a.fullAccess ? "FULL ACCESS" : "function-call"})` : a.type);
+    console.log(` ${C.d}→${C.x} ${t.receiverId}: ${acts.join(", ") || "no actions"}${t.partial ? ` ${C.y}(not fully readable)${C.x}` : ""}`);
+  }
+  if (r.signIn) console.log(` ${C.d}→${C.x} sign-in asking for a full-access key${r.signIn.site ? ` (${r.signIn.site})` : ""}`);
+  for (const x of r.findings) {
+    console.log(` ${ICON[x.status]}${C.x} ${x.rule.padEnd(3)} ${x.title}${x.detail ? `${C.d} — ${x.detail}${C.x}` : ""}`);
+    for (const e of x.evidence ?? []) console.log(`       ${C.d}${e.label}: ${e.value}${C.x}`);
+  }
 }
 
 async function print(r: CheckResult) {

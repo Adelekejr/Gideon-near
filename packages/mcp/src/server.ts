@@ -2,8 +2,8 @@ import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import { readFileSync } from "node:fs";
 import {
-  check, checkDrainer, DrainerCache, explain, NETWORKS, resolveNetwork, verifyReceipt,
-  type CheckInput, type CheckResult, type Explainer, type Network, type Sources, type Verdict,
+  check, checkDrainer, checkTransaction, DrainerCache, explain, NETWORKS, resolveNetwork, verifyReceipt,
+  type CheckInput, type CheckResult, type Explainer, type Network, type Sources, type TxCheckResult, type Verdict,
 } from "@gideon/core";
 import { liveSources, nearAiExplainer, replaySources, sourcesOptionsFromEnv } from "@gideon/sources";
 
@@ -24,6 +24,7 @@ Before you send any NEAR or NEAR token, call gideon_check with the exact recipie
 - BLOCKED (agent_action DO_NOT_SEND): do not send. Report the reason and fix steps to the human.
 - ATTENTION (agent_action ASK_HUMAN): do not send on your own. Ask a human and wait for an explicit yes. A lookup that failed ("couldn't check") is ATTENTION, never safe.
 - SAFE (agent_action SEND): you may send, with exactly the details you checked. If anything changes, check again.
+Before you approve or sign any NEAR transaction or sign-in someone else built (a dApp, a link, another agent), call gideon_check_transaction with the sign link, the raw base64 transaction, or signer, receiver and actions. Same verdicts and agent_action; DO_NOT_SEND means do not sign.
 gideon_explain turns a result into plain words. gideon_flags lists community reports about an account; reports are not proof.`;
 
 /** Your own history (first send, lookalikes of past sends) is info-only: it never holds the answer longer than this. */
@@ -99,6 +100,32 @@ export function summarize(r: CheckResult) {
     fix: r.headline?.fix ?? [],
     couldnt_check: r.findings.filter((f) => f.status === "COULD_NOT_CHECK").map((f) => `${f.rule}: ${f.detail}`),
     receipt: r.receipt,
+    result: r as unknown as Record<string, unknown>,
+  };
+}
+
+const TX_INSTRUCTION: Record<Verdict, string> = {
+  SAFE: "SAFE: nothing risky found in this request. You may approve exactly this request; if it changes, check again.",
+  ATTENTION: "ATTENTION: do not approve or sign on your own. Ask a human, showing them the reasons below. \"Couldn't check\" is ATTENTION, never safe.",
+  BLOCKED: "BLOCKED: DO NOT SIGN. This request could hand over the account or its funds. Tell the human why; don't approve it.",
+};
+
+export function summarizeTx(r: TxCheckResult) {
+  const shown = r.findings.filter((f) => f.status !== "SKIPPED" && f.status !== "PASS");
+  return {
+    verdict: r.verdict,
+    agent_action: AGENT_ACTION[r.verdict],
+    agent_instruction: TX_INSTRUCTION[r.verdict],
+    network: r.network,
+    signer: r.signer ?? null,
+    headline: r.headline ? `${r.headline.title}${r.headline.detail ? " " + r.headline.detail : ""}` : null,
+    reasons: shown.map((f) => {
+      const link = f.evidence?.find((e) => e.url)?.url;
+      return { rule: f.rule, status: f.status, code: f.code, title: f.title, detail: f.detail, ...(link ? { link } : {}) };
+    }),
+    fix: r.headline?.fix ?? [],
+    couldnt_check: r.findings.filter((f) => f.status === "COULD_NOT_CHECK").map((f) => `${f.rule}: ${f.title}. ${f.detail}`),
+    transactions: r.transactions.map((t) => ({ signer: t.signerId ?? null, receiver: t.receiverId, actions: t.actions.map((a) => a.type === "FunctionCall" ? `FunctionCall ${a.methodName}` : a.type === "AddKey" ? `AddKey ${a.fullAccess ? "FullAccess" : "FunctionCall"}` : a.type), ...(t.partial ? { partial: true } : {}) })),
     result: r as unknown as Record<string, unknown>,
   };
 }
@@ -212,6 +239,64 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
     if (flags === null) return out("COULD_NOT_CHECK", `Couldn't check: the flag registry ${registry} isn't deployed on ${n}.`);
     if (!flags.length) return out("NO_FLAGS", `Nobody has flagged ${account} in ${registry}. That isn't proof it's safe.`);
     return out("FLAGGED", `${flags.length} ${flags.length === 1 ? "person has" : "people have"} flagged ${account}. Reports, not proof: ask a human before sending.`, flags);
+  });
+
+  const action = z.object({
+    type: z.string().describe("CreateAccount, DeployContract, FunctionCall, Transfer, Stake, AddKey, DeleteKey, DeleteAccount."),
+    params: z.record(z.string(), z.unknown()).optional().describe('Wallet-selector params, e.g. {"methodName":"ft_transfer","args":{"receiver_id":"x.near","amount":"1"},"gas":"30000000000000","deposit":"1"} or {"publicKey":"ed25519:…","accessKey":{"permission":"FullAccess"}}.'),
+  }).passthrough();
+  server.registerTool("gideon_check_transaction", {
+    title: "Check a NEAR transaction or sign-in before approving it",
+    description: "Run Gideon's checks on a NEAR transaction request before anyone signs it: full-access keys and full-access sign-ins (BLOCKED), brand-new or drainer-linked contracts, " +
+      "sending a whole token or NEAR balance to an account Gideon hasn't seen, and giving an unseen account control of an NFT. Pass `request` (a MyNearWallet or Meteor sign or login link, " +
+      "or base64 transactions, comma-separated), or `receiver` + `actions` (+ `signer`). Returns verdict and agent_action: SAFE→SEND, ATTENTION→ASK_HUMAN, BLOCKED→DO_NOT_SEND (do not sign). Read-only; never signs.",
+    inputSchema: z.object({
+      request: z.string().optional().describe("A wallet sign or sign-in link, raw base64 borsh transaction(s), or JSON transactions."),
+      signer: z.string().optional().describe("Account that would sign (wallet-selector signerId)."),
+      receiver: z.string().optional().describe("Contract or account the transaction goes to (receiverId)."),
+      actions: z.array(action).optional().describe("Wallet-selector actions."),
+      network,
+      my_accounts: z.array(z.string()).optional().describe("Your own accounts: never treated as unseen."),
+      address_book: checkFields.address_book,
+    }),
+    outputSchema: z.object({
+      verdict: z.enum(["SAFE", "ATTENTION", "BLOCKED"]),
+      agent_action: z.enum(["SEND", "ASK_HUMAN", "DO_NOT_SEND"]),
+      agent_instruction: z.string(),
+      network: z.enum(["testnet", "mainnet"]),
+      signer: z.string().nullable(),
+      headline: z.string().nullable(),
+      reasons: z.array(reason),
+      fix: z.array(z.string()),
+      couldnt_check: z.array(z.string()),
+      transactions: z.array(z.object({ signer: z.string().nullable(), receiver: z.string(), actions: z.array(z.string()), partial: z.boolean().optional() })),
+      result: z.record(z.string(), z.unknown()),
+    }),
+    annotations: hints,
+  }, async (a) => {
+    const request: string | object | undefined = a.request?.trim()
+      ? a.request
+      : a.receiver ? { ...(a.signer ? { signerId: a.signer } : {}), receiverId: a.receiver, actions: a.actions ?? [] } : undefined;
+    if (!request) return { isError: true, content: [{ type: "text", text: "Pass `request` (a sign link or base64 transaction), or `receiver` and `actions`." }] };
+    let r: TxCheckResult;
+    try {
+      r = await checkTransaction({
+        request,
+        ...(a.network || env.GIDEON_NETWORK ? { network: net(a.network) } : {}),
+        ...(a.signer ? { signerId: a.signer } : {}),
+        ...(a.my_accounts ? { myAccounts: a.my_accounts } : {}),
+        ...(a.address_book ? { addressBook: a.address_book } : {}),
+      }, sources, { now: deps.now, drainerCache: drainers, drainerTimeoutMs: DRAINER_MS });
+    } catch (e) {
+      return { isError: true, content: [{ type: "text", text: e instanceof Error ? e.message : String(e) }] };
+    }
+    const s = summarizeTx(r);
+    const lines = [`${s.verdict} → ${s.agent_action}`, s.agent_instruction, `Network: ${s.network}${s.signer ? `, signer ${s.signer}` : ""}`];
+    for (const t of s.transactions) lines.push(`Tx → ${t.receiver}: ${t.actions.join(", ") || "no actions"}${t.partial ? " (not fully readable)" : ""}`);
+    if (s.headline) lines.push(`Why: ${s.headline}`);
+    for (const x of s.reasons) lines.push(`- ${x.rule} ${x.status}: ${x.title}${x.link ? ` (${x.link})` : ""}`);
+    s.fix.forEach((f, i) => lines.push(`Fix ${i + 1}: ${f}`));
+    return { content: [{ type: "text", text: lines.join("\n") }], structuredContent: s };
   });
 
   return server;

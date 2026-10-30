@@ -1,7 +1,7 @@
-import { check, checkDrainer, DrainerCache, drainerWanted, type CheckResult } from "@gideon/core";
+import { check, checkDrainer, checkTransaction, DrainerCache, drainerWanted, type CheckResult, type TxCheckResult } from "@gideon/core";
 import { liveSources } from "@gideon/sources";
 import { load, type LastCheck } from "./lib/settings.js";
-import type { CheckRequest, CheckResponse, DrainerRequest, DrainerResponse, NetUsed } from "./lib/messages.js";
+import type { CheckRequest, CheckResponse, DrainerRequest, DrainerResponse, NetUsed, TxRequestMsg, TxResponse } from "./lib/messages.js";
 import { resolveNetwork, walletNetworkHint } from "./lib/resolve.js";
 import { titleOf } from "./lib/view.js";
 import { cachedSources, TtlCache } from "./lib/cache.js";
@@ -101,6 +101,31 @@ chrome.runtime.onMessage.addListener((msg: CheckRequest, _sender, reply: (r: Che
   if (msg?.type !== "gideon:check") return false;
   runRequest(msg)
     .then(({ result, net, sender }) => reply({ ok: true, result, net, ...(sender ? { sender } : {}) }))
+    .catch((e: unknown) => reply({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+  return true; // async reply
+});
+
+/**
+ * A wallet's transaction request, read from its approval screen or address. Your accounts,
+ * contacts and sends on this device are never "unseen". Not counted in the popup's send stats.
+ */
+export async function runTx(req: TxRequestMsg): Promise<TxCheckResult> {
+  const { contacts, myAccounts, sends } = await load();
+  return checkTransaction({
+    request: req.request,
+    ...(req.network ? { network: req.network } : {}),
+    ...(req.signerId ? { signerId: req.signerId } : {}),
+    ...(req.origin ? { origin: req.origin } : {}),
+    myAccounts,
+    addressBook: contacts,
+    deviceSends: sends.map((s) => s.to),
+  }, sources, { sourceTimeoutMs: LIMITS.sourceMs, drainerTimeoutMs: LIMITS.drainerMs, drainerCache: drainers });
+}
+
+chrome.runtime.onMessage.addListener((msg: TxRequestMsg, _sender, reply: (r: TxResponse) => void) => {
+  if (msg?.type !== "gideon:tx") return false;
+  runTx(msg)
+    .then((result) => reply({ ok: true, result }))
     .catch((e: unknown) => reply({ ok: false, error: e instanceof Error ? e.message : String(e) }));
   return true; // async reply
 });

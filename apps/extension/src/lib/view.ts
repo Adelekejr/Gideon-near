@@ -1,4 +1,4 @@
-import type { CheckResult, Finding } from "@gideon/core";
+import type { CheckResult, Finding, TxCheckResult } from "@gideon/core";
 
 export type Tone = "block" | "warn" | "safe" | "idle";
 
@@ -161,4 +161,34 @@ export function tamperCard(selected: string, written: string): string {
 <div class="gr">You selected one address, but the page put a different one on your clipboard. Don't paste it.</div>
 <div class="gf"><b>selected →</b> ${esc(short(selected))}<br><b>clipboard →</b> ${esc(short(written))}</div>
 <div class="gacts"><button data-act="dismiss" class="g">Dismiss</button></div></div></div>`;
+}
+
+/** The approved footer on every transaction card. */
+export const TX_FOOTER = "Gideon only read this request from the page. It never touches your keys.";
+
+/**
+ * The card for a transaction request on a wallet's approval screen: same design as the send card
+ * (head, reason, found →, fix →, network →, Details), with the footer saying where it was read.
+ */
+export function txCard(r: TxCheckResult, o: { net?: { network: string; why: string }; actions?: string } = {}): string {
+  const tone: Tone = r.verdict === "BLOCKED" ? "block" : r.verdict === "SAFE" ? "safe" : "warn";
+  const h = r.headline;
+  const chip = r.verdict === "BLOCKED" ? "STOPPED" : r.verdict === "SAFE" ? "LOOKS RIGHT" : h?.status === "COULD_NOT_CHECK" ? "COULDN’T CHECK" : "LOOK AGAIN";
+  const fix = h?.fix?.[0];
+  const shown = r.findings.filter((f) => f.status !== "SKIPPED");
+  // Every other warning in the request, under the headline.
+  const more = shown.filter((f) => !(h && f.rule === h.rule && f.title === h.title) && (f.status === "BLOCKED" || f.status === "ATTENTION" || f.status === "COULD_NOT_CHECK"));
+  return `<div class="gw t-${tone}" role="alert">
+${head(tone, chip, h?.title ?? "")}
+<div class="gb">
+${h?.detail ? `<div class="gr">${esc(h.detail)}</div>` : ""}
+${h ? findingLine(h) : ""}
+${fix ? `<div class="gf"><b>fix →</b> ${esc(fix)}</div>` : ""}
+${more.map((f) => `<div class="gr">${esc(f.title)}${f.detail ? ` ${esc(f.detail)}` : ""}</div>${findingLine(f)}`).join("\n")}
+${o.net ? netLine(o.net) : ""}
+<div class="gn">${esc(TX_FOOTER)}</div>
+<details class="more"><summary>Details · ${shown.length} checks${o.net ? ` · ${esc(o.net.network)}` : ""} · ${r.ms} ms</summary><ul class="fl">${shown
+    .map((f) => `<li class="s-${f.status.toLowerCase()}"><i>${MARK[f.status]}</i><span><b>${esc(f.rule)}</b> ${esc(f.title)}</span></li>`).join("")}</ul></details>
+${o.actions ? `<div class="gacts">${o.actions}</div>` : ""}
+</div></div>`;
 }

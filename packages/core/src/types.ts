@@ -7,7 +7,9 @@ export type Status = "BLOCKED" | "ATTENTION" | "PASS" | "COULD_NOT_CHECK" | "SKI
 export type Verdict = "BLOCKED" | "ATTENTION" | "SAFE";
 
 export type RuleId =
-  | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12" | "R13" | "R14" | "R15" | "R16" | "R17" | "R18";
+  | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12" | "R13" | "R14" | "R15" | "R16" | "R17" | "R18"
+  /** Transaction checks (checkTransaction): full access, new or drainer-linked contract, whole balance, NFT control. */
+  | "T1" | "T2" | "T3" | "T4";
 
 export type Destination = "wallet" | "exchange" | "intents" | "unknown";
 
@@ -303,6 +305,12 @@ export interface Sources {
    * Optional (R18): transactions the account signed at or before this block height, newest first.
    */
   signedTxsUpTo?(network: Network, accountId: string, blockHeight: number, limit: number): Promise<ChainTx[]>;
+  /** Optional (T2, transaction check): how many transactions the account has in total (as signer or receiver). */
+  txCount?(network: Network, accountId: string): Promise<number>;
+  /** Optional (T3): `ft_balance_of` on the token contract, as a raw integer string. null = no such token contract. */
+  ftBalance?(network: Network, contract: string, accountId: string): Promise<string | null>;
+  /** Optional (T4): `nft_token` on the collection. null = no such token. */
+  nftToken?(network: Network, contract: string, tokenId: string): Promise<{ title?: string; ownerId?: string } | null>;
 }
 
 /** One action of a NEAR transaction, as much as R18 needs. */

@@ -30,6 +30,20 @@ Work began 29 Oct 2026.
 
 All the examples above are real cases in [`demo/cases.json`](demo/cases.json).
 
+**Before you approve a transaction** (0.2.8: extension, MCP tool `gideon_check_transaction`,
+CLI `gideon check-tx`). Gideon decodes the unsigned request a dApp hands your wallet and looks for
+four things:
+
+| Request | Example (checked live) | Verdict |
+| --- | --- | --- |
+| A full-access key (AddKey with full access, or a full-access sign-in) | the testnet demo link from `scripts/demo-tx-link.mjs` | BLOCKED (T1) |
+| A call to a contract created under 30 days ago with little history, or linked to accounts that drained other wallets | `lifeguard-mvux5mng.testnet` | ATTENTION (T2) |
+| A send of your whole token or NEAR balance to an account you haven't sent to | 99% of a testnet balance to an unseen account; a whole USDT balance on mainnet | ATTENTION (T3) |
+| An approval that lets another account move your NFT | `nft_approve` on `x.paras.near` | ATTENTION (T4) |
+
+Well-known contracts (`wrap.near`, `game.hot.tg`, `token.sweat`, `app.nearcrowd.near`) check SAFE.
+A request Gideon can't fully decode is "couldn't check", never safe. Nothing is ever signed.
+
 ![Gideon blocks an account that doesn't exist on NEAR testnet](shots/desktop-check-blocked-nonexistent.png)
 
 ## Quickstart
@@ -46,6 +60,10 @@ npm run verify -- --live    # the same 8 cases against the live, free APIs
 npm run gideon -- check guest-book.testnet --amount 1
 npm run gideon -- check 89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944 \
   --network mainnet --dest exchange --exchange binance --json
+
+# check a transaction before you approve it: a wallet sign link, base64, or JSON
+npm run gideon -- check-tx "https://testnet.mynearwallet.com/sign?transactions=…" --mine you.testnet
+node scripts/demo-tx-link.mjs you.testnet   # prints an UNSIGNED testnet demo link, then checks it
 
 # the website, on http://localhost:5173
 npm run dev:web
@@ -152,6 +170,13 @@ What it does:
   result: vermilion only for STOPPED, amber for "look again"
   and "couldn't check", green for "looks right". On STOPPED it holds the page's
   Send / Withdraw button until you clear the field or choose **Send anyway**.
+- **On a wallet's approval screen** (0.2.8), it reads the NEAR request and shows
+  the card at the top before you approve: full-access keys, brand-new contracts,
+  whole-balance sends and NFT approvals (see "Before you approve a transaction").
+  It reads MyNearWallet and Meteor sign links in the page address, and Meteor's
+  "Approve Transaction(s)" screen. It never clicks or holds Approve. Tested on the
+  MyNearWallet testnet sign link and a local Meteor reconstruction
+  (`apps/extension/test-page/meteor-approve.html`), not yet on the live Meteor wallet.
 - **Clipboard check (R9).** It remembers what you copied on the page and
   compares it with what you paste. If a page script swaps the address while
   you copy, it warns at once.
@@ -288,6 +313,7 @@ about to pay someone can ask Gideon first.
 | --- | --- |
 | `gideon_check` | `recipient`, `network`, and optionally `amount`, `token`, `token_contract`, `destination`, `exchange`, `sender`, `address_book`. Returns `verdict`, `agent_action`, `reasons`, `fix` steps, `couldnt_check`, a sha256 receipt (ed25519-signed if `GIDEON_RECEIPT_KEY` is set) and the full result, as text and as structured output. |
 | `gideon_explain` | Plain-language explanation of a verdict. Pass a `gideon_check` result (its receipt is verified first; an edited result is refused) or the same fields as `gideon_check`. Uses the NEAR AI adapter only if `NEARAI_API_KEY` is set; otherwise built-in text. It never changes the verdict. |
+| `gideon_check_transaction` | Before an agent approves or signs a NEAR transaction or sign-in someone else built: `request` (a wallet sign link or base64 transaction) or `signer`, `receiver`, `actions`, plus `network`, `my_accounts`, `address_book`. Same `verdict` and `agent_action`; `DO_NOT_SEND` means don't sign. Returns the decoded transactions, reasons, fix and `couldnt_check`. |
 | `gideon_flags` | Community flags for an account from the flag registry (R10). With no registry set it says `COULD_NOT_CHECK`, never "no flags". |
 
 The rule for agents. The server also sends this to the host as its instructions:
@@ -522,6 +548,17 @@ The website deploys as a static site; `vercel.json` builds it with
   It was tested in Playwright's Chromium on a
   local test page, not yet on real wallet or exchange sites, whose fields may
   be labelled in ways it doesn't recognise.
+- **The approval check reads what the wallet shows.** On MyNearWallet and Meteor
+  sign links the whole request is in the address and is decoded exactly. In
+  Meteor's pop-up flow it is not, so Gideon reads the screen: the From / To
+  accounts and Meteor's full-access wording, which covers the full-access and
+  contract checks only, not whole-balance sends or NFT approvals. That screen
+  reading follows Meteor's public app code and hasn't been tried on the live
+  wallet. The card doesn't hold Approve, and shows nothing if the check itself
+  fails. On testnet, a contract the indexer hasn't reached yet (it lags about a
+  month) can only be dated up to 7 days old, so one 7–30 days old isn't flagged.
+  MyNearWallet's testnet site now tells visitors to use Meteor and doesn't
+  approve the request itself; the extension still reads its sign link.
 - **The extension only knows the address.** It doesn't read the token,
   amount or destination from the page, so on-page checks run as "NEAR to an
   unknown destination". Token and exchange checks (R5, R6, R8) need the popup,
@@ -531,8 +568,8 @@ The website deploys as a static site; `vercel.json` builds it with
   stop a send as "wrong network"; on wallets that show neither, it never blocks
   on a guess.
 - **The content script runs on every http(s) page** so it can work on any
-  wallet or exchange. It acts only on recipient-looking fields and
-  address-shaped values, and sends only that value (plus, in Auto network
+  wallet or exchange. It acts only on recipient-looking fields,
+  address-shaped values and wallet approval requests, and sends only that value (plus, in Auto network
   mode, the network it read from the page and the account it read it from) to
   the extension's own background worker, which calls the free APIs. Nothing goes to a Gideon server.
 - **The clipboard check (R9) only sees copies made on the same page**, while

@@ -14,3 +14,6 @@ export { yoctoToNear, fmtDate } from "./context.js";
 export { withTimeout, TimeoutError } from "./time.js";
 export { disguisedAs, type Disguise } from "./rules/r17-disguised-name.js";
 export { drainerCheck, drainerPrecheck, drainerWanted, drainedBy, withDrainer, checkDrainer, drainerInputOf, drainerShown, verdictFinding, DrainerCache, DRAINER_DEFAULTS, type DrainerInput, type DrainerOptions, type DrainedSender } from "./drainer.js";
+export { decodeTransaction, decodeTransactions, encodeTransaction, base58, fromBase64, toBase64, type TxAction, type TxRequest } from "./tx/decode.js";
+export { parseTxRequest, parseWalletUrl, parseJsonTransactions, type ParsedRequest } from "./tx/input.js";
+export { checkTransaction, wellKnown, daysText, NEW_CONTRACT_DAYS, LOW_HISTORY_TXS, WHOLE_BALANCE_SHARE, type TxCheckInput, type TxCheckOptions, type TxCheckResult } from "./tx/check.js";
