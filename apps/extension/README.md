@@ -8,7 +8,7 @@ engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 ```bash
 npm install
 npm run build:extension      # → apps/extension/dist
-npm run zip:extension        # → apps/extension/gideon-extension-0.2.8.zip
+npm run zip:extension        # → apps/extension/gideon-extension-0.2.9.zip
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
@@ -38,6 +38,18 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 Tests are in `test/` and run with the root `npm test`.
 
 What the extension reads, keeps and sends: [PRIVACY.md](PRIVACY.md).
+
+## What changed in 0.2.9
+
+- **Check my account.** A new popup section, read-only: type your account (it starts with the
+  first of "Your accounts") and Gideon lists who can act for it from public key data, with the
+  same card as a send check: DANGER when a full control key looks like someone else's
+  (added recently by another key, or it removed the other keys or sent the funds out soon after
+  it was added), LOOK AGAIN for app keys with no limits or unused for months, CLEAN otherwise.
+  "Remove key in my wallet" shows the confirmation, then links that open Meteor (and
+  MyNearWallet on mainnet) with an unsigned DeleteKey; the wallet signs, never Gideon. The
+  probable wallet key's links stay off until you tick its warning, and the only full control key
+  is never offered. No new permissions or hosts.
 
 ## What changed in 0.2.8
 

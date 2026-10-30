@@ -1,7 +1,7 @@
-import { check, checkDrainer, checkTransaction, DrainerCache, drainerWanted, type CheckResult, type TxCheckResult } from "@gideon/core";
+import { accountHealth, check, checkDrainer, checkTransaction, DrainerCache, drainerWanted, type CheckResult, type TxCheckResult } from "@gideon/core";
 import { liveSources } from "@gideon/sources";
 import { load, type LastCheck } from "./lib/settings.js";
-import type { CheckRequest, CheckResponse, DrainerRequest, DrainerResponse, NetUsed, TxRequestMsg, TxResponse } from "./lib/messages.js";
+import type { CheckRequest, CheckResponse, DrainerRequest, DrainerResponse, HealthRequestMsg, HealthResponse, NetUsed, TxRequestMsg, TxResponse } from "./lib/messages.js";
 import { resolveNetwork, walletNetworkHint } from "./lib/resolve.js";
 import { titleOf } from "./lib/view.js";
 import { cachedSources, TtlCache } from "./lib/cache.js";
@@ -125,6 +125,18 @@ export async function runTx(req: TxRequestMsg): Promise<TxCheckResult> {
 chrome.runtime.onMessage.addListener((msg: TxRequestMsg, _sender, reply: (r: TxResponse) => void) => {
   if (msg?.type !== "gideon:tx") return false;
   runTx(msg)
+    .then((result) => reply({ ok: true, result }))
+    .catch((e: unknown) => reply({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+  return true; // async reply
+});
+
+/**
+ * "Check my account" (popup): who can act for an account, from public key data. Read-only:
+ * it never builds or sends a transaction here; the popup only builds links to the wallet.
+ */
+chrome.runtime.onMessage.addListener((msg: HealthRequestMsg, _sender, reply: (r: HealthResponse) => void) => {
+  if (msg?.type !== "gideon:health") return false;
+  accountHealth({ account: msg.account, network: msg.network }, sources, { sourceTimeoutMs: LIMITS.healthSourceMs, drainerCache: drainers })
     .then((result) => reply({ ok: true, result }))
     .catch((e: unknown) => reply({ ok: false, error: e instanceof Error ? e.message : String(e) }));
   return true; // async reply

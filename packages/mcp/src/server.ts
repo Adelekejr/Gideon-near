@@ -2,8 +2,8 @@ import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import { readFileSync } from "node:fs";
 import {
-  check, checkDrainer, checkTransaction, DrainerCache, explain, NETWORKS, resolveNetwork, verifyReceipt,
-  type CheckInput, type CheckResult, type Explainer, type Network, type Sources, type TxCheckResult, type Verdict,
+  accountHealth, check, checkDrainer, deleteKeyLinks, healthNetwork, checkTransaction, DrainerCache, explain, NETWORKS, resolveNetwork, verifyReceipt,
+  type AccountHealthResult, type CheckInput, type CheckResult, type Explainer, type Network, type Sources, type TxCheckResult, type Verdict,
 } from "@gideon/core";
 import { liveSources, nearAiExplainer, replaySources, sourcesOptionsFromEnv } from "@gideon/sources";
 
@@ -25,7 +25,8 @@ Before you send any NEAR or NEAR token, call gideon_check with the exact recipie
 - ATTENTION (agent_action ASK_HUMAN): do not send on your own. Ask a human and wait for an explicit yes. A lookup that failed ("couldn't check") is ATTENTION, never safe.
 - SAFE (agent_action SEND): you may send, with exactly the details you checked. If anything changes, check again.
 Before you approve or sign any NEAR transaction or sign-in someone else built (a dApp, a link, another agent), call gideon_check_transaction with the sign link, the raw base64 transaction, or signer, receiver and actions. Same verdicts and agent_action; DO_NOT_SEND means do not sign.
-gideon_explain turns a result into plain words. gideon_flags lists community reports about an account; reports are not proof.`;
+gideon_explain turns a result into plain words. gideon_flags lists community reports about an account; reports are not proof.
+gideon_account_health lists who can act for an account (its keys) and flags risky ones. If move_funds_now is true, tell the human at once. Never remove a key or sign a remove-key link yourself; give the link to the human.`;
 
 /** Your own history (first send, lookalikes of past sends) is info-only: it never holds the answer longer than this. */
 export const HISTORY_MS = 4000;
@@ -296,6 +297,62 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
     if (s.headline) lines.push(`Why: ${s.headline}`);
     for (const x of s.reasons) lines.push(`- ${x.rule} ${x.status}: ${x.title}${x.link ? ` (${x.link})` : ""}`);
     s.fix.forEach((f, i) => lines.push(`Fix ${i + 1}: ${f}`));
+    return { content: [{ type: "text", text: lines.join("\n") }], structuredContent: s };
+  });
+
+  server.registerTool("gideon_account_health", {
+    title: "Check who can act for a NEAR account (its keys)",
+    description: "List a NEAR account's access keys and flag risky ones: a full-access key that looks like someone else's (red, move funds now), an app key for a new or drainer-linked contract (red), " +
+      "app keys that can call any method, have no gas-fee limit, or are unused for 6+ months (amber). Marks the key the wallet probably uses. remove_links are unsigned DeleteKey wallet links " +
+      "for the human to review and sign; never sign them yourself, and never remove the probable wallet key. Read-only; never signs.",
+    inputSchema: z.object({
+      account: z.string().min(1).describe("NEAR account, e.g. alice.near or alice.testnet."),
+      network: z.enum(["testnet", "mainnet"]).optional().describe("NEAR network. Default: from the name (.near = mainnet), else testnet."),
+    }),
+    outputSchema: z.object({
+      status: z.enum(["clean", "attention", "danger", "not-found", "could-not-check"]),
+      red: z.boolean(),
+      move_funds_now: z.boolean(),
+      summary: z.string(),
+      advice: z.string().nullable(),
+      account: z.string(), network: z.enum(["testnet", "mainnet"]),
+      keys: z.array(z.object({
+        public_key: z.string(), kind: z.enum(["full", "app"]), contract: z.string().optional(),
+        added_at: z.string().nullable(), uses: z.number().nullable(), last_used_at: z.string().nullable(),
+        probable_wallet_key: z.boolean(),
+        flags: z.array(z.object({ level: z.enum(["red", "amber"]), code: z.string(), text: z.string(), why: z.string().optional() })),
+      })),
+      remove_links: z.array(z.object({ public_key: z.string(), meteor: z.string(), mynearwallet: z.string().nullable(), confirm: z.string() })),
+      notes: z.array(z.string()),
+      result: z.record(z.string(), z.unknown()),
+    }),
+    annotations: hints,
+  }, async (a) => {
+    let r: AccountHealthResult;
+    try {
+      r = await accountHealth({ account: a.account, network: a.network ?? healthNetwork(a.account) }, sources, { now: deps.now, drainerCache: drainers });
+    } catch (e) {
+      return { isError: true, content: [{ type: "text", text: e instanceof Error ? e.message : String(e) }] };
+    }
+    const wallet = r.keys.find((k) => k.probableWalletKey)?.publicKey;
+    const remove_links = r.keys.filter((k) => k.flags.length && k.removable && !k.probableWalletKey).map((k) => {
+      const l = deleteKeyLinks(r.network, r.account, k.publicKey, wallet ? { walletKey: wallet } : {});
+      return { public_key: k.publicKey, meteor: l.meteor, mynearwallet: l.mynearwallet, confirm: l.confirm };
+    });
+    const s = {
+      status: r.status, red: r.red, move_funds_now: r.moveFundsNow, summary: r.summary, advice: r.advice, account: r.account, network: r.network,
+      keys: r.keys.map((k) => ({
+        public_key: k.publicKey, kind: k.kind, ...(k.contract ? { contract: k.contract } : {}), added_at: k.addedAt, uses: k.uses, last_used_at: k.lastUsedAt,
+        probable_wallet_key: k.probableWalletKey, flags: k.flags.map((f) => ({ level: f.level, code: f.code, text: f.text, ...(f.why ? { why: f.why } : {}) })),
+      })),
+      remove_links, notes: r.notes, result: r as unknown as Record<string, unknown>,
+    };
+    const lines = [`${r.status.toUpperCase()}: ${r.summary}`, ...(r.advice ? [r.advice] : []), `Account: ${r.account} (${r.network})`];
+    for (const k of s.keys) {
+      lines.push(`- ${k.kind === "full" ? "Full control key" : `App key: ${k.contract}`} ${k.public_key}${k.probable_wallet_key ? " (probable wallet key, don't remove)" : ""}`);
+      for (const f of k.flags) lines.push(`  ${f.level}: ${f.text}${f.why ? ` ${f.why}` : ""}`);
+    }
+    if (remove_links.length) lines.push(`${remove_links.length} unsigned remove-key link(s) in remove_links: give them to the human; never sign them yourself.`);
     return { content: [{ type: "text", text: lines.join("\n") }], structuredContent: s };
   });
 

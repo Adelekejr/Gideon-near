@@ -44,6 +44,22 @@ four things:
 Well-known contracts (`wrap.near`, `game.hot.tg`, `token.sweat`, `app.nearcrowd.near`) check SAFE.
 A request Gideon can't fully decode is "couldn't check", never safe. Nothing is ever signed.
 
+**Account health: who can act for your account** (0.2.9: website `keys.html`, extension popup
+"Check my account", MCP tool `gideon_account_health`, CLI `gideon keys`). Gideon lists the
+account's keys from public data and marks the ones to look at:
+
+| Key | Example (checked live) | Level |
+| --- | --- | --- |
+| A full control key added recently by another key of the account, or one that removed the other full control keys or sent the funds out soon after it was added | `chvlryx.near` (one key removed 71 others within an hour), `kaifojor.near` (funds out 1 and 6 min after two keys were added) | red: "Move your funds now" |
+| An app key for a contract that is new (under 30 days, little history) or linked to accounts that drained other wallets | | red |
+| An app key that can call any method, has no gas-fee limit, or hasn't been used for 6 months | `illia.near`, `adelekejr.near` | amber |
+
+It marks the probable wallet key (the unflagged full control key used most recently or most often) and
+warns before you remove it. "Remove key in my wallet" builds an unsigned DeleteKey and opens it
+in Meteor (and MyNearWallet on mainnet); your wallet signs, never Gideon. The only full control
+key is never offered for removal. Old keys with no indexer record read "Added: unknown"; a key's
+add date comes from the indexer, the account's history, or the block in the key's nonce.
+
 ![Gideon blocks an account that doesn't exist on NEAR testnet](shots/desktop-check-blocked-nonexistent.png)
 
 ## Quickstart
@@ -65,13 +81,17 @@ npm run gideon -- check 89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418
 npm run gideon -- check-tx "https://testnet.mynearwallet.com/sign?transactions=…" --mine you.testnet
 node scripts/demo-tx-link.mjs you.testnet   # prints an UNSIGNED testnet demo link, then checks it
 
+# account health: who can act for an account (exits 2 on a red flag)
+npm run gideon -- keys you.near --links
+node scripts/demo-delete-key-link.mjs you.testnet   # an UNSIGNED DeleteKey link for an app key
+
 # the website, on http://localhost:5173
 npm run dev:web
 npm run build:web           # static build in apps/web/dist
 
 # the Chrome extension
 npm run build:extension     # unpacked build in apps/extension/dist
-npm run zip:extension       # apps/extension/gideon-extension-0.2.8.zip
+npm run zip:extension       # apps/extension/gideon-extension-0.2.9.zip
 npm run zip:firefox -w @gideon/extension   # Firefox / Firefox for Android build (see "Phones")
 
 # the MCP server for AI agents (see "AI agents (MCP server)")
@@ -158,7 +178,7 @@ Gideon is not on the Chrome Web Store. Install it from this repo:
 4. Pin Gideon from the puzzle-piece menu. It starts on **testnet**; switch to
    mainnet in the popup.
 
-`npm run zip:extension` also writes `apps/extension/gideon-extension-0.2.8.zip`.
+`npm run zip:extension` also writes `apps/extension/gideon-extension-0.2.9.zip`.
 To install from the zip, unzip it and load that folder the same way. Works in
 Chrome 111+ and other Chromium browsers (Edge, Brave, Arc).
 
@@ -218,12 +238,12 @@ linked below.
 
 Build the files on a computer and copy them to the phone:
 
-- `npm run zip:extension`: `apps/extension/gideon-extension-0.2.8.zip` (Chromium browsers)
-- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.2.8.zip` (Firefox)
+- `npm run zip:extension`: `apps/extension/gideon-extension-0.2.9.zip` (Chromium browsers)
+- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.2.9.zip` (Firefox)
 
 **Mises Browser** (Chromium). Menu → **Extensions** → turn on
 **Developer mode** → **+ (from .zip/.crx/.user.js)** → pick
-`gideon-extension-0.2.8.zip`. Keep it zipped. Mises unpacks it into its cache,
+`gideon-extension-0.2.9.zip`. Keep it zipped. Mises unpacks it into its cache,
 so clearing the browser's cache or data removes it; install again if so.
 After installing a new version, reload any wallet tab that was already open
 (otherwise its card says "Gideon was updated. Reload this page to keep checking.").
@@ -236,7 +256,7 @@ After installing a new version, reload any wallet tab that was already open
 sideloaded extensions (fixed in 1.8.2).
 
 **Yandex Browser.** Officially it installs from the Chrome Web Store and
-Opera add-ons. For testing: unzip `gideon-extension-0.2.8.zip` into a phone
+Opera add-ons. For testing: unzip `gideon-extension-0.2.9.zip` into a phone
 folder, open `browser://extensions`, turn on **Developer mode**, tap **Load
 unpacked extension** and pick `manifest.json` in that folder. Users reported
 in 2020 that newer builds stopped loading unpacked extensions, so this may not
@@ -319,6 +339,7 @@ about to pay someone can ask Gideon first.
 | `gideon_check` | `recipient`, `network`, and optionally `amount`, `token`, `token_contract`, `destination`, `exchange`, `sender`, `address_book`. Returns `verdict`, `agent_action`, `reasons`, `fix` steps, `couldnt_check`, a sha256 receipt (ed25519-signed if `GIDEON_RECEIPT_KEY` is set) and the full result, as text and as structured output. |
 | `gideon_explain` | Plain-language explanation of a verdict. Pass a `gideon_check` result (its receipt is verified first; an edited result is refused) or the same fields as `gideon_check`. Uses the NEAR AI adapter only if `NEARAI_API_KEY` is set; otherwise built-in text. It never changes the verdict. |
 | `gideon_check_transaction` | Before an agent approves or signs a NEAR transaction or sign-in someone else built: `request` (a wallet sign link or base64 transaction) or `signer`, `receiver`, `actions`, plus `network`, `my_accounts`, `address_book`. Same `verdict` and `agent_action`; `DO_NOT_SEND` means don't sign. Returns the decoded transactions, reasons, fix and `couldnt_check`. |
+| `gideon_account_health` | Who can act for an account: `account`, optional `network` (from the name otherwise). Returns `status` (`clean`, `attention`, `danger`, `not-found`, `could-not-check`), `red`, `move_funds_now`, `summary`, `advice`, every key with its flags, the probable wallet key, and `remove_links` (unsigned Meteor / MyNearWallet DeleteKey links for flagged keys). The agent never removes a key or signs: it gives the links to the human. |
 | `gideon_flags` | Community flags for an account from the flag registry (R10). With no registry set it says `COULD_NOT_CHECK`, never "no flags". |
 
 The rule for agents. The server also sends this to the host as its instructions:
@@ -542,6 +563,12 @@ The website deploys as a static site; `vercel.json` builds it with
   credit native NEAR only") is confirmed from a public source. Per-exchange
   entries are marked unverified, and R8 never blocks on them.
 - **Intents checks are mainnet only**, because 1Click has no testnet.
+- **Account health is a guess about keys, not proof.** Gideon can't know which keys are yours.
+  "Probable wallet key" is the full control key used most recently or most often; on an account
+  someone else took over it may be theirs. Many old keys have no add record ("Added: unknown"),
+  and a key's add date read from its nonce is the block when it was last added. A red flag needs
+  a recent add by another key, or a removal of the other keys or a send out soon after the add, so a
+  new account's keys and keys you added long ago are not red.
 - **The MCP server trusts the agent to follow its rule.** It returns
   `DO_NOT_SEND` or `ASK_HUMAN`; it can't stop an agent that ignores them.
   It was tested with the MCP client SDK and the scripted demo, not yet inside

@@ -1,6 +1,6 @@
 # Gideon extension: what it reads, keeps and sends
 
-This file describes the code in this folder (`src/`, `manifest.json`) as of version 0.2.8.
+This file describes the code in this folder (`src/`, `manifest.json`) as of version 0.2.9.
 If the code and this file ever disagree, that's a bug: please report it.
 
 ## Short version
@@ -75,6 +75,11 @@ The content script runs on web pages and reacts to four things:
    from the page. It never touches your keys." Nothing from it is stored, and the check is not
    counted in your stats.
 
+5. **The account you type into "Check my account"** in the popup (new in 0.2.9). Only that name.
+   It is not stored (the field is filled from "Your accounts", which you already keep). The answer
+   is shown in the popup and not kept. "Remove key in my wallet" builds an unsigned request in the
+   popup and opens your wallet's own page with it; Gideon never signs or sends it.
+
 Gideon can't see copies made in other apps or tabs, or what an app outside the browser does to
 your clipboard. It only knows what you copied on the same page.
 
@@ -90,6 +95,7 @@ API keys are attached, and the page's address is not included.
 | `tx.main.fastnear.com`, `tx.test.fastnear.com` and the NEAR RPC hosts above | Drained-wallet check (R18), when the recipient is a NEAR account that isn't yours, a contact or a known exchange | The **recipient account**, to list who recently sent it NEAR (its last 40 incoming transactions); then the **account names of up to 5 of those senders at a time**, to read their current balance and, only for senders left nearly empty, their transactions up to that send. Nothing about you is sent. |
 | `api.nearblocks.io`, `api-testnet.nearblocks.io` | Account age, first-send and pasted-hash checks | The recipient; **your account name together with the recipient** (count of past sends between them); a pasted NEAR transaction hash. |
 | NEAR RPC hosts, `tx.main.fastnear.com`, `tx.test.fastnear.com`, `api.nearblocks.io`, `api-testnet.nearblocks.io` | Transaction approval check | The **account names in the request**: the contract it calls (does it exist, when was it created, how many transactions, the drained-wallet check above); for a send, the recipient and **your account name** (your balance of that token, have you sent to them before); for an NFT approval, the NFT contract and token id. Not the request, not the page address. |
+| `api.nearblocks.io`, `api-testnet.nearblocks.io`, NEAR RPC hosts (with `archival-rpc.*`), `tx.main.fastnear.com`, `tx.test.fastnear.com` | "Check my account" | **The account you typed**: its access keys (public keys only), when they were added, its recent transactions signed by it, and the time of a few blocks. For app keys, the contract each key may call (age, history, the drained-wallet check above). |
 | `1click.chaindefuser.com` | When the recipient looks like a NEAR Intents deposit address | That deposit address. |
 | `api.trongrid.io`, `ethereum-rpc.publicnode.com`, `mempool.space` | When what was pasted into a recipient field looks like a transaction hash from another chain | That hash. |
 

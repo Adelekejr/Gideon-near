@@ -1,4 +1,4 @@
-import type { AccountCreation, NearTx, Network, Transfer } from "@gideon/core";
+import type { AccountCreation, KeyRecord, NearTx, Network, Transfer } from "@gideon/core";
 import { NETWORKS } from "@gideon/core";
 import { json, request, SourceError, type HttpOptions } from "./http.js";
 
@@ -64,6 +64,21 @@ export class NearBlocks {
     const ns = row?.created?.block_timestamp;
     const ms = ns == null ? NaN : Math.round(Number(ns) / 1e6);
     return { createdMs: Number.isFinite(ms) && ms > 0 ? ms : null, indexed: !!row?.account_id, indexedHeight };
+  }
+
+  /** Account health: the account's keys (current and removed), newest first, with the add and remove transactions. */
+  async accountKeys(network: Network, accountId: string): Promise<KeyRecord[]> {
+    type Row = { public_key?: string; permission_kind?: string; created?: { transaction_hash?: string | null; block_timestamp?: number | string | null }; deleted?: { transaction_hash?: string | null; block_timestamp?: number | string | null } };
+    const { body } = await this.get<{ keys?: Row[] }>(network, `/v1/account/${encodeURIComponent(accountId)}/keys?page=1&per_page=50&order=desc`);
+    const ms = (t: number | string | null | undefined) => (t == null || t === "" ? null : Math.floor(Number(t) / 1e6) || null);
+    return (body?.keys ?? []).filter((k) => k.public_key).map((k) => ({
+      publicKey: String(k.public_key),
+      fullAccess: k.permission_kind === "FULL_ACCESS",
+      createdTx: k.created?.transaction_hash ?? null,
+      createdMs: ms(k.created?.block_timestamp),
+      deletedTx: k.deleted?.transaction_hash ?? null,
+      deletedMs: ms(k.deleted?.block_timestamp),
+    }));
   }
 
   async nearTx(network: Network, hash: string): Promise<NearTx | null> {

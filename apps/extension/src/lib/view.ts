@@ -1,4 +1,4 @@
-import type { CheckResult, Finding, TxCheckResult } from "@gideon/core";
+import { deleteKeyLinks, fmtDate, HEALTH_TEXT, type AccountHealthResult, type CheckResult, type Finding, type KeyReport, type TxCheckResult } from "@gideon/core";
 
 export type Tone = "block" | "warn" | "safe" | "idle";
 
@@ -190,5 +190,57 @@ ${o.net ? netLine(o.net) : ""}
 <details class="more"><summary>Details · ${shown.length} checks${o.net ? ` · ${esc(o.net.network)}` : ""} · ${r.ms} ms</summary><ul class="fl">${shown
     .map((f) => `<li class="s-${f.status.toLowerCase()}"><i>${MARK[f.status]}</i><span><b>${esc(f.rule)}</b> ${esc(f.title)}</span></li>`).join("")}</ul></details>
 ${o.actions ? `<div class="gacts">${o.actions}</div>` : ""}
+</div></div>`;
+}
+
+const HEALTH_CHIP: Record<AccountHealthResult["status"], [Tone, string]> = {
+  danger: ["block", "DANGER"], attention: ["warn", "LOOK AGAIN"], clean: ["safe", "CLEAN"], "not-found": ["warn", "NOT FOUND"], "could-not-check": ["warn", "COULDN’T CHECK"],
+};
+
+/** Which key's remove step is open in the account health card, and whether the wallet-key box is ticked. */
+export interface HealthUi { open?: string | null; ticked?: boolean }
+
+/**
+ * The popup's "Check my account" card: same head and lines as the send card. It never signs:
+ * "Remove key in my wallet" only shows the confirmation and links that open the wallet's own
+ * signing page. The only full control key is never offered for removal, and the probable wallet
+ * key's links stay off until its warning is ticked.
+ */
+export function healthCard(r: AccountHealthResult, ui: HealthUi = {}): string {
+  const [tone, chip] = HEALTH_CHIP[r.status];
+  const full = r.keys.filter((k) => k.kind === "full").length;
+  const wallet = r.keys.find((k) => k.probableWalletKey)?.publicKey;
+  const row = (k: KeyReport): string => {
+    const what = k.kind === "full" ? "Full control key" : `App key: ${esc(k.contract)}`;
+    const when = k.addedAt ? `Added ${esc(fmtDate(Date.parse(k.addedAt)))}` : esc(HEALTH_TEXT.addedUnknown);
+    const flags = k.flags.map((f) => `<li class="s-${f.level === "red" ? "blocked" : "attention"}"><i>${f.level === "red" ? "✕" : "!"}</i><span>${esc(f.text)}${f.why ? ` ${esc(f.why)}` : ""}</span></li>`).join("");
+    let act = "";
+    if (k.removable && !(k.kind === "full" && full === 1) && (k.flags.length || ui.open === k.publicKey)) {
+      if (ui.open === k.publicKey) {
+        const l = deleteKeyLinks(r.network, r.account, k.publicKey, wallet && wallet !== k.publicKey ? { walletKey: wallet } : {});
+        const locked = k.probableWalletKey && !ui.ticked;
+        const link = (href: string, name: string) => locked ? `<button type="button" class="btn" disabled>Open in ${name} ↗</button>` : `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Open in ${name} ↗</a>`;
+        act = `${k.probableWalletKey ? `<label class="tg"><input type="checkbox" data-tick="1"${ui.ticked ? " checked" : ""}><i></i><span>${esc(HEALTH_TEXT.walletKey)}</span></label>` : ""}
+<div class="gf"><b>confirm →</b> ${esc(l.confirm)}</div>
+<div class="gacts">${link(l.meteor, "Meteor")}${l.mynearwallet ? link(l.mynearwallet, "MyNearWallet") : ""}<button type="button" class="g" data-close="1">Cancel</button></div>`;
+      } else {
+        act = `<div class="gacts"><button type="button" data-rm="${esc(k.publicKey)}">${esc(HEALTH_TEXT.removeButton)}</button></div>`;
+      }
+    } else if (k.kind === "full" && full === 1 && k.flags.length) {
+      act = `<div class="gn">This is the only full control key. Removing it would lock you out.</div>`;
+    }
+    return `<div class="gf"><b>key →</b> ${esc(short(k.publicKey))}<br>${what} · ${when}${k.uses != null ? ` · used ${k.uses}×` : ""}${k.probableWalletKey ? `<br>${esc(HEALTH_TEXT.walletKey)}` : ""}</div>${flags ? `<ul class="fl">${flags}</ul>` : ""}${act}`;
+  };
+  const flagged = r.keys.filter((k) => k.flags.length);
+  const rest = r.keys.filter((k) => !k.flags.length);
+  return `<div class="gw t-${tone}" role="alert">
+${head(tone, chip, r.summary)}
+<div class="gb">
+${r.advice ? `<div class="gr"><b>${esc(r.advice)}</b></div>` : ""}
+<div class="ga"><b>account →</b> ${esc(r.account)} · ${esc(r.network)} · ${r.counts.full} full · ${r.counts.app} app</div>
+${r.notes.map((n) => `<div class="gn">${esc(n)}</div>`).join("")}
+${flagged.map(row).join("")}
+${rest.length ? `<details class="more"${ui.open && rest.some((k) => k.publicKey === ui.open) ? " open" : ""}><summary>Details · ${rest.length} ${rest.length === 1 ? "key" : "keys"} · ${r.ms} ms</summary>${rest.map(row).join("")}</details>` : ""}
+<div class="gn">${esc(HEALTH_TEXT.footer)}</div>
 </div></div>`;
 }

@@ -82,3 +82,21 @@ describe("merged history", () => {
     expect(r.map((x) => x.hash)).toEqual(["new", "old"]);
   });
 });
+
+describe("FastNEAR for account health", () => {
+  it("signedTxs asks for signed-only history; txsByHash de-duplicates", async () => {
+    const bodies: any[] = [];
+    const fn = new FastNearTx({ fetch: fetchOf((url, body) => {
+      bodies.push({ url, body });
+      if (url.endsWith("/v0/account")) return J({ account_txs: [{ transaction_hash: "h1", tx_block_height: 10 }, { transaction_hash: "h2" }] });
+      return J({ transactions: body.tx_hashes.map((h: string) => ({ ...tx(h, "a.near", "a.near", [{ DeleteKey: { public_key: "ed25519:K" } }], 1_700_000_000_000_000_000), transaction: { hash: h, signer_id: "a.near", public_key: "ed25519:S", receiver_id: "a.near", actions: [{ DeleteKey: { public_key: "ed25519:K" } }] } })) });
+    }) });
+    const s = await fn.signedTxs("mainnet", "a.near", 500);
+    expect(bodies[0].body).toMatchObject({ account_id: "a.near", is_real_signer: true, limit: 200 });
+    expect(s.map((t) => t.hash).sort()).toEqual(["h1", "h2"]);
+    expect(s[0]!.actions).toEqual([{ kind: "deleteKey", publicKey: "ed25519:K" }]);
+    bodies.length = 0;
+    await fn.txsByHash("mainnet", ["x", "x", "y"]);
+    expect(bodies[0].body.tx_hashes).toEqual(["x", "y"]);
+  });
+});

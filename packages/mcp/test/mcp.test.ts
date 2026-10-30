@@ -61,10 +61,10 @@ describe("gideon MCP server", () => {
     expect(r.structuredContent.verdict).toBe("SAFE");
   });
 
-  it("lists the three read-only tools and tells agents the policy", async () => {
+  it("lists the read-only tools and tells agents the policy", async () => {
     const c = await connect({ sources: sources() });
     const { tools } = await c.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(["gideon_check", "gideon_check_transaction", "gideon_explain", "gideon_flags"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["gideon_account_health", "gideon_check", "gideon_check_transaction", "gideon_explain", "gideon_flags"]);
     for (const t of tools) expect(t.annotations?.readOnlyHint).toBe(true);
     const ins = c.getInstructions() ?? "";
     expect(ins).toMatch(/BLOCKED.*do not send/i);
@@ -288,5 +288,34 @@ describe("gideon_check `from` (sender history)", () => {
       const n = await call(c, "gideon_check_transaction", {});
       expect(n.isError).toBe(true);
     });
+  });
+});
+
+describe("gideon_account_health", () => {
+  const K1 = "ed25519:DLZLLsmQK9RMa3FM3hXG6yYYrnPZrW8ZgMdiNwpiGiCz";
+  const K2 = "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp";
+  const DAY = 86_400_000;
+  it("flags an any-method app key, gives an unsigned remove link, never for the wallet key", async () => {
+    const c = await connect({ sources: sources({
+      viewAccount: person,
+      accessKeys: async () => [
+        { publicKey: K1, nonce: "120000000000009", permission: "FullAccess" },
+        { publicKey: K2, nonce: "0", permission: { receiverId: "social.near", methodNames: [], allowanceYocto: null } },
+      ],
+      keyRecords: async () => [{ publicKey: K2, fullAccess: false, createdMs: NOW - 10 * DAY, createdTx: null, deletedMs: null, deletedTx: null }],
+      signedTxs: async () => [],
+    }) });
+    const r = await call(c, "gideon_account_health", { account: "me.near" });
+    const s = r.structuredContent;
+    expect(s).toMatchObject({ status: "attention", red: false, move_funds_now: false, network: "mainnet" });
+    expect(s.keys.find((k: any) => k.public_key === K1).probable_wallet_key).toBe(true);
+    expect(s.remove_links.map((l: any) => l.public_key)).toEqual([K2]);
+    expect(s.remove_links[0].mynearwallet).toMatch(/^https:\/\/app\.mynearwallet\.com\/sign\?transactions=/);
+    expect(r.content[0].text).toMatch(/never sign them yourself/);
+  });
+  it("a missing account and bad input", async () => {
+    const c = await connect({ sources: sources({ accessKeys: async () => null }) });
+    expect((await call(c, "gideon_account_health", { account: "gone.testnet" })).structuredContent.status).toBe("not-found");
+    expect((await call(c, "gideon_account_health", { account: "hello world!" })).isError).toBe(true);
   });
 });

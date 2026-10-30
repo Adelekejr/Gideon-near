@@ -152,3 +152,41 @@ describe("NearBlocks send count (first send)", () => {
   });
   it("live sources expose it", () => expect(typeof liveSources().sentCount).toBe("function"));
 });
+
+describe("Account health sources", () => {
+  it("view_access_key_list maps full and app keys; unknown account → null", async () => {
+    const rpc = new NearRpc({ fetch: fetchOf((_u, i) => {
+      const b = JSON.parse(String(i.body));
+      expect(b.params).toMatchObject({ request_type: "view_access_key_list", account_id: "a.near" });
+      return J({ result: { keys: [
+        { public_key: "ed25519:F", access_key: { nonce: 221452907000012, permission: "FullAccess" } },
+        { public_key: "ed25519:A", access_key: { nonce: 0, permission: { FunctionCall: { receiver_id: "social.near", method_names: [], allowance: null } } } },
+      ] } });
+    }) });
+    expect(await rpc.viewAccessKeyList("mainnet", "a.near")).toEqual([
+      { publicKey: "ed25519:F", nonce: "221452907000012", permission: "FullAccess" },
+      { publicKey: "ed25519:A", nonce: "0", permission: { receiverId: "social.near", methodNames: [], allowanceYocto: null } },
+    ]);
+    const gone = new NearRpc({ fetch: fetchOf(() => J({ error: { cause: { name: "UNKNOWN_ACCOUNT" } } })) });
+    expect(await gone.viewAccessKeyList("mainnet", "x.near")).toBeNull();
+  });
+  it("blockTimeMs reads the header; a skipped height → null", async () => {
+    const ok = new NearRpc({ fetch: fetchOf(() => J({ result: { header: { height: 5, timestamp_nanosec: "1700000000123456789" } } })) });
+    expect(await ok.blockTimeMs("mainnet", 5)).toBe(1700000000123);
+    const skip = new NearRpc({ fetch: fetchOf(() => J({ error: { cause: { name: "UNKNOWN_BLOCK" } } })) });
+    expect(await skip.blockTimeMs("mainnet", 6)).toBeNull();
+  });
+  it("NearBlocks keys: created and deleted dates (real response shape)", async () => {
+    const nb = new NearBlocks({ fetch: fetchOf((u) => {
+      expect(u).toContain("/v1/account/a.near/keys?page=1&per_page=50&order=desc");
+      return J({ keys: [
+        { public_key: "ed25519:F", permission_kind: "FULL_ACCESS", created: { transaction_hash: "c1", block_timestamp: 1638958193286473000 }, deleted: { transaction_hash: null, block_timestamp: null } },
+        { public_key: "ed25519:A", permission_kind: "FUNCTION_CALL", created: { transaction_hash: null, block_timestamp: null }, deleted: { transaction_hash: "d1", block_timestamp: 1652180000000000000 } },
+      ] });
+    }) });
+    expect(await nb.accountKeys("mainnet", "a.near")).toEqual([
+      { publicKey: "ed25519:F", fullAccess: true, createdTx: "c1", createdMs: 1638958193286, deletedTx: null, deletedMs: null },
+      { publicKey: "ed25519:A", fullAccess: false, createdTx: null, createdMs: null, deletedTx: "d1", deletedMs: 1652180000000 },
+    ]);
+  });
+});

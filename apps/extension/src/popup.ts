@@ -1,13 +1,13 @@
-import { exchangesFor, tokensFor, type CheckInput, type Contact, type Network } from "@gideon/core";
+import { exchangesFor, tokensFor, type AccountHealthResult, type CheckInput, type Contact, type Network } from "@gideon/core";
 import { isAccount, rememberAccount } from "./lib/sender.js";
 import { plainTrim } from "./lib/detect.js";
 import { addContact, load, removeContact, saveContacts, saveSettings, type LastCheck, type Settings } from "./lib/settings.js";
-import { sendCheck, sendDrainer, type CheckRequest } from "./lib/messages.js";
+import { sendCheck, sendDrainer, sendHealth, type CheckRequest } from "./lib/messages.js";
 import { drainerWanted } from "@gideon/core";
 import { LIMITS } from "./lib/limits.js";
 import { missingOptional } from "./lib/runcache.js";
 import type { NetworkMode } from "./lib/network.js";
-import { card, checking, esc, failed, LOGO, short } from "./lib/view.js";
+import { card, checking, esc, failed, healthCard, LOGO, short, type HealthUi } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
 import { POPUP_STYLE } from "./lib/popup-style.js";
 import { asShift, loadShift, saveShift, SHIFTS, SHIFT_NAMES, themeOf, type Shift } from "./lib/shift.js";
@@ -131,6 +131,7 @@ async function init(): Promise<void> {
   contacts = s.contacts;
   mine = s.myAccounts;
   renderMine();
+  if (mine[0] && !$<HTMLInputElement>("hacc").value) $<HTMLInputElement>("hacc").value = mine[0];
   fillForNetwork(s.settings.networkMode);
   for (const k of ["checkOnPaste", "holdSend", "clipboardCheck"] as const) {
     const box = $<HTMLInputElement>(k);
@@ -230,5 +231,50 @@ $<HTMLFormElement>("f").addEventListener("submit", async (e) => {
   }
 });
 let drainerSeq = 0;
+
+/* ---------- Check my account (read-only; links open the wallet, which signs) ---------- */
+let health: AccountHealthResult | null = null;
+let hui: HealthUi = {};
+let healthSeq = 0;
+function showHealth(): void {
+  if (!health) return;
+  $("hres").innerHTML = healthCard(health, hui);
+}
+$("hres").addEventListener("click", (e) => {
+  const t = e.target as HTMLElement;
+  const rm = t.closest<HTMLElement>("[data-rm]");
+  if (rm) { hui = { open: rm.dataset.rm!, ticked: false }; showHealth(); return; }
+  if (t.closest("[data-close]")) { hui = {}; showHealth(); }
+});
+$("hres").addEventListener("change", (e) => {
+  const t = e.target as HTMLInputElement;
+  if (t.dataset.tick) { hui = { ...hui, ticked: t.checked }; showHealth(); }
+});
+$<HTMLFormElement>("hf").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const box = $<HTMLInputElement>("hacc");
+  const account = box.value.trim().toLowerCase().replace(/^@/, "");
+  if (!account) return;
+  if (!isAccount(account)) {
+    box.setCustomValidity("Type a full account name, like you.near or you.testnet, or a 64-character hex account");
+    box.reportValidity();
+    return;
+  }
+  box.setCustomValidity("");
+  // .near is mainnet and .testnet is testnet; other names follow the network switch (Auto: mainnet).
+  const network: Network = account.endsWith(".near") ? "mainnet" : account.endsWith(".testnet") ? "testnet" : net.value === "testnet" ? "testnet" : "mainnet";
+  const asked = ++healthSeq;
+  health = null; hui = {};
+  const go = $<HTMLButtonElement>("hgo");
+  go.disabled = true;
+  $("hres").innerHTML = checking(account);
+  const res = await sendHealth({ account, network });
+  go.disabled = false;
+  if (asked !== healthSeq) return;
+  if (!res.ok) { $("hres").innerHTML = failed(res.error); return; }
+  health = res.result;
+  showHealth();
+  playAll($("hres"));
+});
 
 void init();

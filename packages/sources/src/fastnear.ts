@@ -20,8 +20,8 @@ export class FastNearTx {
 
   /** Transactions by hash, in the order of `rows` (newest first), with the indexer's block height. */
   private async txs(network: Network, rows: { transaction_hash?: string; tx_block_height?: number }[]): Promise<ChainTx[]> {
-    const height = new Map(rows.filter((r) => r.transaction_hash).map((r) => [r.transaction_hash!, Number(r.tx_block_height ?? 0)]));
-    const hashes = [...height.keys()];
+    const height = new Map(rows.filter((r) => r.transaction_hash && r.tx_block_height != null).map((r) => [r.transaction_hash!, Number(r.tx_block_height)]));
+    const hashes = [...new Set(rows.flatMap((r) => (r.transaction_hash ? [r.transaction_hash] : [])))];
     const batches: string[][] = [];
     for (let i = 0; i < hashes.length; i += 20) batches.push(hashes.slice(i, i + 20));
     const got = await Promise.all(batches.map((b) => this.post<{ transactions?: any[] }>(network, "/v0/transactions", { tx_hashes: b })));
@@ -53,6 +53,18 @@ export class FastNearTx {
     type Row = { transaction_hash?: string; tx_block_height?: number };
     const a = await this.post<{ account_txs?: Row[] }>(network, "/v0/account", { account_id: accountId, is_real_signer: true, to_tx_block_height: blockHeight, limit: Math.min(limit, 200) });
     return this.txs(network, a.account_txs ?? []);
+  }
+
+  /** Account health: the newest transactions the account signed, newest first. */
+  async signedTxs(network: Network, accountId: string, limit: number): Promise<ChainTx[]> {
+    type Row = { transaction_hash?: string; tx_block_height?: number };
+    const a = await this.post<{ account_txs?: Row[] }>(network, "/v0/account", { account_id: accountId, is_real_signer: true, limit: Math.min(limit, 200) });
+    return this.txs(network, a.account_txs ?? []);
+  }
+
+  /** Account health: these transactions (any order), with signing key and actions. */
+  async txsByHash(network: Network, hashes: string[]): Promise<ChainTx[]> {
+    return this.txs(network, [...new Set(hashes)].map((h) => ({ transaction_hash: h })));
   }
 
   /** The newest transactions: up to 20 the account signed, plus up to 20 of any kind (incoming, dust). */

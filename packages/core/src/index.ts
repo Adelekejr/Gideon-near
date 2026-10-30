@@ -17,3 +17,4 @@ export { drainerCheck, drainerPrecheck, drainerWanted, drainedBy, withDrainer, c
 export { decodeTransaction, decodeTransactions, encodeTransaction, base58, fromBase64, toBase64, type TxAction, type TxRequest } from "./tx/decode.js";
 export { parseTxRequest, parseWalletUrl, parseJsonTransactions, type ParsedRequest } from "./tx/input.js";
 export { checkTransaction, wellKnown, daysText, NEW_CONTRACT_DAYS, LOW_HISTORY_TXS, WHOLE_BALANCE_SHARE, type TxCheckInput, type TxCheckOptions, type TxCheckResult } from "./tx/check.js";
+export { accountHealth, deleteKeyLinks, healthNetwork, readNonce, HEALTH_TEXT, RECENT_FULL_KEY_DAYS, UNUSED_DAYS, type AccountHealthInput, type AccountHealthOptions, type AccountHealthResult, type DeleteKeyLinks, type HealthStatus, type KeyFlag, type KeyReport } from "./health.js";

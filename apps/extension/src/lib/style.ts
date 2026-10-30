@@ -59,6 +59,7 @@ export const STYLE = `
 .gacts button,.ga.act button,.btn{font:600 11.5px var(--mono);letter-spacing:.04em;height:30px;padding:0 11px;border-radius:2px;border:1px solid var(--ink);background:var(--ink);color:var(--bg);cursor:pointer}
 .gacts button.g,.ga.act button.g,.btn.g{background:transparent;color:var(--ink);border-color:var(--line)}
 .gacts button:focus-visible,.btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.gacts a.btn{display:inline-flex;align-items:center;text-decoration:none}.gacts .btn:disabled{opacity:.45;cursor:not-allowed}
 .gmark{display:flex;justify-content:space-between;align-items:center;padding:6px 14px 6px 19px;border-top:1px solid var(--line);font:500 9.5px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
 `;
 /** Kept for compatibility with older imports; the poses above already cover warn. */

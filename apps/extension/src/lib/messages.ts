@@ -1,4 +1,4 @@
-import { withTimeout, type CheckInput, type CheckResult, type Network, type TxCheckResult } from "@gideon/core";
+import { withTimeout, type AccountHealthResult, type CheckInput, type CheckResult, type Network, type TxCheckResult } from "@gideon/core";
 import type { NetHint } from "./network.js";
 import type { SenderHint, SenderUsed } from "./sender.js";
 
@@ -110,4 +110,20 @@ export function sendTx(req: Omit<TxRequestMsg, "type">, timeoutMs?: number, send
     .then(() => send({ type: "gideon:tx", ...req }))
     .then((r): TxResponse => r ?? { ok: false, error: "The extension stopped before it answered." });
   return withTimeout(asked, timeoutMs, "The check").catch((e: unknown): TxResponse => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+}
+
+/** "Check my account" in the popup: the account health check (read-only, public key data only). */
+export interface HealthRequestMsg {
+  type: "gideon:health";
+  account: string;
+  network: Network;
+}
+export type HealthResponse = { ok: true; result: AccountHealthResult } | { ok: false; error: string };
+
+/** Ask the worker for an account health check. Never throws or hangs. */
+export function sendHealth(req: Omit<HealthRequestMsg, "type">, timeoutMs = 25_000, send: (m: HealthRequestMsg) => Promise<HealthResponse | undefined> = (m) => chrome.runtime.sendMessage(m)): Promise<HealthResponse> {
+  const asked = Promise.resolve()
+    .then(() => send({ type: "gideon:health", ...req }))
+    .then((r): HealthResponse => r ?? { ok: false, error: "The extension stopped before it answered." });
+  return withTimeout(asked, timeoutMs, "The check").catch((e: unknown): HealthResponse => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
 }

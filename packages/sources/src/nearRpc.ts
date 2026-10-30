@@ -1,4 +1,4 @@
-import type { AccountInfo, CommunityFlag, FtMetadata, Network } from "@gideon/core";
+import type { AccessKeyEntry, AccountInfo, CommunityFlag, FtMetadata, Network } from "@gideon/core";
 import { NETWORKS } from "@gideon/core";
 import { json, request, SourceError, type HttpOptions } from "./http.js";
 
@@ -48,6 +48,42 @@ export class NearRpc {
     }
     return { amountYocto: r.result.amount, codeHash: r.result.code_hash, storageUsage: r.result.storage_usage,
       ...(typeof r.result.block_height === "number" ? { blockHeight: r.result.block_height } : {}) };
+  }
+
+  /** Account health: the account's access keys now. null = no such account. */
+  async viewAccessKeyList(network: Network, accountId: string): Promise<AccessKeyEntry[] | null> {
+    const r = await this.call(network, "query", { request_type: "view_access_key_list", finality: "final", account_id: accountId });
+    if (r.error) {
+      const name = r.error.cause?.name ?? "";
+      if (name === "UNKNOWN_ACCOUNT" || name === "INVALID_ACCOUNT") return null;
+      throw new SourceError(`NEAR RPC error: ${name || r.error.message || "unknown"}`);
+    }
+    if (r.result?.error) {
+      if (/does not exist|UNKNOWN_ACCOUNT/i.test(String(r.result.error))) return null;
+      throw new SourceError(`NEAR RPC error: ${String(r.result.error).slice(0, 120)}`);
+    }
+    return (r.result?.keys ?? []).map((k: any): AccessKeyEntry => {
+      const p = k.access_key?.permission;
+      const fc = p && typeof p === "object" ? p.FunctionCall : null;
+      return {
+        publicKey: String(k.public_key),
+        nonce: String(k.access_key?.nonce ?? "0"),
+        permission: fc ? { receiverId: String(fc.receiver_id ?? ""), methodNames: Array.isArray(fc.method_names) ? fc.method_names.map(String) : [], allowanceYocto: fc.allowance == null ? null : String(fc.allowance) } : "FullAccess",
+      };
+    });
+  }
+
+  /** Account health: the time of a block, from archival RPC. null = no such block (skipped height). */
+  async blockTimeMs(network: Network, height: number): Promise<number | null> {
+    const r = await this.call(network, "block", { block_id: height }, this.archival(network));
+    if (r.error) {
+      const name = r.error.cause?.name ?? "";
+      if (name === "UNKNOWN_BLOCK" || /not found|unknown block/i.test(r.error.message ?? "")) return null;
+      throw new SourceError(`archival block lookup failed: ${name || r.error.message || "unknown"}`);
+    }
+    const h = r.result?.header;
+    if (!h) return null;
+    return Number(BigInt(h.timestamp_nanosec ?? h.timestamp) / 1_000_000n);
   }
 
   /** Block-rate reference per network (head and an older block), reused for 10 minutes. */

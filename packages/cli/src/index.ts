@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { check, checkDrainer, checkTransaction, explain, newReceiptKey, resolveNetwork, verifyReceipt, type CheckInput, type CheckResult, type Contact, type Destination, type TxCheckResult } from "@gideon/core";
+import { accountHealth, check, checkDrainer, deleteKeyLinks, HEALTH_TEXT, healthNetwork, checkTransaction, explain, newReceiptKey, resolveNetwork, verifyReceipt, type CheckInput, type CheckResult, type Contact, type Destination, type TxCheckResult, type AccountHealthResult } from "@gideon/core";
 import { liveSources, nearAiExplainer, sourcesOptionsFromEnv } from "@gideon/sources";
 
 const HELP = `gideon — check a NEAR send before you make it
@@ -29,10 +29,17 @@ const HELP = `gideon — check a NEAR send before you make it
     --mine <a,b>                your own accounts (never "unseen")
     --book <file.json>          address book, as above
     --json                      print the full result JSON
+  gideon keys <account> [options]
+                                account health: list the account's keys and flag ones that
+                                could let someone else act for it (read-only, signs nothing)
+    --network testnet|mainnet   default: from the name (.near = mainnet), else testnet
+    --links                     also print unsigned "remove key" wallet links
+    --json                      print the full result JSON
   gideon keygen                 new receipt signing key (set GIDEON_RECEIPT_KEY)
   gideon verify-receipt <result.json>
 
-Exit code: 0 SAFE, 1 ATTENTION, 2 BLOCKED, 64 usage error.`;
+Exit code: 0 SAFE, 1 ATTENTION, 2 BLOCKED, 64 usage error.
+keys: 0 no red flag, 2 a red flag, 1 couldn't check or no such account, 64 usage error.`;
 
 const C = process.stdout.isTTY ? { r: "\x1b[31m", y: "\x1b[33m", g: "\x1b[32m", d: "\x1b[2m", b: "\x1b[1m", x: "\x1b[0m" } : { r: "", y: "", g: "", d: "", b: "", x: "" };
 const ICON: Record<string, string> = { BLOCKED: `${C.r}✖`, ATTENTION: `${C.y}!`, PASS: `${C.g}✓`, COULD_NOT_CHECK: `${C.y}?`, SKIPPED: `${C.d}·` };
@@ -49,6 +56,7 @@ async function main(argv: string[]): Promise<number> {
     return v.hashOk && v.signatureOk !== false ? 0 : 2;
   }
   if (cmd === "check-tx") return checkTx(rest);
+  if (cmd === "keys") return keys(rest);
   if (cmd !== "check") { console.error(HELP); return 64; }
 
   const { values, positionals } = parseArgs({
@@ -107,6 +115,52 @@ async function checkTx(rest: string[]): Promise<number> {
   if (values.json) console.log(JSON.stringify(r, null, 2));
   else printTx(r);
   return r.verdict === "SAFE" ? 0 : r.verdict === "ATTENTION" ? 1 : 2;
+}
+
+async function keys(rest: string[]): Promise<number> {
+  const { values, positionals } = parseArgs({
+    args: rest, allowPositionals: true,
+    options: { network: { type: "string" }, json: { type: "boolean" }, links: { type: "boolean" } },
+  });
+  const account = positionals[0];
+  if (account === undefined) { console.error(HELP); return 64; }
+  const net = values.network ?? process.env.GIDEON_NETWORK;
+  let r: AccountHealthResult;
+  try {
+    r = await accountHealth({ account, network: net ? resolveNetwork(net) : healthNetwork(account) }, liveSources(sourcesOptionsFromEnv(process.env)));
+  } catch (e) { console.error(e instanceof Error ? e.message : e); return 64; }
+  if (values.json) console.log(JSON.stringify(r, null, 2));
+  else printKeys(r, !!values.links);
+  return r.status === "not-found" || r.status === "could-not-check" ? 1 : r.red ? 2 : 0;
+}
+
+function printKeys(r: AccountHealthResult, links: boolean) {
+  const col = r.red ? C.r : r.status === "attention" ? C.y : r.status === "clean" ? C.g : C.y;
+  console.log(`\n${C.b}${HEALTH_TEXT.heading}${C.x}  ${C.d}(${r.account}, ${r.network})${C.x}`);
+  console.log(`${C.b}${col}${r.summary}${C.x}`);
+  if (r.advice) console.log(`${C.r}${r.advice}${C.x}`);
+  console.log("");
+  const wallet = r.keys.find((k) => k.probableWalletKey)?.publicKey;
+  for (const k of r.keys) {
+    const when = k.addedAt ? `Added ${new Date(k.addedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}` : HEALTH_TEXT.addedUnknown;
+    const what = k.kind === "full" ? "Full control key" : `App key: ${k.contract}`;
+    const icon = k.flags.some((f) => f.level === "red") ? `${C.r}✖` : k.flags.length ? `${C.y}!` : `${C.g}✓`;
+    console.log(` ${icon}${C.x} ${k.publicKey}`);
+    console.log(`     ${what} ${C.d}· ${when}${k.uses != null ? ` · used ${k.uses}×` : ""}${C.x}`);
+    if (k.probableWalletKey) console.log(`     ${C.y}${HEALTH_TEXT.walletKey}${C.x}`);
+    for (const f of k.flags) {
+      console.log(`     ${f.level === "red" ? C.r : C.y}${f.text}${C.x}`);
+      if (f.why) console.log(`       ${C.d}${f.why}${C.x}`);
+    }
+    if (links && k.removable && k.flags.length) {
+      const l = deleteKeyLinks(r.network, r.account, k.publicKey, wallet && wallet !== k.publicKey ? { walletKey: wallet } : {});
+      console.log(`     ${C.d}${HEALTH_TEXT.removeButton}: ${l.confirm}${C.x}`);
+      console.log(`       Meteor: ${l.meteor}`);
+      if (l.mynearwallet) console.log(`       MyNearWallet: ${l.mynearwallet}`);
+    }
+  }
+  for (const n of r.notes) console.log(` ${C.d}· ${n}${C.x}`);
+  console.log(`\n${C.d}${HEALTH_TEXT.footer}${C.x}`);
 }
 
 function printTx(r: TxCheckResult) {

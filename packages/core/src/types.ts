@@ -311,6 +311,34 @@ export interface Sources {
   ftBalance?(network: Network, contract: string, accountId: string): Promise<string | null>;
   /** Optional (T4): `nft_token` on the collection. null = no such token. */
   nftToken?(network: Network, contract: string, tokenId: string): Promise<{ title?: string; ownerId?: string } | null>;
+  /** Optional (account health): the account's access keys now, from RPC view_access_key_list. null = no such account. */
+  accessKeys?(network: Network, accountId: string): Promise<AccessKeyEntry[] | null>;
+  /** Optional (account health): when each key was added and removed, from an indexer (newest first). */
+  keyRecords?(network: Network, accountId: string): Promise<KeyRecord[]>;
+  /** Optional (account health): these transactions, with signing key and actions. */
+  txsByHash?(network: Network, hashes: string[]): Promise<ChainTx[]>;
+  /** Optional (account health): the newest transactions the account signed, newest first. */
+  signedTxs?(network: Network, accountId: string, limit: number): Promise<ChainTx[]>;
+  /** Optional (account health): the time of a block (ms since epoch), from archival RPC. null = no such block. */
+  blockTimeMs?(network: Network, height: number): Promise<number | null>;
+}
+
+/** One access key as the chain has it now (RPC view_access_key_list). */
+export interface AccessKeyEntry {
+  publicKey: string;
+  /** Raw nonce, as a decimal string. New keys start at (block height at the add) × 10^6. */
+  nonce: string;
+  permission: "FullAccess" | { receiverId: string; methodNames: string[]; /** null = no limit */ allowanceYocto: string | null };
+}
+
+/** An indexer's row for one key of an account: when it was added and (if so) removed. */
+export interface KeyRecord {
+  publicKey: string;
+  fullAccess: boolean;
+  createdTx: string | null;
+  createdMs: number | null;
+  deletedTx: string | null;
+  deletedMs: number | null;
 }
 
 /** One action of a NEAR transaction, as much as R18 needs. */

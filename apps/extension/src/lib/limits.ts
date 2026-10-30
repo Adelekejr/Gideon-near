@@ -2,6 +2,8 @@
 export const LIMITS = {
   /** Whole check, network guess included. Past it, unanswered parts read "couldn't check in time". */
   totalMs: 6000,
+  /** "Check my account": any one key or history lookup (the popup waits up to 25 s in all). */
+  healthSourceMs: 6000,
   /** Any one lookup, endpoint fallbacks included. */
   sourceMs: 3000,
   /** One HTTP request (so a second RPC endpoint still gets a turn inside sourceMs). */
