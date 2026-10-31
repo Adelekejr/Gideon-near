@@ -36,6 +36,10 @@ for (const name of ["background", "content", "popup"]) {
 }
 await cp(join(here, "static"), dist, { recursive: true });
 await cp(join(here, "popup.html"), join(dist, "popup.html"));
+// What it reads and sends, the licence and third-party notices ship in the zip (0.3.1).
+await cp(join(here, "PRIVACY.md"), join(dist, "PRIVACY.md"));
+await cp(join(root, "THIRD_PARTY_NOTICES.txt"), join(dist, "THIRD_PARTY_NOTICES.txt"));
+await cp(join(root, "LICENSE"), join(dist, "LICENSE.txt"));
 const manifest = JSON.parse(await readFile(join(here, "manifest.json"), "utf8"));
 await writeFile(join(dist, "manifest.json"), JSON.stringify(firefox ? forFirefox(manifest) : manifest, null, 2) + "\n");
 

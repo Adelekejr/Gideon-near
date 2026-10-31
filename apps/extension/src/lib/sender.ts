@@ -7,8 +7,9 @@ import type { TextSignal } from "./network.js";
  * Wallets shorten long names in their header. Meteor shows `alice-wallet.testnet` as
  * `alice-wal...testnet` (first 9 characters, "...", then the last 7), so the full name often
  * isn't on the page at all. Gideon then matches the shortened form against full names elsewhere on
- * the page and the accounts it remembers as yours ("Your accounts" in the popup, and every full name
- * it has read from a wallet header before). Saved contacts are never used: they're other people.
+ * the page and the accounts you added as yours ("Your accounts" in the popup, or "Add to Your
+ * accounts" on a card). Nothing is added without you: any page can show any name. Saved contacts
+ * are never used: they're other people.
  */
 
 const FULL = /^[a-z\d][a-z\d._-]{0,62}\.(testnet|near)$/;
@@ -20,7 +21,7 @@ const VALID = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
 export interface SenderHint {
   /** The one full account name the page shows as signed in. */
   account?: string;
-  /** Where `account` came from. Only "wallet" and "header" are remembered as yours. */
+  /** Where `account` came from. Never saved as yours automatically (since 0.3.1). */
   via?: SenderVia;
   /** The wallet whose own record named the account (via "wallet"). */
   wallet?: string;
@@ -50,6 +51,11 @@ export interface PageAccounts {
 export interface SenderUsed {
   account: string | null;
   why: string;
+  /**
+   * The account is one you added under "Your accounts". Only then does it count as yours (never
+   * for an account Gideon only read off the page: any page can show any name).
+   */
+  confirmed?: boolean;
 }
 
 const clean = (t: string) => t.trim().toLowerCase().replace(/^@/, "").replace(/\s+/g, "");

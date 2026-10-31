@@ -20,12 +20,12 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 | --- | --- |
 | `src/background.ts` | Service worker. Runs `check()` with the free live sources, adds your network and address book, keeps the stats and the last page check. |
 | `src/content.ts` | Watches paste and typing in recipient-looking fields, asks the worker to check, shows the warning in a closed shadow root under the field, and holds the page's Send button on STOPPED. Also the in-page clipboard check (R9). |
-| `src/popup.ts`, `popup.html` | The popup: shift picker (AUTO by default: Day from 06:00, Night Watch from 18:30; Blueprint and Signal Box are manual), manual check, last page check, guards, network switch, address book. Footer shows the NEAR logo (NEAR Foundation trademark, used per their brand guidelines). |
+| `src/popup.ts`, `popup.html` | The popup: shift picker (AUTO by default: Day from 06:00, Night Watch from 18:30; Blueprint and Signal Box are manual), manual check, last page check, guards, network switch, address book. Footer shows the NEAR logo. NEAR and the NEAR logo are trademarks of NEAR Foundation. Gideon shows the logo unaltered, only to say it is built on NEAR. Gideon is an independent project, not made or endorsed by NEAR Foundation. |
 | `src/lib/approval.ts` | Finds a wallet's request to approve a NEAR transaction: in the page address (MyNearWallet and Meteor sign links, any decodable `transactions=`), or on Meteor's approval screen (heading, From / To links, full-access wording). Read only. |
 | `src/lib/detect.ts` | Which fields are recipients, which values are worth checking, which buttons to hold. |
 | `src/lib/clipboard.ts` | What you copied on this page (forgotten after 2 minutes, on blur or tab switch), and whether a page swapped it. |
-| `src/lib/view.ts`, `style.ts` | The verdict card and its styles, in the same fonts and shift colours as the website. Vermilion only for STOPPED, amber for look again or couldn't check, green for looks right. |
-| `src/lib/motion.ts` | Plays the Arrow G on each real result: bounces on STOPPED, waits at an amber wall on look again, passes on looks right. Under 1.2 s; final pose only with reduced motion. |
+| `src/lib/view.ts`, `style.ts` | The verdict card and its styles, in the same fonts and shift colours as the website. Vermilion only for STOPPED, amber for look again or couldn't check, green for no problems found. |
+| `src/lib/motion.ts` | Plays the Arrow G on each real result: bounces on STOPPED, waits at an amber wall on look again, passes on no problems found. Under 1.2 s; final pose only with reduced motion. |
 | `src/lib/shift.ts` | The shift choice, saved in `chrome.storage.local` under its own key. |
 | `build.mjs` | Vite IIFE builds for each entry, copies `static/`, `popup.html` and `manifest.json`, and writes the zip. |
 | `src/lib/network.ts`, `resolve.ts` | Auto network: reads the page address and short account-name / "Testnet" badge texts on this device, then decides which network to check on (see below). |
@@ -39,12 +39,38 @@ Tests are in `test/` and run with the root `npm test`.
 
 What the extension reads, keeps and sends: [PRIVACY.md](PRIVACY.md).
 
+## What changed in 0.3.1
+
+Fixes from the pre-release audit. Every fix also applies to the website, the CLI and the MCP server.
+
+- **Never green without a real check.** If the lookups fail, or the request was only read off the
+  wallet's screen (Meteor), the card says COULDN'T CHECK and Gideon tries again. Green needs a
+  live answer.
+- **More action types.** DeployContract is STOPPED, and so is DeleteAccount unless the
+  money goes to one of your accounts or a contact (then LOOK AGAIN). A call with a deposit of
+  100 NEAR or more gets a second look, even to a well-known contract. Stake is LOOK AGAIN. An
+  action Gideon can't read is COULDN'T CHECK.
+- **Every account in a request is checked**: each recipient, the contract called, the token
+  receiver and a DeleteAccount beneficiary (lookalikes, fake letters, reported scams, missing
+  accounts).
+- **No account planting.** A sender read from the page is never saved to Your accounts.
+  Gideon asks "Is {account} yours?" and adds it only when you click. Clicks and pastes made by a
+  page script are ignored.
+- **Whole balance.** Everything leaving in one request is added up. The threshold is now 90%,
+  so 94%, or 49% + 49% to two strangers, is flagged.
+- **Wording.** Green reads "NO PROBLEMS FOUND". Anything Gideon couldn't check is listed on a
+  "Not checked" line.
+- **Failures are visible.** A failed check of recent senders says so, and errors are in plain
+  words.
+- PRIVACY.md, LICENSE.txt and THIRD_PARTY_NOTICES.txt now ship in the zip.
+- No new permissions or hosts.
+
 ## What changed in 0.3.0
 
 - **Removal links that Meteor can read.** Meteor's sign page needs a `callback_url`; 0.2.9's
   "Open in Meteor" links had none, so Meteor showed "Couldn't parse the correct arguments for
   signing the transaction". Every link now carries one (the account on NearBlocks).
-- **A DeleteKey request is never "looks right".** The transaction card names it: "Removes a
+- **A DeleteKey request is never "no problems found".** The transaction card names it: "Removes a
   key from your account", and it is red when it removes a full control key (STOPPED for the
   last one). A sign link Gideon can't decode, or a wallet screen that says it couldn't read the
   request, shows "Gideon couldn't read this request" / "Your wallet couldn't read this request"
@@ -159,7 +185,8 @@ What the extension reads, keeps and sends: [PRIVACY.md](PRIVACY.md).
 - **Reported scam (R14).** Accounts publicly reported as scams are STOPPED, with a link to the report.
 - **Fake letters (R15).** Letters from other alphabets, invisible characters and hidden spaces are
   STOPPED, naming the character, e.g. "contains a Greek 'α' that looks like 'a'".
-- **Any NEAR web wallet.** The sender is read the same way on every wallet and dApp: the wallet's
+- **NEAR web wallets.** (Web pages only: wallet browser extensions' own pop-ups, such as the
+  Meteor extension's, are not read.) The sender is read the same way on every wallet and dApp: the wallet's
   own record where its code could be checked, else the one account name shown in the header or
   account menu (full, shortened, or 64-hex), a site's NEAR sign-in (`*_wallet_auth_key`),
   `?account_id=` / `?signer_id=` in the address, and the page title. If these name different

@@ -7,6 +7,14 @@ import { tokensFor, exchangesFor } from "../data.js";
 import { explorerAccountUrl } from "../networks.js";
 import { withTimeout } from "../time.js";
 import { f, short } from "../rules/util.js";
+import { r03AccountState } from "../rules/r03-account-state.js";
+import { r07Lookalike } from "../rules/r07-lookalike.js";
+import { r14ReportedScam } from "../rules/r14-reported-scam.js";
+import { r15FakeLetters } from "../rules/r15-fake-letters.js";
+import { r17DisguisedName } from "../rules/r17-disguised-name.js";
+import type { RuleResult } from "../rules/util.js";
+import { VERDICT_TEXT } from "../text.js";
+import { HEADLINE_ORDER } from "../rules/index.js";
 import type { TxAction, TxRequest } from "./decode.js";
 import { parseTxRequest, type ParsedRequest } from "./input.js";
 
@@ -19,14 +27,26 @@ import { parseTxRequest, type ParsedRequest } from "./input.js";
  *   T4  lets an account Gideon hasn't seen before move your NFT (nft_approve, nft_transfer_call)
  *   T5  removes a key (DeleteKey): an app key is fine; a full-access key needs a second look; your
  *       last full-access key is blocked (it would lock you out). Read from the account's live keys.
+ *   T6  other actions that can cost you the account or its funds: DeleteAccount (blocked unless the
+ *       money goes to your own account or a contact), DeployContract (blocked), Stake (attention),
+ *       and a large deposit attached to a contract call.
+ * Every account the request sends to, calls, or names as a beneficiary also gets the address
+ * checks (R3 exists, R7 lookalike, R14 reported scam, R15 fake letters, R17 disguised name).
  * False positives stay low: well-known contracts, your contacts and accounts you've sent to are
  * never "new"; a contract is only "new" when it's under 30 days old AND has under 1,000
- * transactions; "whole balance" means 95% or more.
+ * transactions; "whole balance" means 90% or more of a balance leaving in one request, summed over
+ * every account Gideon hasn't seen.
+ * Never green without at least one live lookup that answered (a plain sign-in, which carries no
+ * transaction, is the only exception: there's nothing to look up).
  */
 
 export const NEW_CONTRACT_DAYS = 30;
 export const LOW_HISTORY_TXS = 1000;
-export const WHOLE_BALANCE_SHARE = 0.95;
+export const WHOLE_BALANCE_SHARE = 0.9;
+/** A deposit attached to a contract call at or above this many NEAR always gets a second look. */
+export const LARGE_DEPOSIT_NEAR = 100;
+/** Accounts in one request that get the full address checks (R3/R7/R14/R15/R17). */
+export const MAX_CHECKED_ACCOUNTS = 6;
 const DAY = 86_400_000;
 
 /** Transaction-card text added in 0.3.0. */
@@ -40,6 +60,22 @@ export const TX_TEXT = {
   unreadableDetail: "It couldn't be decoded, so Gideon can't say it's safe. Check every detail in your wallet, or don't approve it.",
   walletUnreadable: "Your wallet couldn't read this request",
   walletUnreadableDetail: "Don't approve anything on this screen. Go back and start again from the app, or remove the key from Gideon's account page.",
+  // 0.3.1 (approved wording)
+  deleteAccount: (b: string) => `This DELETES your account and sends everything in it to ${b}.`,
+  deleteAccountDetail: "Only approve if you meant to close this account.",
+  deployContract: "This replaces the code on your account.",
+  deployContractDetail: "Code can move all your funds. Approve only if you wrote or fully trust it.",
+  largeDeposit: (amount: string, contract: string) => `This sends ${amount} NEAR to ${contract} along with the call.`,
+  // 0.3.1 (new, awaiting approval)
+  stake: (amount: string) => `This stakes ${amount} NEAR from your account directly.`,
+  stakeDetail: "Most people stake through a staking pool, not like this. Approve only if you run a validator and meant to.",
+  noSigner: "Couldn't check: how much of your balance this sends",
+  noSignerDetail: "Gideon couldn't tell which account signs this, so it couldn't compare the amount with your balance. Check the amount in your wallet.",
+  balanceUnknown: "A data source didn't answer, so Gideon couldn't read your balance. Gideon won't call this request safe until it can check. Try again in a minute.",
+  drainerUnknown: (a: string) => `Couldn't check: whether ${a} is linked to hacked wallets`,
+  drainerUnknownDetail: "The transaction history Gideon uses for this check didn't answer in time. Gideon won't call this request safe until it can check. Try again in a minute.",
+  tooManyAccounts: (n: number) => `Couldn't check ${n} more account${n === 1 ? "" : "s"} in this request`,
+  tooManyAccountsDetail: `Gideon checks up to ${MAX_CHECKED_ACCOUNTS} accounts per request. Check the others in your wallet.`,
 } as const;
 
 /** Big, long-running contracts and services. Never "new", never "unseen". */
@@ -76,6 +112,11 @@ export interface TxCheckInput {
   deviceSends?: string[];
   /** The site asking, when known (the extension passes the page or callback host). */
   origin?: string;
+  /**
+   * The request was read off the wallet's screen (Meteor), not decoded: Gideon knows who it's from
+   * and to, not what it does. Never green.
+   */
+  screenOnly?: boolean;
 }
 
 export interface TxCheckOptions {
@@ -134,10 +175,33 @@ function inferNetwork(parsed: ParsedRequest, input: TxCheckInput): Network {
   return "mainnet";
 }
 
+/**
+ * Sources that count every lookup that answered (null included: "no such account" is an answer).
+ * A request is only green when at least one did.
+ */
+function counted(sources: Sources, onAnswer: () => void): Sources {
+  return new Proxy(sources, {
+    get(t, k, r) {
+      const v = Reflect.get(t, k, r);
+      if (typeof v !== "function") return v;
+      return (...args: unknown[]) => {
+        const out = v.apply(t, args);
+        if (out && typeof (out as Promise<unknown>).then === "function") {
+          return (out as Promise<unknown>).then((x) => { onAnswer(); return x; });
+        }
+        onAnswer();
+        return out;
+      };
+    },
+  });
+}
+
 const nearKind = (a: string) => ["near-named", "near-implicit", "eth-implicit"].includes(classify(a).kind);
 
-export async function checkTransaction(input: TxCheckInput, sources: Sources, opts: TxCheckOptions = {}): Promise<TxCheckResult> {
+export async function checkTransaction(input: TxCheckInput, rawSources: Sources, opts: TxCheckOptions = {}): Promise<TxCheckResult> {
   const t0 = Date.now();
+  let answered = 0;
+  const sources = counted(rawSources, () => { answered++; });
   const now = opts.now ?? Date.now();
   const parsed = parseTxRequest(input.request);
   const network = inferNetwork(parsed, input);
@@ -147,12 +211,35 @@ export async function checkTransaction(input: TxCheckInput, sources: Sources, op
   const timeout = opts.sourceTimeoutMs ?? 10_000;
   const ask = <T>(p: () => Promise<T>) => withTimeout(Promise.resolve().then(p), timeout, "A lookup");
 
-  const mine = new Set([...(input.myAccounts ?? []), ...txs.map((t) => t.signerId ?? "")].map((x) => x.trim().toLowerCase()).filter(Boolean));
+  // Only signers the request itself names are "yours". `input.signerId` is an assumption (often read
+  // off the page), so it never makes an account trusted.
+  const mine = new Set([...(input.myAccounts ?? []), ...parsed.transactions.map((t) => t.signerId ?? "")].map((x) => x.trim().toLowerCase()).filter(Boolean));
   const known = new Set([...(input.addressBook ?? []).map((c) => c.account), ...(input.deviceSends ?? [])].map((x) => x.trim().toLowerCase()));
   const seen = (a: string) => mine.has(a) || known.has(a) || wellKnown(network, a);
 
   const findings: Finding[] = [];
   const acctEv = (label: string, a: string): Evidence => ({ label, value: a, url: explorerAccountUrl(network, a) });
+  const contacts = new Set((input.addressBook ?? []).map((c) => c.account.trim().toLowerCase()));
+  const confirmedMine = new Set((input.myAccounts ?? []).map((x) => x.trim().toLowerCase()));
+  // One lookup context per account, shared by the address checks and the contract-age check.
+  const ctxs = new Map<string, ReturnType<typeof makeCtx>>();
+  const ctxFor = (a: string) => {
+    let c = ctxs.get(a);
+    if (!c) {
+      c = makeCtx({ to: a, network, asset: { symbol: "NEAR" }, destination: "unknown",
+        ...(input.addressBook ? { addressBook: input.addressBook } : {}), ...(input.deviceSends ? { deviceSends: input.deviceSends } : {}) },
+      classify(a), sources, now, null, { sourceTimeoutMs: timeout, optionalBudgetMs: timeout });
+      ctxs.set(a, c);
+    }
+    return c;
+  };
+  // The signer's account, looked up once (also the balance for T3).
+  const signerAccounts = new Map<string, Promise<Awaited<ReturnType<Sources["viewAccount"]>>>>();
+  const viewSigner = (a: string) => {
+    let p = signerAccounts.get(a);
+    if (!p) { p = ask(() => sources.viewAccount(network, a)); signerAccounts.set(a, p); p.catch(() => {}); }
+    return p;
+  };
 
   /* ---- T1: full access ---- */
   const fullKeys: { tx: TxRequest; key: string }[] = [];
@@ -179,21 +266,49 @@ export async function checkTransaction(input: TxCheckInput, sources: Sources, op
   /* ---- T3 / T4 ---- */
   type Move = { token: string; contract: string | null; to: string; amount: bigint; signer: string };
   const moves: Move[] = [];
+  /** Value leaving with no known signer: the balance can't be compared. */
+  const unsigned: string[] = [];
+  /** Accounts that get the address checks, and what they are in this request. */
+  const targets = new Map<string, "recipient" | "contract" | "beneficiary">();
+  const target = (a: string | undefined, role: "recipient" | "contract" | "beneficiary") => {
+    const x = a?.trim().toLowerCase();
+    if (!x || mine.has(x) || wellKnown(network, x)) return;
+    const prev = targets.get(x);
+    // A recipient or beneficiary is checked as one (it must exist); a contract only needs to be real code.
+    if (!prev || prev === "contract") targets.set(x, role);
+  };
   const nfts: { contract: string; tokenId: string; to: string; signer?: string; how: string }[] = [];
   for (const t of txs) {
     for (const a of t.actions) {
-      if (a.type === "Transfer" && t.signerId && t.receiverId !== t.signerId) {
-        moves.push({ token: "NEAR", contract: null, to: t.receiverId, amount: BigInt(a.deposit), signer: t.signerId });
+      if (a.type === "Transfer" && !mine.has(t.receiverId)) {
+        target(t.receiverId, "recipient");
+        if (BigInt(a.deposit) > 0n) {
+          if (t.signerId) moves.push({ token: "NEAR", contract: null, to: t.receiverId, amount: BigInt(a.deposit), signer: t.signerId });
+          else unsigned.push(t.receiverId);
+        }
       }
+      if (a.type === "DeleteAccount") target(a.beneficiaryId, "beneficiary");
+      if (a.type === "AddKey" && !a.fullAccess && a.receiverId) target(a.receiverId, "contract");
       if (!ft(a)) continue;
+      target(t.receiverId, "contract");
+      // NEAR attached to a call leaves your account just like a transfer.
+      if (/^\d+$/.test(a.deposit) && BigInt(a.deposit) > 0n && !mine.has(t.receiverId)) {
+        if (t.signerId) moves.push({ token: "NEAR", contract: null, to: t.receiverId, amount: BigInt(a.deposit), signer: t.signerId });
+        else unsigned.push(t.receiverId);
+      }
       const to = argStr(a.args, "receiver_id")?.toLowerCase();
-      if ((a.methodName === "ft_transfer" || a.methodName === "ft_transfer_call") && to && t.signerId) {
+      if ((a.methodName === "ft_transfer" || a.methodName === "ft_transfer_call") && to) {
+        target(to, "recipient");
         const amt = argStr(a.args, "amount");
-        if (amt && /^\d+$/.test(amt)) moves.push({ token: t.receiverId, contract: t.receiverId, to, amount: BigInt(amt), signer: t.signerId });
+        if (amt && /^\d+$/.test(amt) && BigInt(amt) > 0n) {
+          if (t.signerId) moves.push({ token: t.receiverId, contract: t.receiverId, to, amount: BigInt(amt), signer: t.signerId });
+          else unsigned.push(to);
+        }
       }
       if (a.methodName === "nft_approve" || a.methodName === "nft_transfer_call" || a.methodName === "nft_transfer") {
         const who = (a.methodName === "nft_approve" ? argStr(a.args, "account_id") : to)?.toLowerCase();
         const tokenId = argStr(a.args, "token_id");
+        if (who) target(who, "recipient");
         if (who && tokenId != null) nfts.push({ contract: t.receiverId, tokenId, to: who, ...(t.signerId ? { signer: t.signerId } : {}), how: a.methodName });
       }
     }
@@ -204,7 +319,7 @@ export async function checkTransaction(input: TxCheckInput, sources: Sources, op
   // New contract: age (indexer, archival) and how many transactions it has.
   for (const c of called) {
     work.push((async () => {
-      const ctx = makeCtx({ to: c, network, asset: { symbol: "NEAR" }, destination: "unknown" }, classify(c), sources, now, null, { sourceTimeoutMs: timeout, optionalBudgetMs: timeout });
+      const ctx = ctxFor(c);
       const facts = await ctx.accountFacts().catch(() => null);
       if (!facts || facts.exists === null) {
         findings.push(f("T2", "COULD_NOT_CHECK", "CONTRACT_UNKNOWN", `Couldn't check: ${c}`,
@@ -232,53 +347,129 @@ export async function checkTransaction(input: TxCheckInput, sources: Sources, op
     })());
   }
 
-  // Whole balance to an account Gideon hasn't seen: summed per signer and token across the request.
-  const sums = new Map<string, Move>();
+  // Whole balance leaving: everything one request sends from one account, per token, to accounts
+  // Gideon hasn't seen, summed (so 49 + 49 to two strangers counts as 98).
+  const groups = new Map<string, { signer: string; contract: string | null; byTo: Map<string, bigint> }>();
   for (const m of moves) {
-    const k = `${m.signer}|${m.contract ?? ""}|${m.to}`;
-    const prev = sums.get(k);
-    sums.set(k, prev ? { ...prev, amount: prev.amount + m.amount } : { ...m });
-  }
-  for (const m of sums.values()) {
     if (seen(m.to) || m.amount <= 0n) continue;
     counterparts.add(m.to);
+    const k = `${m.signer}|${m.contract ?? ""}`;
+    const g = groups.get(k) ?? { signer: m.signer, contract: m.contract, byTo: new Map<string, bigint>() };
+    g.byTo.set(m.to, (g.byTo.get(m.to) ?? 0n) + m.amount);
+    groups.set(k, g);
+  }
+  for (const g of groups.values()) {
     work.push((async () => {
       try {
         let balance: bigint | null;
         let symbol = "NEAR";
         let decimals = 24;
-        if (m.contract) {
+        if (g.contract) {
           const [bal, meta] = await Promise.all([
-            sources.ftBalance ? ask(() => sources.ftBalance!(network, m.contract!, m.signer)) : Promise.resolve(null),
-            ask(() => sources.ftMetadata(network, m.contract!)).catch(() => null),
+            sources.ftBalance ? ask(() => sources.ftBalance!(network, g.contract!, g.signer)) : Promise.resolve(null),
+            ask(() => sources.ftMetadata(network, g.contract!)).catch(() => null),
           ]);
           balance = bal == null ? null : BigInt(bal);
-          symbol = meta?.symbol || short(m.contract, 14, 0);
+          symbol = meta?.symbol || short(g.contract, 14, 0);
           decimals = meta?.decimals ?? 0;
         } else {
-          const acct = await ask(() => sources.viewAccount(network, m.signer));
+          const acct = await viewSigner(g.signer);
           balance = acct ? BigInt(acct.amountYocto) : null;
         }
         if (balance == null || balance <= 0n) return;
-        // amount / balance >= 95%, in integers.
-        if (m.amount * 100n < balance * BigInt(Math.round(WHOLE_BALANCE_SHARE * 100))) return;
-        if (!m.contract && sources.sentCount) {
-          const before = await ask(() => sources.sentCount!(network, m.signer, m.to)).catch(() => 0);
-          if (before > 0) return;
+        let tos = [...g.byTo.entries()];
+        const total = () => tos.reduce((n, [, a]) => n + a, 0n);
+        // amount / balance >= share, in integers.
+        const whole = () => total() * 100n >= balance! * BigInt(Math.round(WHOLE_BALANCE_SHARE * 100));
+        if (!whole()) return;
+        if (!g.contract && sources.sentCount) {
+          // Accounts this signer has paid before aren't "unseen".
+          const before = await Promise.all(tos.map(([to]) => ask(() => sources.sentCount!(network, g.signer, to)).catch(() => 0)));
+          tos = tos.filter((_, i) => !(before[i]! > 0));
+          if (!tos.length || !whole()) return;
         }
+        const names = tos.map(([to]) => to);
+        const list = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
         findings.push(f("T3", "ATTENTION", "WHOLE_BALANCE_UNSEEN",
-          `This sends your whole ${symbol} balance to ${m.to}, which Gideon hasn't seen before.`, "",
+          `This sends your whole ${symbol} balance to ${list}, which Gideon hasn't seen before.`, "",
           { evidence: [
-            { label: "Amount", value: `${fmtUnits(m.amount, decimals)} ${symbol}` },
+            { label: "Amount", value: `${fmtUnits(total(), decimals)} ${symbol}` },
             { label: "Your balance", value: `${fmtUnits(balance, decimals)} ${symbol}` },
-            acctEv("To", m.to),
+            ...names.map((to) => acctEv("To", to)),
           ] }));
-      } catch (e) {
-        findings.push(f("T3", "COULD_NOT_CHECK", "BALANCE_UNKNOWN", `Couldn't check: your ${m.contract ? short(m.contract, 14, 0) : "NEAR"} balance`,
-          `A data source didn't answer (${e instanceof Error ? e.message : String(e)}). Gideon won't call this request safe until it can check. Try again in a minute.`));
+      } catch {
+        findings.push(f("T3", "COULD_NOT_CHECK", "BALANCE_UNKNOWN", `Couldn't check: your ${g.contract ? short(g.contract, 14, 0) : "NEAR"} balance`,
+          TX_TEXT.balanceUnknown));
       }
     })());
   }
+  if (unsigned.some((a) => !seen(a.toLowerCase()))) {
+    findings.push(f("T3", "COULD_NOT_CHECK", "BALANCE_NO_SIGNER", TX_TEXT.noSigner, TX_TEXT.noSignerDetail));
+  }
+
+  // T6: actions that can cost the whole account.
+  for (const t of txs) {
+    for (const a of t.actions) {
+      if (a.type === "DeleteAccount") {
+        const b = a.beneficiaryId.trim().toLowerCase();
+        const ours = confirmedMine.has(b) || contacts.has(b);
+        findings.push(f("T6", ours ? "ATTENTION" : "BLOCKED", ours ? "DELETE_ACCOUNT_TO_OWN" : "DELETE_ACCOUNT",
+          TX_TEXT.deleteAccount(b), TX_TEXT.deleteAccountDetail,
+          { evidence: [acctEv("Account", t.receiverId), acctEv("Everything goes to", b)] }));
+      } else if (a.type === "DeployContract") {
+        findings.push(f("T6", "BLOCKED", "DEPLOY_CONTRACT", TX_TEXT.deployContract, TX_TEXT.deployContractDetail,
+          { evidence: [acctEv("Account", t.receiverId), { label: "Code size", value: `${a.codeBytes.toLocaleString("en-US")} bytes` }] }));
+      } else if (a.type === "Stake" && /^\d+$/.test(a.stake) && BigInt(a.stake) > 0n) {
+        findings.push(f("T6", "ATTENTION", "STAKE", TX_TEXT.stake(fmtUnits(BigInt(a.stake), 24)), TX_TEXT.stakeDetail,
+          { evidence: [acctEv("Account", t.receiverId), { label: "Validator key", value: short(a.publicKey, 16, 6) }] }));
+      } else if (ft(a) && /^\d+$/.test(a.deposit) && BigInt(a.deposit) >= BigInt(LARGE_DEPOSIT_NEAR) * 10n ** 24n) {
+        findings.push(f("T6", "ATTENTION", "LARGE_DEPOSIT", TX_TEXT.largeDeposit(fmtUnits(BigInt(a.deposit), 24), t.receiverId), "",
+          { evidence: [acctEv("Contract", t.receiverId), { label: "Method", value: a.methodName || "?" }] }));
+      }
+    }
+  }
+
+  // The address checks on every account this sends to, calls, or names as beneficiary.
+  const toCheck = [...targets.entries()].filter(([a]) => nearKind(a) || classify(a).kind === "hex64-uppercase" || /[^\x20-\x7e]/.test(a));
+  for (const [a, role] of toCheck.slice(0, MAX_CHECKED_ACCOUNTS)) {
+    work.push((async () => {
+      const ctx = ctxFor(a);
+      const rules: [string, (c: typeof ctx) => RuleResult | Promise<RuleResult>][] = [
+        ["R14", r14ReportedScam], ["R15", r15FakeLetters], ["R17", r17DisguisedName], ["R7", r07Lookalike], ["R3", r03AccountState],
+      ];
+      const out = (await Promise.all(rules.map(async ([, run]) => {
+        try {
+          const r = await run(ctx);
+          return r == null ? [] : Array.isArray(r) ? r : [r];
+        } catch {
+          return [f("R3", "COULD_NOT_CHECK", "RULE_ERROR", `Couldn't check: ${a}`,
+            "A data source answered with something Gideon couldn't read, so this check didn't finish. Gideon won't call this request safe until it can check. Try again in a minute.")];
+        }
+      }))).flat();
+      for (const x of out) {
+        if (x.status === "PASS" || x.status === "SKIPPED") continue;
+        // Calling an account with no code does nothing (the call fails), and T2 reports lookups that failed.
+        if (role === "contract" && x.rule === "R3") continue;
+        const ev = x.evidence ?? [];
+        findings.push({
+          ...x,
+          detail: x.detail.replace(/\bYou pasted\b/g, "This request uses"),
+          evidence: [
+            ...(ev.some((e) => e.value === a) ? [] : [acctEv(role === "contract" ? "Contract" : role === "beneficiary" ? "Beneficiary" : "To", a)]),
+            ...ev.map((e) => (e.label === "You pasted" ? { ...e, label: "In this request" } : e)),
+          ],
+        });
+      }
+    })());
+  }
+  if (toCheck.length > MAX_CHECKED_ACCOUNTS) {
+    const n = toCheck.length - MAX_CHECKED_ACCOUNTS;
+    findings.push(f("T1", "COULD_NOT_CHECK", "TOO_MANY_ACCOUNTS", TX_TEXT.tooManyAccounts(n), TX_TEXT.tooManyAccountsDetail,
+      { evidence: toCheck.slice(MAX_CHECKED_ACCOUNTS).map(([a]) => ({ label: "Not checked", value: a })) }));
+  }
+  // Always look up the signer: proves the request names a real account, and is the live lookup a
+  // request with nothing else to look up relies on.
+  if (signer && nearKind(signer)) work.push(viewSigner(signer).then(() => {}, () => {}));
 
   // NFT control to an account Gideon hasn't seen.
   for (const n of nfts) {
@@ -297,11 +488,18 @@ export async function checkTransaction(input: TxCheckInput, sources: Sources, op
   }
 
   // Drained-wallet links (R18), for called contracts and accounts receiving value or control. At most 4.
-  const drainTargets = [...new Set([...called, ...counterparts])].filter(nearKind).slice(0, 4);
+  const beneficiaries = [...targets.entries()].filter(([, r]) => r === "beneficiary").map(([a]) => a);
+  const drainTargets = [...new Set([...called, ...counterparts, ...beneficiaries])].filter(nearKind).slice(0, 4);
   for (const d of drainTargets) {
     work.push((async () => {
-      const x = await drainerCheck({ to: d, network, ...(signer ? { from: signer } : {}), ...(input.addressBook ? { addressBook: input.addressBook } : {}), myAccounts: [...mine] },
+      const x = await drainerCheck({ to: d, network, ...(signer && mine.has(signer) ? { from: signer } : {}), ...(input.addressBook ? { addressBook: input.addressBook } : {}), myAccounts: [...mine] },
         sources, { timeoutMs: opts.drainerTimeoutMs ?? 8000 }, opts.drainerCache);
+      if (x.status === "SKIPPED" && x.code === "FAILED") {
+        // A failed check is shown, never silent: Gideon didn't look, so it can't say "nothing found".
+        findings.push(f("T2", "COULD_NOT_CHECK", "DRAINER_UNKNOWN", TX_TEXT.drainerUnknown(d), TX_TEXT.drainerUnknownDetail,
+          { evidence: [acctEv("Account", d)] }));
+        return;
+      }
       if (x.status !== "BLOCKED" && x.status !== "ATTENTION") return;
       findings.push(f("T2", x.status, x.status === "BLOCKED" ? "DRAINER_LINKED" : "DRAINED_SENDER_LINKED",
         `${d} is linked to accounts that drained other wallets.`, x.detail,
@@ -352,20 +550,33 @@ export async function checkTransaction(input: TxCheckInput, sources: Sources, op
     findings.push(f("T1", "COULD_NOT_CHECK", "UNREADABLE_ACTION", "Couldn't read all of this request",
       "Part of it uses an action Gideon can't read yet, so it may do more than is shown here. Check it carefully in your wallet."));
   }
-  if (!txs.length && !parsed.signIn) {
+  // Read off the wallet's screen (Meteor) or a placeholder with no method: what it does is unknown.
+  if (input.screenOnly || txs.some((t) => t.actions.some((a) => ft(a) && !a.methodName))) {
+    findings.push(f("T1", "COULD_NOT_CHECK", "SCREEN_ONLY", VERDICT_TEXT.screenOnlyTitle, VERDICT_TEXT.screenOnlyBody));
+  }
+  const plainSignIn = !txs.length && !parsed.signIn;
+  if (plainSignIn) {
     findings.push(f("T1", "PASS", "PLAIN_SIGN_IN", "Normal sign-in: no full-access key", "This sign-in doesn't ask for a full-access key."));
   }
-  if (!findings.length) {
-    findings.push(f("T1", "PASS", "NOTHING_FOUND", "Nothing risky found in this request",
-      "No full-access key, no brand-new contract, no whole-balance send or NFT approval to an account Gideon hasn't seen. Still check the details in your wallet."));
+  if (verdictOf(findings) === "SAFE") {
+    if (!plainSignIn && answered === 0) {
+      // Every lookup failed (or there was none): that is never a green.
+      findings.push(f("T1", "COULD_NOT_CHECK", "NOT_CHECKED_LIVE", "Gideon couldn't finish checking this request.",
+        VERDICT_TEXT.cantCheckBody.replace(/^Gideon couldn't finish checking this request\. /, "")));
+    } else if (!findings.some((x) => x.status === "PASS" && x.rule.startsWith("T"))) {
+      findings.push(f("T1", "PASS", "NOTHING_FOUND", VERDICT_TEXT.txSafeTitle, VERDICT_TEXT.txSafeBody));
+    }
   }
 
   // Stable order: blocked first, then rule, then title.
   const rank = { BLOCKED: 0, ATTENTION: 1, COULD_NOT_CHECK: 2, PASS: 3, SKIPPED: 4 } as const;
-  findings.sort((a, b) => rank[a.status] - rank[b.status] || a.rule.localeCompare(b.rule) || a.title.localeCompare(b.title));
+  const order = (x: Finding) => HEADLINE_ORDER.indexOf(x.rule);
+  findings.sort((a, b) => rank[a.status] - rank[b.status] || order(a) - order(b) || a.title.localeCompare(b.title));
   const verdict = verdictOf(findings);
+  const headline = headlineOf(findings, verdict)
+    ?? findings.find((x) => x.status === "PASS" && x.rule.startsWith("T")) ?? findings[0] ?? null;
   return {
-    engine: ENGINE_VERSION, kind: "transaction", network, verdict, headline: headlineOf(findings, verdict) ?? findings[0] ?? null, findings,
+    engine: ENGINE_VERSION, kind: "transaction", network, verdict, headline, findings,
     transactions: txs, ...(parsed.signIn ? { signIn: parsed.signIn } : {}), ...(signer ? { signer } : {}), ...(origin ? { origin } : {}),
     source: parsed.source, checkedAt: new Date(now).toISOString(), ms: Date.now() - t0,
   };
@@ -380,6 +591,20 @@ export function unreadableRequest(o: { network?: Network; wallet?: boolean; now?
   const finding = o.wallet
     ? f("T1", "COULD_NOT_CHECK", "WALLET_UNREADABLE", TX_TEXT.walletUnreadable, TX_TEXT.walletUnreadableDetail)
     : f("T1", "COULD_NOT_CHECK", "UNREADABLE_REQUEST", TX_TEXT.unreadable, TX_TEXT.unreadableDetail);
+  return {
+    engine: ENGINE_VERSION, kind: "transaction", network: o.network ?? "mainnet", verdict: "ATTENTION", headline: finding, findings: [finding],
+    transactions: [], source: "sign-link", checkedAt: new Date(now).toISOString(), ms: 0,
+  };
+}
+
+/**
+ * The answer when the check itself didn't finish (the extension's worker didn't reply, or every
+ * lookup failed): the approved COULDN'T CHECK card. Never SAFE.
+ */
+export function unfinishedRequest(o: { network?: Network; now?: number } = {}): TxCheckResult {
+  const now = o.now ?? Date.now();
+  const finding = f("T1", "COULD_NOT_CHECK", "NOT_CHECKED_LIVE", "Gideon couldn't finish checking this request.",
+    VERDICT_TEXT.cantCheckBody.replace(/^Gideon couldn't finish checking this request\. /, ""));
   return {
     engine: ENGINE_VERSION, kind: "transaction", network: o.network ?? "mainnet", verdict: "ATTENTION", headline: finding, findings: [finding],
     transactions: [], source: "sign-link", checkedAt: new Date(now).toISOString(), ms: 0,

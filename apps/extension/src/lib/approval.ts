@@ -13,7 +13,7 @@ import { decodeTransactions, parseWalletUrl, type Network } from "@gideon/core";
  *      generic part of this: an approval heading AND full-access wording on the same screen.
  *   3. A wallet link Gideon can't decode, or a wallet screen saying it couldn't read the request
  *      (Meteor: "Couldn't parse the correct arguments for signing the transaction"): marked
- *      `unreadable`, so the card says so instead of "looks right".
+ *      `unreadable`, so the card says so instead of "no problems found".
  * Only the answer (the request, or signer / receiver / "asks for full access") goes to the
  * extension's worker. Never keys, never storage, never the clipboard.
  */

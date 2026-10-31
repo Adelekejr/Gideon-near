@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Gideon: NEAR pre-send check",
   "short_name": "Gideon",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Checks a NEAR address the moment you paste it, and holds the send when it's a mistake you can't undo.",
   "minimum_chrome_version": "111",
   "icons": {

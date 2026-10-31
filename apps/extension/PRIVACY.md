@@ -1,6 +1,6 @@
 # Gideon extension: what it reads, keeps and sends
 
-This file describes the code in this folder (`src/`, `manifest.json`) as of version 0.3.0.
+This file describes the code in this folder (`src/`, `manifest.json`) as of version 0.3.1.
 If the code and this file ever disagree, that's a bug: please report it.
 
 ## Short version
@@ -54,8 +54,15 @@ The content script runs on web pages and reacts to four things:
    - Turning off "Compare what I copied with what I paste (R9)" in the popup stops all of this.
 3. **Short text on the page that names the network and your account** (for example a
    "Testnet" badge, the URL, or the account name in a wallet header), to decide which network to
-   check on and whose history to read. This is read in place and not stored, except the account
-   name: when the wallet shows your full account it is added to "Your accounts".
+   check on and whose history to read. This is read in place and not stored. Since 0.3.1 an
+   account seen on a page is **never added to "Your accounts" on its own**: the card asks
+   "Is {account} yours? [Add to Your accounts]", and only your click adds it. Until then it is
+   treated as a guess, never as your own account.
+   - **Sign-in records the site keeps in this browser (`localStorage`).** On the page you are on,
+     Gideon reads the account name a NEAR sign-in left there (MyNearWallet's
+     `_4:wallet:active_account_id_v2`, and the `*_wallet_auth_key` record near-api-js sites keep),
+     only to work out your account name. It reads account names only, never keys or anything else
+     stored there, and keeps nothing.
 
 4. **A wallet's request to approve or sign a NEAR transaction** (new in 0.2.8). Gideon looks for it
    in two places, and only reads; it never clicks, fills or changes anything on the wallet page,
@@ -70,7 +77,9 @@ The content script runs on web pages and reacts to four things:
      `wallet.meteorwallet.app` it reads the From / To explorer links and the wallet's own
      full-access wording; on any other site it reacts only to that full-access wording. Text in
      scripts and styles is ignored. This screen reading follows Meteor's public app code and has
-     not been checked against the live Meteor wallet (the sign-link reading has).
+     not been checked against the live Meteor wallet (the sign-link reading has). A request read
+     only from the screen is never shown as "no problems found". Only Meteor's **web** wallet is
+     read; the Meteor browser extension's own pop-up (and other wallet extensions') is not.
    The request is decoded and checked on your device; the card says "Gideon only read this request
    from the page. It never touches your keys." Nothing from it is stored, and the check is not
    counted in your stats.
@@ -117,8 +126,8 @@ All in `chrome.storage.local` (never synced, never uploaded):
 | `settings` | Your toggles and network choice. |
 | `shift` | The colour theme. |
 | `contacts` | Your address book (accounts and labels you added). |
-| `myAccounts` | "Your accounts" (added by you, or seen in full in a wallet header). |
-| `sends` | Sends made on wallet pages after Gideon checked them: recipient, your account if known, network, time. Up to 100. |
+| `myAccounts` | "Your accounts" (only ones you added: in the popup, or with "Add to Your accounts" on a card). |
+| `sends` | Sends made on wallet pages after Gideon checked them (only after a real click on the page's Send button, and never for a STOPPED check): recipient, your account if known, network, time. Up to 100. |
 | `last` | The last page check: site name, network, recipient, verdict, headline, time. |
 | `stats` | Two counters: checks run, sends stopped. |
 

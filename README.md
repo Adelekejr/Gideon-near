@@ -114,7 +114,7 @@ npm run build:web           # static build in apps/web/dist
 
 # the Chrome extension
 npm run build:extension     # unpacked build in apps/extension/dist
-npm run zip:extension       # apps/extension/gideon-extension-0.3.0.zip
+npm run zip:extension       # apps/extension/gideon-extension-0.3.1.zip
 npm run zip:firefox -w @gideon/extension   # Firefox / Firefox for Android build (see "Phones")
 
 # the MCP server for AI agents (see "AI agents (MCP server)")
@@ -171,7 +171,9 @@ browser, straight against the public APIs) and your own code
 | R15 Fake letters | Does the address contain a letter from another alphabet that looks like a plain one (Greek 'α', Cyrillic 'а', full-width letters), an invisible character (zero-width space, U+FEFF) or a hidden space (non-breaking, thin, a space inside)? BLOCKED, naming the character, where it is and what it imitates, and showing the plain version. Reads the address exactly as pasted. | local |
 | R16 Other network | Is this the same name as an account on the other network (`alice.near` typed while sending on testnet, where `alice.testnet` exists, or the reverse)? When the network is certain (you set it, or the page proves it) BLOCKED "Wrong network: did you mean alice.testnet?". When the wallet only seems to be on the other network, ATTENTION "Your wallet may be on testnet", never a block. Nothing when the twin doesn't exist. | NEAR RPC `view_account` on the other network (info-only, time-limited) |
 | R17 Fake address name | Is this a NEAR name made to look like another chain's address (`0x5290…eed.near`, `TXYZ…ab.tg`, `bc1q….near`, `cosmos1….near`)? The whole first part matching a Tron, Ethereum, Bitcoin, Solana or Cosmos address format: BLOCKED "This is a NEAR name made to look like an Ethereum address". Only partly matching (for example `0x` and a long run of hex): ATTENTION "Look again". Ordinary names such as `0xbob.near` pass. | local |
-| R18 Drained wallets | Do the recent senders of plain NEAR to this account look like hacked wallets? A sender counts only when, minutes before the send, someone took control of it and it was left with under 0.1 NEAR (or deleted): either a new full-access key was added by a different key and its first use was the send here (deleting the owner's other keys first still counts), or a key the account hadn't used before removed at least 2 of the owner's other keys and then sent here. Two or more: BLOCKED "Funds from hacked wallets were swept into this address"; one: ATTENTION "Look again". Skipped for your own accounts, contacts, exchanges and busy services, and when the main check already blocked. Runs after the main verdict (time-limited to 8 s, cached, up to 5 senders at a time); if it fails nothing is shown and the verdict doesn't change. | FastNEAR tx API (the last 40 transactions to the account; for senders left nearly empty, their last 20 transactions up to the send, 40 more when those are all one key's), NEAR RPC `view_account` for each sender |
+| R18 Drained wallets | Do the recent senders of plain NEAR to this account look like hacked wallets? A sender counts only when, minutes before the send, someone took control of it and it was left with under 0.1 NEAR (or deleted): either a new full-access key was added by a different key and its first use was the send here (deleting the owner's other keys first still counts), or a key the account hadn't used before removed at least 2 of the owner's other keys and then sent here. Two or more: BLOCKED "Funds from hacked wallets were swept into this address"; one: ATTENTION "Look again". Skipped for your own accounts, contacts, exchanges and busy services, and when the main check already blocked. Runs after the main verdict (time-limited to 8 s, cached, up to 5 senders at a time); if it fails the result says "couldn't check recent senders for hacked wallets" and the verdict doesn't change. | FastNEAR tx API (the last 40 transactions to the account; for senders left nearly empty, their last 20 transactions up to the send, 40 more when those are all one key's), NEAR RPC `view_account` for each sender |
+
+R12 isn't a check. It's the receipt: a sha256 hash of the result, ed25519-signed when a key is set.
 
 How a verdict is reached:
 
@@ -201,7 +203,7 @@ Gideon is not on the Chrome Web Store. Install it from this repo:
 4. Pin Gideon from the puzzle-piece menu. It starts on **testnet**; switch to
    mainnet in the popup.
 
-`npm run zip:extension` also writes `apps/extension/gideon-extension-0.3.0.zip`.
+`npm run zip:extension` also writes `apps/extension/gideon-extension-0.3.1.zip`.
 To install from the zip, unzip it and load that folder the same way. Works in
 Chrome 111+ and other Chromium browsers (Edge, Brave, Arc).
 
@@ -211,13 +213,15 @@ What it does:
   looks like a recipient address, it checks the value and shows a warning card
   under the field, in the same shift as the popup, with the Arrow G playing the
   result: vermilion only for STOPPED, amber for "look again"
-  and "couldn't check", green for "looks right". On STOPPED it holds the page's
+  and "couldn't check", green for "no problems found". On STOPPED it holds the page's
   Send / Withdraw button until you clear the field or choose **Send anyway**.
 - **On a wallet's approval screen** (0.2.8), it reads the NEAR request and shows
   the card at the top before you approve: full-access keys, brand-new contracts,
   whole-balance sends and NFT approvals (see "Before you approve a transaction").
-  It reads MyNearWallet and Meteor sign links in the page address, and Meteor's
-  "Approve Transaction(s)" screen. It never clicks or holds Approve. Tested on the
+  It reads MyNearWallet and Meteor sign links in the page address, and the
+  "Approve Transaction(s)" screen of Meteor's web wallet (wallet.meteorwallet.app).
+  It does not read the Meteor browser extension's own pop-up, or any other wallet
+  extension's. It never clicks or holds Approve. Tested on the
   MyNearWallet testnet sign link, a local Meteor reconstruction
   (`apps/extension/test-page/meteor-approve.html`), and on a phone with the live
   Meteor testnet sign link from `scripts/demo-tx-link.mjs` (not signed). Meteor
@@ -241,8 +245,8 @@ What it does:
 | ![Popup, lookalike stopped](shots/extension-popup-night.png) | ![Popup, lookalike stopped](shots/extension-popup-day.png) |
 | ![Card, 0x address held](shots/extension-warning-attention-night.png) | ![Card, Tron hash stopped](shots/extension-warning-blocked-day.png) |
 
-More: popup [looks right](shots/extension-popup-safe-night.png),
-card [looks right](shots/extension-warning-safe-night.png) /
+More: popup [no problems found](shots/extension-popup-safe-night.png),
+card [no problems found](shots/extension-warning-safe-night.png) /
 [day](shots/extension-warning-safe-day.png),
 [couldn't check](shots/extension-warning-couldnt-check-night.png),
 [clipboard swapped on copy](shots/extension-clipboard-tamper-copy.png) and
@@ -261,12 +265,12 @@ linked below.
 
 Build the files on a computer and copy them to the phone:
 
-- `npm run zip:extension`: `apps/extension/gideon-extension-0.3.0.zip` (Chromium browsers)
-- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.3.0.zip` (Firefox)
+- `npm run zip:extension`: `apps/extension/gideon-extension-0.3.1.zip` (Chromium browsers)
+- `npm run zip:firefox -w @gideon/extension`: `apps/extension/gideon-extension-firefox-0.3.1.zip` (Firefox)
 
 **Mises Browser** (Chromium). Menu → **Extensions** → turn on
 **Developer mode** → **+ (from .zip/.crx/.user.js)** → pick
-`gideon-extension-0.3.0.zip`. Keep it zipped. Mises unpacks it into its cache,
+`gideon-extension-0.3.1.zip`. Keep it zipped. Mises unpacks it into its cache,
 so clearing the browser's cache or data removes it; install again if so.
 After installing a new version, reload any wallet tab that was already open
 (otherwise its card says "Gideon was updated. Reload this page to keep checking.").
@@ -279,7 +283,7 @@ After installing a new version, reload any wallet tab that was already open
 sideloaded extensions (fixed in 1.8.2).
 
 **Yandex Browser.** Officially it installs from the Chrome Web Store and
-Opera add-ons. For testing: unzip `gideon-extension-0.3.0.zip` into a phone
+Opera add-ons. For testing: unzip `gideon-extension-0.3.1.zip` into a phone
 folder, open `browser://extensions`, turn on **Developer mode**, tap **Load
 unpacked extension** and pick `manifest.json` in that folder. Users reported
 in 2020 that newer builds stopped loading unpacked extensions, so this may not
@@ -541,13 +545,43 @@ the favicon is [`apps/web/public/favicon.svg`](apps/web/public/favicon.svg).
 
 **NEAR logo.** The site footer, the network bar and the extension popup footer
 show the official NEAR logo, black or white, never recoloured. NEAR and the
-NEAR logo are trademarks of NEAR Foundation, used here per their brand
-guidelines to show that Gideon is built on NEAR. Gideon is an independent
-project, not made or endorsed by NEAR Foundation.
+NEAR logo are trademarks of NEAR Foundation. Gideon shows the logo unaltered,
+only to say it is built on NEAR. Gideon is an independent project, not made or
+endorsed by NEAR Foundation.
 
 **Fonts.** Archivo and JetBrains Mono are licensed under the SIL Open Font
 License 1.1 and bundled in `apps/web/public/fonts/` and
 `apps/extension/static/fonts/`.
+
+## Privacy: what leaves your device
+
+Gideon never asks for or reads keys, seed phrases or passwords, and there is no
+Gideon server, no analytics and no account. To run a check it sends the
+recipient (and, when known, your account name) to these public services. They
+see the request like any website would, including your IP address:
+
+- **FastNEAR RPC** (`rpc.*.fastnear.com`, `free.rpc.fastnear.com`,
+  `test.rpc.fastnear.com`, `archival-rpc.*.fastnear.com`) and the FastNEAR tx
+  API (`tx.*.fastnear.com`): the account, its balance and contract, recent
+  transactions (yours when the sender is known; the recipient's recent senders
+  for the drained-wallet check).
+- **NearBlocks** (`api.nearblocks.io`, `api-testnet.nearblocks.io`): account
+  age, past sends between your account and the recipient, a pasted NEAR hash.
+- **NEAR Intents 1Click** (`1click.chaindefuser.com`): only a NEAR Intents
+  deposit address.
+- **TronGrid**, **PublicNode** Ethereum RPC and **mempool.space**: only a
+  pasted transaction hash from that chain.
+- **NEAR Connect** (website Send page only): the wallet selector loads its
+  wallet list from `cdn.jsdelivr.net` and `raw.githubusercontent.com`, and the
+  wallet you pick opens its own page.
+- **NEAR AI** (`cloud-api.near.ai`), only when `NEARAI_API_KEY` is set on the
+  CLI or MCP server: the result, to word the explanation. Off by default.
+
+What Gideon remembers stays on your device (the website's `localStorage`, the
+extension's `chrome.storage.local`). The extension also reads the sign-in records
+NEAR sites keep in this browser's `localStorage`, only to work out your account
+name; it reads account names only and never saves them without asking you.
+Full details for the extension: [apps/extension/PRIVACY.md](apps/extension/PRIVACY.md).
 
 ## Repo layout
 
@@ -615,8 +649,10 @@ The website deploys as a static site; `vercel.json` builds it with
   accounts and Meteor's full-access wording, which covers the full-access and
   contract checks only, not whole-balance sends or NFT approvals. The sign-link
   reading was tried on the live Meteor testnet wallet on a phone; the pop-up
-  screen reading follows Meteor's public app code and hasn't been tried live. The card doesn't hold Approve, and shows nothing if the check itself
-  fails. On testnet, a contract the indexer hasn't reached yet (it lags about a
+  screen reading follows Meteor's public app code and hasn't been tried live. A request read
+  only from the screen is never "no problems found": the card says Gideon could read who it is
+  from and to, but not what it does. The card doesn't hold Approve. If the check itself fails it
+  shows "COULDN'T CHECK" and tries again (0.3.1). On testnet, a contract the indexer hasn't reached yet (it lags about a
   month) can only be dated up to 7 days old, so one 7–30 days old isn't flagged.
   MyNearWallet's testnet site now tells visitors to use Meteor and doesn't
   approve the request itself; the extension still reads its sign link.
@@ -669,8 +705,7 @@ The website deploys as a static site; `vercel.json` builds it with
 - **NEAR:** NEAR Connect (`@hot-labs/near-connect`, wallet selector on the
   Send page). The flag registry uses Rust, `near-sdk`, `cargo-near`, and
   `near-sandbox` + `near-api` for its sandbox test. Fonts: Archivo and JetBrains Mono (SIL Open
-  Font License), bundled in the site and the extension. NEAR logo: NEAR Foundation
-  trademark, used per their brand guidelines.
+  Font License), bundled in the site and the extension. NEAR and the NEAR logo are trademarks of NEAR Foundation. Gideon shows the logo unaltered, only to say it is built on NEAR. Gideon is an independent project, not made or endorsed by NEAR Foundation.
 - **Free, no-key APIs:** FastNEAR RPC (testnet and mainnet), NearBlocks API,
   NEAR Intents 1Click API, TronGrid, PublicNode Ethereum RPC and
   mempool.space. NEAR AI Cloud is an optional adapter, off by default.

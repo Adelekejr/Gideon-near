@@ -17,8 +17,9 @@ import { f, short } from "./rules/util.js";
  * Two or more drained senders → BLOCKED; one → ATTENTION. Exchanges and busy services are skipped.
  *
  * It needs several lookups, so it runs after the main check and never holds it up: surfaces show
- * the verdict first and update it when this answers (withDrainer). A failure or time-out is silent
- * (SKIPPED): it never makes a send look worse or better.
+ * the verdict first and update it when this answers (withDrainer). A failure or time-out is
+ * SKIPPED with code FAILED: it never makes a send look worse or better, but every surface shows it
+ * as "not checked" (0.3.1).
  */
 
 export interface DrainerInput {
@@ -235,10 +236,10 @@ export async function withDrainer(r: CheckResult, x: Finding, receiptKey?: strin
  * Run the check and merge it, timing it into result.sources. A result that's already BLOCKED
  * isn't looked at again (the answer can't get stronger, and it saves the lookups).
  */
-export async function checkDrainer(r: CheckResult, sources: Sources, extra: Pick<DrainerInput, "myAccounts"> & { cache?: DrainerCache } = {}, opts: DrainerOptions = {}, receiptKey?: string): Promise<CheckResult> {
+export async function checkDrainer(r: CheckResult, sources: Sources, extra: Pick<DrainerInput, "myAccounts"> & { cache?: DrainerCache; /** False when `from` is only a guess from the page (extension): then it never counts as your own account. Default true. */ trustFrom?: boolean } = {}, opts: DrainerOptions = {}, receiptKey?: string): Promise<CheckResult> {
   if (!drainerWanted(r)) return r;
   const t0 = Date.now();
-  const x = await drainerCheck(drainerInputOf(r, extra.myAccounts), sources, opts, extra.cache);
+  const x = await drainerCheck(drainerInputOf(r, extra.myAccounts, extra.trustFrom ?? true), sources, opts, extra.cache);
   return withDrainer(r, x, receiptKey, { ms: Date.now() - t0, ok: x.code !== "FAILED" });
 }
 
@@ -248,10 +249,10 @@ export function drainerWanted(r: CheckResult): boolean {
   return ["near-named", "near-implicit", "eth-implicit"].includes(classify(r.input.to ?? "").kind);
 }
 
-export function drainerInputOf(r: CheckResult, myAccounts?: string[]): DrainerInput {
+export function drainerInputOf(r: CheckResult, myAccounts?: string[], trustFrom = true): DrainerInput {
   return {
     to: r.input.to, network: r.input.network,
-    ...(r.input.from ? { from: r.input.from } : {}),
+    ...(r.input.from && trustFrom ? { from: r.input.from } : {}),
     ...(r.input.addressBook ? { addressBook: r.input.addressBook } : {}),
     ...(myAccounts?.length ? { myAccounts } : {}),
   };

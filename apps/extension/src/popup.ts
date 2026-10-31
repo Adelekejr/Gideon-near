@@ -3,7 +3,7 @@ import { isAccount, rememberAccount } from "./lib/sender.js";
 import { plainTrim } from "./lib/detect.js";
 import { addContact, load, removeContact, saveContacts, saveSettings, type LastCheck, type Settings } from "./lib/settings.js";
 import { sendCheck, sendDrainer, sendHealth, type CheckRequest } from "./lib/messages.js";
-import { drainerWanted } from "@gideon/core";
+import { drainerWanted, VERDICT_TEXT } from "@gideon/core";
 import { LIMITS } from "./lib/limits.js";
 import { missingOptional } from "./lib/runcache.js";
 import type { NetworkMode } from "./lib/network.js";
@@ -82,7 +82,7 @@ function renderLast(l: LastCheck | null): void {
     return;
   }
   const tone = l.verdict === "BLOCKED" ? "block" : l.verdict === "SAFE" ? "safe" : "warn";
-  const label = l.verdict === "BLOCKED" ? "STOPPED" : l.verdict === "SAFE" ? "LOOKS RIGHT" : l.couldNotCheck ? "COULDN’T CHECK" : "LOOK AGAIN";
+  const label = l.verdict === "BLOCKED" ? "STOPPED" : l.verdict === "SAFE" ? VERDICT_TEXT.safeChip : l.couldNotCheck ? "COULDN’T CHECK" : "LOOK AGAIN";
   const when = new Date(l.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   $("last").innerHTML = `<div class="h"><span>${esc(l.host || "this browser")} · ${esc(when)}</span><span class="chip ${tone}">${label}</span></div>
 <div class="mono">${esc(short(l.to))}</div><div class="t">${esc(l.title)}</div>`;
@@ -101,7 +101,7 @@ function renderMine(): void {
   $("mcount").textContent = String(mine.length);
   $("mlist").innerHTML = mine.length
     ? mine.map((a, i) => `<li><span>${esc(a)}</span><button type="button" data-i="${i}" aria-label="Remove ${esc(a)}">remove</button></li>`).join("")
-    : `<li><span class="hint">None yet. Gideon also remembers the full name when a wallet shows it.</span></li>`;
+    : `<li><span class="hint">None yet. Gideon asks before it adds one.</span></li>`;
 }
 $("mlist").addEventListener("click", (e) => {
   const i = (e.target as HTMLElement).dataset.i;
@@ -209,7 +209,7 @@ $<HTMLFormElement>("f").addEventListener("submit", async (e) => {
     const merged = await sendDrainer(res.result, LIMITS.drainerWaitMs);
     if (asked !== drainerSeq) return; // a newer check replaced this one
     shown = merged ?? res.result;
-    $("result").innerHTML = card(shown, netOpt);
+    $("result").innerHTML = card(shown, { ...netOpt, ...(merged ? {} : { drainerFailed: true }) });
     if (merged && merged.verdict !== res.result.verdict) playAll($("result"));
     await showStats();
   })();

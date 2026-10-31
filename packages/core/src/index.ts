@@ -1,5 +1,6 @@
 export * from "./types.js";
-export { check, verdictOf, headlineOf, ENGINE_VERSION } from "./engine.js";
+export { check, verdictOf, headlineOf, ruleErrorText, ENGINE_VERSION } from "./engine.js";
+export { VERDICT_TEXT, notCheckedLines, notCheckedCount, drainerFailed } from "./text.js";
 export { classify, networkOfName, isNearAccountKind } from "./classify.js";
 export { editDistance, skeleton, lookalike, sharedEnds } from "./similarity.js";
 export { senderOf } from "./history.js";
@@ -15,6 +16,6 @@ export { withTimeout, TimeoutError } from "./time.js";
 export { disguisedAs, type Disguise } from "./rules/r17-disguised-name.js";
 export { drainerCheck, drainerPrecheck, drainerWanted, drainedBy, withDrainer, checkDrainer, drainerInputOf, drainerShown, verdictFinding, DrainerCache, DRAINER_DEFAULTS, type DrainerInput, type DrainerOptions, type DrainedSender } from "./drainer.js";
 export { decodeTransaction, decodeTransactions, encodeTransaction, base58, fromBase64, toBase64, type TxAction, type TxRequest } from "./tx/decode.js";
-export { parseTxRequest, parseWalletUrl, parseJsonTransactions, type ParsedRequest } from "./tx/input.js";
-export { checkTransaction, unreadableRequest, wellKnown, daysText, TX_TEXT, NEW_CONTRACT_DAYS, LOW_HISTORY_TXS, WHOLE_BALANCE_SHARE, type TxCheckInput, type TxCheckOptions, type TxCheckResult } from "./tx/check.js";
+export { parseTxRequest, parseWalletUrl, parseJsonTransactions, friendlyTxError, type ParsedRequest } from "./tx/input.js";
+export { checkTransaction, unreadableRequest, unfinishedRequest, wellKnown, daysText, TX_TEXT, NEW_CONTRACT_DAYS, LOW_HISTORY_TXS, WHOLE_BALANCE_SHARE, LARGE_DEPOSIT_NEAR, MAX_CHECKED_ACCOUNTS, type TxCheckInput, type TxCheckOptions, type TxCheckResult } from "./tx/check.js";
 export { accountHealth, deleteKeyLinks, removeKeyPlan, healthNetwork, readNonce, HEALTH_TEXT, RECENT_FULL_KEY_DAYS, UNUSED_DAYS, type AccountHealthInput, type AccountHealthOptions, type AccountHealthResult, type DeleteKeyLinks, type RemoveKeyPlan, type HealthStatus, type KeyFlag, type KeyReport } from "./health.js";

@@ -3,6 +3,7 @@ import { NETWORKS } from "../networks.js";
 import { networkOfName } from "../classify.js";
 import { historyAsk, senderHistory, senderOf } from "../history.js";
 import { f, skipped, type RuleResult } from "./util.js";
+import { VERDICT_TEXT } from "../text.js";
 
 const ACCOUNT_KINDS = ["near-named", "near-implicit", "eth-implicit", "hex64-uppercase"];
 
@@ -19,7 +20,11 @@ export async function r13FirstSend(ctx: Ctx): Promise<RuleResult> {
     return f("R13", "PASS", "SENT_BEFORE", "You've sent here before", `You sent to ${c.normalized} from this device before.`);
   }
   const from = senderOf(ctx);
-  if (!from) return skipped("R13", input.from ? `Your account ${input.from} isn't on NEAR ${input.network}.` : "No sender account given.");
+  if (!from) {
+    if (input.from) return skipped("R13", `Your account ${input.from} isn't on NEAR ${input.network}.`);
+    // Not "not relevant": it couldn't run. Every surface shows this as a visible "Not checked" line.
+    return f("R13", "SKIPPED", "SENDER_UNKNOWN", "Not checked: your send history", VERDICT_TEXT.senderUnknown.replace(/^Not checked: your send history\. /, ""));
+  }
   const to = c.normalized;
   if (to === from) return skipped("R13", "Sending to your own account.");
   const saved = (input.addressBook ?? []).find((b) => b.account === to);

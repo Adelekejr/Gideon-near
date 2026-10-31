@@ -3,6 +3,7 @@ import { initChrome, stopper, esc, playVerdict, verdictState, tearSlip, LOGO } f
 import type { CheckResult } from "@gideon/core";
 import { getNetwork, getContacts, saveContacts } from "./state";
 import { CASES, CASE_LABELS, runCheck } from "./run";
+import { HOME_CHIP } from "./verdict-text";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const assetSel = $<HTMLSelectElement>("asset"), destSel = $<HTMLSelectElement>("dest"), exSel = $<HTMLSelectElement>("exchange");
@@ -66,7 +67,7 @@ for (const c of CASES) {
 }
 
 /* hero stage: each button runs the REAL engine on a stable case and the Arrow G plays the verdict it returns */
-const CHIP: Record<string, string> = { BLOCKED: "Blocked", ATTENTION: "Look again", SAFE: "Safe to send" };
+const CHIP: Record<string, string> = HOME_CHIP;
 const stage = $("hs"), hlog = $("hlog");
 const runBtns = Array.from(document.querySelectorAll<HTMLButtonElement>("#motif [data-case]"));
 let stageBusy = false;

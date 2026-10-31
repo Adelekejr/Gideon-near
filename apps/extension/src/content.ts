@@ -2,17 +2,17 @@ import type { Network } from "@gideon/core";
 import { addContact, load, saveContacts, withDefaults, type Settings } from "./lib/settings.js";
 import { addressLike, ClipboardWatch, copyTampered } from "./lib/clipboard.js";
 import { findSendButtons, plainTrim, isRecipientField, isTextField, shouldCheck, type Field } from "./lib/detect.js";
-import { card, checking, failed, tamperCard, toneOf, txCard, updated } from "./lib/view.js";
+import { card, checking, failed, MINE_TEXT, tamperCard, toneOf, txCard, updated } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
 import { extensionAlive, sendCheck, sendDrainer, sendTx, type CheckResponse } from "./lib/messages.js";
 import { findApproval } from "./lib/approval.js";
 import { collectSignals, pageHint, recipientScope } from "./lib/network.js";
 import { pageAccounts } from "./lib/wallets.js";
-import { rememberSend, senderHint, type SenderHint } from "./lib/sender.js";
+import { rememberAccount, rememberSend, senderHint, type SenderHint } from "./lib/sender.js";
 import { placement } from "./lib/place.js";
 import { asShift, loadShift, themeOf, type Shift } from "./lib/shift.js";
 import { playAll } from "./lib/motion.js";
-import { drainerWanted, unreadableRequest, type CheckResult, type Contact } from "@gideon/core";
+import { drainerWanted, unfinishedRequest, unreadableRequest, type CheckResult, type Contact } from "@gideon/core";
 import { LIMITS } from "./lib/limits.js";
 import { missingOptional } from "./lib/runcache.js";
 
@@ -30,6 +30,10 @@ import { missingOptional } from "./lib/runcache.js";
  * On a wallet's approval screen it also reads the transaction request (lib/approval.ts: from the
  * page address, or Meteor's approval screen) and shows Gideon's card before you press Approve.
  * Only the request goes to the worker. Never keys, never the clipboard.
+ *
+ * Only real input counts: events a page script makes up (`isTrusted` false) are ignored, so a page
+ * can't fake a paste, a copy, a press of Send (which would plant a "past send") or a press of
+ * Gideon's own buttons.
  */
 
 let settings: Settings = withDefaults({}).settings;
@@ -203,7 +207,7 @@ document.addEventListener("click", (e) => {
     e.stopImmediatePropagation();
     return;
   }
-  noteSend(e.target);
+  if (e.isTrusted) noteSend(e.target);
 }, true);
 
 /**
@@ -251,6 +255,7 @@ function setFieldValue(field: Field, value: string): void {
 }
 
 function onPanelClick(e: Event): void {
+  if (!e.isTrusted) return;
   const btn = (e.target as Element).closest?.("button[data-act]") as HTMLButtonElement | null;
   if (!btn || !panel) return;
   const p = panel;
@@ -269,6 +274,20 @@ function onPanelClick(e: Event): void {
     void saveContacts(contacts);
     btn.textContent = "Saved ✓";
     btn.disabled = true;
+  } else if (act === "mine") {
+    // You said this account is yours: only now does it count as yours.
+    const account = btn.dataset.account ?? "";
+    if (!extensionAlive()) return;
+    void chrome.storage.local.get("myAccounts").then((raw) => {
+      const list = Array.isArray(raw.myAccounts) ? (raw.myAccounts as unknown[]).filter((a): a is string => typeof a === "string") : [];
+      return chrome.storage.local.set({ myAccounts: rememberAccount(list, account) });
+    }).catch(() => undefined);
+    btn.textContent = MINE_TEXT.added;
+    btn.disabled = true;
+  } else if (act === "retry-approval") {
+    approvalKey = "";
+    approvalTries = 0;
+    void scanApproval();
   } else if (act === "dismiss") {
     hide();
   }
@@ -346,7 +365,7 @@ async function run(field: Field, value: string, copied: string | null, force = f
     return;
   }
   // The verdict shows first. The drained-wallet check (R18) then looks at the recipient's recent
-  // senders in the background and updates this card when it answers (silently stays if it fails).
+  // senders in the background and updates this card when it answers (or says it couldn't check).
   const drainer = drainerWanted(res.result);
   render(p, field, res, true, drainer);
   const current = (): boolean => p.seq === seq && p.field === field;
@@ -355,8 +374,8 @@ async function run(field: Field, value: string, copied: string | null, force = f
     const merged = await sendDrainer(r.result, LIMITS.drainerWaitMs);
     if (!current()) return;
     latest = { ...r, result: merged ?? r.result };
-    // Re-animate only when the answer changed.
-    render(p, field, latest, !!merged && merged.verdict !== r.result.verdict);
+    // Re-animate only when the answer changed. No answer: the card says it couldn't check.
+    render(p, field, latest, !!merged && merged.verdict !== r.result.verdict, false, !merged);
   };
   let latest = res;
   const drained = drainer ? withDrainer(res) : Promise.resolve();
@@ -380,7 +399,7 @@ async function run(field: Field, value: string, copied: string | null, force = f
   }
 }
 
-function render(p: Panel, field: Field, res: Extract<CheckResponse, { ok: true }>, animate = true, drainerPending = false): void {
+function render(p: Panel, field: Field, res: Extract<CheckResponse, { ok: true }>, animate = true, drainerPending = false, drainerFailed = false): void {
   const r = res.result;
   const tone = toneOf(r);
   const held = r.verdict === "BLOCKED" && settings.holdSend;
@@ -388,7 +407,7 @@ function render(p: Panel, field: Field, res: Extract<CheckResponse, { ok: true }
   else release(p);
   p.shown = { to: r.classification.normalized, network: r.input.network, verdict: r.verdict, ...(r.input.from ? { from: r.input.from } : {}) };
   lastShown = { field, value: p.value, ...p.shown };
-  show(field, card(r, { held, actions: actionsFor(r, held), ...(res.net ? { net: res.net } : {}), ...(res.sender ? { sender: res.sender } : {}), ...(drainerPending ? { drainerPending } : {}) }), tone, animate);
+  show(field, card(r, { held, actions: actionsFor(r, held), ...(res.net ? { net: res.net } : {}), ...(res.sender ? { sender: res.sender } : {}), ...(drainerPending ? { drainerPending } : {}), ...(drainerFailed ? { drainerFailed } : {}) }), tone, animate);
 }
 
 /* ---------- events ---------- */
@@ -405,6 +424,7 @@ function selectionText(target: EventTarget | null): string {
 
 let lastSelection = "";
 function onCopy(e: ClipboardEvent): void {
+  if (!e.isTrusted) return;
   if (!settings.clipboardCheck) { watch.reset(); return; }
   // The selection is held only for this copy event (to spot a page swapping it), then dropped.
   // Only an address-shaped selection is remembered for the paste check (R9).
@@ -414,6 +434,7 @@ function onCopy(e: ClipboardEvent): void {
   watch.recordCopy(addressLike(sel) ? sel : "");
 }
 function onCopyAfter(e: ClipboardEvent): void {
+  if (!e.isTrusted) return;
   if (!settings.clipboardCheck) { lastSelection = ""; return; }
   let written: string | null = null;
   try {
@@ -435,6 +456,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 document.addEventListener("paste", (e) => {
+  if (!e.isTrusted) return;
   if (!settings.checkOnPaste || !isTextField(e.target)) return;
   const field = e.target;
   const pasted = e.clipboardData?.getData("text/plain") ?? "";
@@ -447,6 +469,7 @@ document.addEventListener("paste", (e) => {
 
 const timers = new WeakMap<Field, number>();
 document.addEventListener("input", (e) => {
+  if (!e.isTrusted) return;
   if (!settings.checkOnPaste || !isTextField(e.target)) return;
   if ((e as InputEvent).inputType === "insertFromPaste") return; // handled by the paste listener
   const field = e.target;
@@ -469,6 +492,10 @@ document.addEventListener("input", (e) => {
 let approvalKey = "";
 let approvalSeq = 0;
 let approvalShown = false;
+/** Failed tries for the request showing now; the next try waits longer (2 s, 4 s, 8 s … 30 s). */
+let approvalTries = 0;
+let retryTimer = 0;
+const MAX_APPROVAL_TRIES = 6;
 
 async function scanApproval(): Promise<void> {
   if (orphaned || !extensionAlive()) return;
@@ -486,11 +513,12 @@ async function scanApproval(): Promise<void> {
     return;
   }
   if (found.key === approvalKey) return;
+  if (found.key !== lastFailedKey) approvalTries = 0;
   approvalKey = found.key;
   const seq = ++approvalSeq;
   const why0 = found.from === "url" ? "from the wallet link" : "from the approval screen";
   if (found.unreadable) {
-    // Never "looks right" for a request nobody could read.
+    // Never "no problems found" for a request nobody could read.
     const r = unreadableRequest({ ...(found.network ? { network: found.network } : {}), wallet: found.unreadable === "wallet" });
     show(null, txCard(r, { ...(found.network ? { net: { network: found.network, why: why0 } } : {}), actions: '<button data-act="dismiss" class="g">Dismiss</button>' }), "warn");
     approvalShown = true;
@@ -501,13 +529,35 @@ async function scanApproval(): Promise<void> {
     ...(found.network ? { network: found.network } : {}),
     ...(found.signerId ? { signerId: found.signerId } : {}),
     ...(found.origin ? { origin: found.origin } : {}),
+    ...(found.from === "screen" ? { screenOnly: true } : {}),
   }, LIMITS.txWaitMs);
   if (seq !== approvalSeq || approvalKey !== found.key) return;
   if (!res.ok) {
-    if (res.orphaned) orphaned = true;
-    approvalKey = ""; // try again on the next change
+    if (res.orphaned) {
+      orphaned = true;
+      show(null, updated(), "warn");
+      approvalShown = true;
+      return;
+    }
+    // Never silent: the request isn't checked, so say so, and try again with a growing wait.
+    lastFailedKey = found.key;
+    approvalTries++;
+    const again = approvalTries < MAX_APPROVAL_TRIES;
+    const r = unfinishedRequest({ ...(found.network ? { network: found.network } : {}) });
+    show(null, txCard(r, { ...(found.network ? { net: { network: found.network, why: why0 } } : {}), actions: `<button data-act="retry-approval">Try again</button><button data-act="dismiss" class="g">Dismiss</button>` }), "warn");
+    approvalShown = true;
+    clearTimeout(retryTimer);
+    if (again) {
+      retryTimer = window.setTimeout(() => {
+        if (approvalKey !== found.key) return;
+        approvalKey = "";
+        void scanApproval();
+      }, Math.min(30_000, 2000 * 2 ** (approvalTries - 1)));
+    }
     return;
   }
+  lastFailedKey = "";
+  approvalTries = 0;
   const r = res.result;
   const tone = r.verdict === "BLOCKED" ? "block" : r.verdict === "SAFE" ? "safe" : "warn";
   const why = found.from === "url" ? "from the wallet link" : "from the approval screen";
@@ -516,6 +566,7 @@ async function scanApproval(): Promise<void> {
   approvalShown = true;
 }
 
+let lastFailedKey = "";
 let approvalTimer = 0;
 function scheduleApproval(): void {
   if (approvalTimer) return;

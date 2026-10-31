@@ -3,6 +3,7 @@ import { initChrome, stopper, esc, footer, playVerdict, recordWatch, tearSlip, r
 import { getNetwork } from "./state";
 import { inputFromQuery, runCheck, runDrainer, CASES } from "./run";
 import { drainerWanted } from "@gideon/core";
+import { chipOf, countsLine, notChecked, safeTitle, safeWhy, sendersLine } from "./verdict-text";
 
 const RULE_NAMES: Record<string, string> = {
   R1: "Format & network", R2: "Pasted hash", R3: "Account on chain", R4: "Ethereum-style account", R5: "Token",
@@ -57,16 +58,16 @@ function evidenceHTML(f: Finding) {
 async function render(r: CheckResult, o: { pending?: boolean; prev?: CheckResult } = {}) {
   // An update after the drained-wallet check: replay the Arrow G only if the verdict changed.
   const changed = !o.prev || o.prev.verdict !== r.verdict;
-  const r18 = r.findings.find((f) => f.rule === "R18");
-  const senders = o.pending ? `<p class="small acct">Checking recent senders for hacked wallets…</p>`
-    : r18 && r18.status !== "SKIPPED" && r.headline?.rule !== "R18" ? `<p class="small acct"><b>Senders:</b> ${esc(r18.title)}</p>` : "";
+  const sl = sendersLine(r, { pending: !!o.pending });
+  const senders = sl ? `<p class="small acct">${sl.startsWith("Senders: ") ? `<b>Senders:</b> ${esc(sl.slice(9))}` : esc(sl)}</p>` : "";
+  const notes = notChecked(r).map((l) => `<p class="small acct">${esc(l)}</p>`).join("");
   const v = r.verdict === "BLOCKED" ? "block" : r.verdict === "SAFE" ? "safe" : "warn";
   const h = r.headline;
   const cnc = h?.status === "COULD_NOT_CHECK";
-  const chip = { block: "BLOCKED", warn: cnc ? "COULDN’T CHECK" : "LOOK AGAIN", safe: "SAFE TO SEND" }[v];
+  const chip = chipOf(r);
   const tag = { block: "BOUNCED", warn: cnc ? "NOT VERIFIED" : "HELD FOR REVIEW", safe: "PASSED" }[v];
-  const title = h ? h.title : r.account?.exists ? "Looks right. The account exists and nothing is wrong." : "Looks right. Every check that applies passed on live data.";
-  const why = h ? h.detail : r.account?.exists ? `${r.account.summary} Every other check that applies passed on live data.` : "Gideon read the account, token and destination from public chain data and found nothing wrong.";
+  const title = h ? h.title : safeTitle(r);
+  const why = h ? h.detail : safeWhy();
   const a = r.account;
   const acct = !a ? "" : `<p class="small acct"><b>Account:</b> ${a.exists === true ? `exists on NEAR ${esc(a.network)}${a.createdAt ? ` · created ${esc(a.createdAt.slice(0, 10))}` : ""} · ${esc(a.balanceNear ?? "?")} NEAR${a.contract ? " · runs a contract" : ""}` : a.exists === false ? `not found on NEAR ${esc(a.network)}` : "couldn’t check whether it exists"}</p>`;
   const fix = h?.fix ?? [];
@@ -98,13 +99,13 @@ ${caseInfo ? `<p class="notice" style="margin-top:28px">Example: ${esc(caseInfo.
  <div class="vstage">${stopper(changed ? "idle" : v)}<span class="cap">GIDEON · <b>${tag}</b></span></div></section>
 <div class="rgrid"><div>
  <div class="panel rv"><div class="hd"><span class="lbl">01 / What you pasted</span><span class="lbl">${esc(r.classification.label)}</span></div><div class="bd">${addrBlock}${anno}</div></div>
- <div class="panel rv"><div class="hd"><span class="lbl">02 / ${v === "safe" ? "Why it’s fine" : v === "block" ? "Why it’s stopped" : "Why to look again"}</span></div><div class="bd"><p class="why">${esc(why)}</p>${acct}${senders}${h ? evidenceHTML(h) : ""}
+ <div class="panel rv"><div class="hd"><span class="lbl">02 / ${v === "safe" ? "What Gideon found" : v === "block" ? "Why it’s stopped" : "Why to look again"}</span></div><div class="bd"><p class="why">${esc(why)}</p>${acct}${senders}${notes}${h ? evidenceHTML(h) : ""}
   ${ex.by !== "built-in" ? `<p class="small" style="margin-top:12px">Plain-words version (${esc(ex.by)}): ${esc(ex.text)}</p>` : ""}</div></div>
  ${fix.length ? `<div class="panel rv"><div class="hd"><span class="lbl">03 / How to fix it</span></div><div class="bd"><ol class="fix">${fix.map((f) => `<li>${esc(f)}</li>`).join("")}</ol>
   <div class="actions"><a class="btn" href="index.html#check">Check another address <span class="ar">→</span></a><button class="btn ghost" id="copyfix">Copy fix steps</button></div></div></div>`
   : `<div class="panel rv"><div class="bd"><div class="actions" style="margin-top:0">${v === "safe" && r.account?.exists ? `<a class="btn" href="${esc(explorerAccountUrl(r.input.network, r.classification.normalized))}" target="_blank" rel="noopener">See the account on NearBlocks ↗</a>` : ""}<a class="btn ghost" href="index.html#check">Check another</a></div>
   ${v === "safe" ? `<p class="small" style="margin-top:12px">Gideon doesn’t send anything. Go back to your wallet and send there, or use <a href="send.html" style="text-decoration:underline">Send</a>.</p>` : ""}</div></div>`}
- <div class="panel rv"><div class="hd"><span class="lbl">Checks run</span><span class="lbl">${shown.length} ran · ${skippedN} not relevant</span></div><div class="bd">
+ <div class="panel rv"><div class="hd"><span class="lbl">Checks run</span><span class="lbl">${esc(countsLine(r))}</span></div><div class="bd">
   <table class="tbl">${shown.map((f) => `<tr><td>${esc(RULE_NAMES[f.rule] ?? f.rule)}</td><td><span class="small">${esc(f.title)}</span></td><td><span class="st ${ST[f.status][0]}">${ST[f.status][1]}</span></td></tr>`).join("")}</table>
   <details class="more"><summary>Details for every rule</summary>${r.findings.map((f) => `<p class="small" style="margin-top:10px"><b class="mono">${esc(f.rule)} ${esc(f.code)}</b> · ${esc(f.detail)}</p>${evidenceHTML(f)}`).join("")}</details></div></div>
 </div><div>

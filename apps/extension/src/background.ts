@@ -7,7 +7,7 @@ import { titleOf } from "./lib/view.js";
 import { cachedSources, TtlCache } from "./lib/cache.js";
 import { LIMITS } from "./lib/limits.js";
 import { cacheable, checkKey } from "./lib/runcache.js";
-import { rememberAccount, resolveSender, sendsOn, type SenderUsed } from "./lib/sender.js";
+import { resolveSender, sendsOn, type SenderUsed } from "./lib/sender.js";
 
 /**
  * The engine runs here, in the extension's service worker, so lookups go from the
@@ -27,16 +27,16 @@ export async function runRequest(req: CheckRequest): Promise<{ result: CheckResu
     ? { network: req.input.network, source: "manual", why: settings.networkMode === "auto" ? "from the token you picked" : "set by you in Gideon", sure: true }
     : await resolveNetwork(settings.networkMode, req.page, req.input.to, sources, LIMITS.sourceMs);
   // The sender: a full name from the wallet header, or the shortened one matched to your accounts.
-  const sender = req.sender ? resolveSender(req.sender, myAccounts) : undefined;
-  if (req.sender?.account && (!req.sender.via || req.sender.via === "header" || req.sender.via === "wallet")) {
-    const mine = rememberAccount(myAccounts, req.sender.account);
-    if (mine.join() !== myAccounts.join()) await chrome.storage.local.set({ myAccounts: mine });
-  }
+  // Never saved as yours from the page (any page can show any name): the card asks you instead.
+  const resolved = req.sender ? resolveSender(req.sender, myAccounts) : undefined;
+  const sender = resolved ? { ...resolved, ...(resolved.account && myAccounts.includes(resolved.account) ? { confirmed: true } : {}) } : undefined;
   const device = sendsOn(sends, net.network);
   const walletNetwork = walletNetworkHint(net, req.page, sender?.account);
   const input = {
     ...req.input,
-    ...(sender?.account ? { from: sender.account } : {}),
+    // An unconfirmed sender that equals the recipient would make the recipient look like "your own
+    // account" (account planting): then the sender is left out and counts as unknown.
+    ...(sender?.account && (sender.confirmed || sender.account !== req.input.to.trim().toLowerCase()) ? { from: sender.account } : {}),
     network: net.network,
     addressBook: contacts,
     ...(device.length ? { deviceSends: device } : {}),
@@ -78,7 +78,9 @@ export async function runDrainer(req: DrainerRequest): Promise<CheckResult> {
   const r = req.result;
   if (!drainerWanted(r)) return r;
   const { myAccounts, stats, last } = await load();
-  const merged = await checkDrainer(r, sources, { myAccounts, cache: drainers }, { timeoutMs: LIMITS.drainerMs });
+  // A sender read off the page only counts as yours once you confirmed it (else R18 would skip it).
+  const trustFrom = !!r.input.from && myAccounts.includes(r.input.from);
+  const merged = await checkDrainer(r, sources, { myAccounts, cache: drainers, trustFrom }, { timeoutMs: LIMITS.drainerMs });
   // A stop found only now still counts, and the popup's "last check" line follows it.
   if (merged.verdict !== r.verdict && last && last.verdict !== merged.verdict && last.to === r.input.to && last.at === r.checkedAt) {
     await chrome.storage.local.set({
@@ -116,6 +118,7 @@ export async function runTx(req: TxRequestMsg): Promise<TxCheckResult> {
     ...(req.network ? { network: req.network } : {}),
     ...(req.signerId ? { signerId: req.signerId } : {}),
     ...(req.origin ? { origin: req.origin } : {}),
+    ...(req.screenOnly ? { screenOnly: true } : {}),
     myAccounts,
     addressBook: contacts,
     deviceSends: sends.map((s) => s.to),

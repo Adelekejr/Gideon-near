@@ -63,7 +63,7 @@ export async function check(rawInput: CheckInput, sources: Sources, opts: CheckO
     } catch (e) {
       // A bug in a rule must never turn into "safe".
       const msg = e instanceof Error ? e.message : String(e);
-      return [{ rule: r.id, code: "RULE_ERROR", status: "COULD_NOT_CHECK", title: `Couldn't check: ${r.name}`, detail: `Internal error: ${msg}` } as Finding];
+      return [{ rule: r.id, code: "RULE_ERROR", status: "COULD_NOT_CHECK", title: `Couldn't check: ${r.name}`, detail: ruleErrorText(msg) } as Finding];
     }
   }));
   const findings = settled.flat();
@@ -89,4 +89,13 @@ export async function check(rawInput: CheckInput, sources: Sources, opts: CheckO
     ms: Date.now() - t0,
   };
   return { ...base, receipt: await makeReceipt(base, opts.receiptKey) };
+}
+
+/**
+ * Plain words for a rule that threw (a data source answered with something Gideon couldn't read,
+ * or a bug). The raw message is kept at the end in brackets so a bug report still has it.
+ */
+export function ruleErrorText(msg: string): string {
+  const raw = msg.trim().replace(/\s+/g, " ").slice(0, 120);
+  return `A data source answered with something Gideon couldn't read, so this check didn't finish. Gideon won't call this send safe until it can check. Try again in a minute.${raw ? ` (${raw})` : ""}`;
 }

@@ -93,7 +93,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
  <div class="rcpt">
   <div>
    <div class="sec-hd" style="grid-template-columns:1fr;margin-bottom:0"><div><span class="lbl">02 / Proof</span><h2 class="rv">Every check leaves a receipt.</h2></div></div>
-   <p class="lead rv" style="margin-top:20px">A sha256 over exactly what was checked and what came back. With a signing key it’s also ed25519-signed, so a wallet or agent can prove it checked before it sent.</p>
+   <p class="lead rv" style="margin-top:20px">A sha256 over exactly what was checked and what came back. The CLI and the MCP server can also sign the receipt with ed25519 if you give them a key. Receipts made on this website are unsigned.</p>
    <ul>
     <li class="rv"><span class="lbl">What</span><span>Address, network, token, destination and amount, as you entered them.</span></li>
     <li class="rv"><span class="lbl">Against</span><span>Every source asked, how long it took, and whether it answered.</span></li>

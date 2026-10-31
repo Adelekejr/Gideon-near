@@ -2,7 +2,8 @@ import type { CheckResult, Finding, Status } from "@gideon/core";
 import { NETWORKS, explorerTxUrl } from "@gideon/core";
 import { initChrome, stopper, esc, footer, playVerdict, recordWatch } from "./chrome";
 import { runCheck, runDrainer } from "./run";
-import { drainerWanted } from "@gideon/core";
+import { drainerWanted, VERDICT_TEXT } from "@gideon/core";
+import { notChecked, safeTitle, safeWhy, sendersLine } from "./verdict-text";
 import { getContacts } from "./state";
 import { gate, nearToYocto, sendKey, sendNetwork, type GateKind } from "./sendgate";
 import { connector, sendNear, type Connected } from "./wallet";
@@ -62,7 +63,8 @@ async function doCheck() {
   // Then the drained-wallet check, time-limited; it updates the verdict if it finds something.
   const first = checked;
   if (!first || !drainerPending) return;
-  const merged = await runDrainer(first.result);
+  // The sender here is the wallet you connected, so it really is yours.
+  const merged = await runDrainer(first.result, false, { trustFrom: true });
   if (checked !== first) return; // a newer check replaced this one
   drainerPending = false;
   checked = { key: first.key, result: merged };
@@ -140,7 +142,7 @@ function update() {
     case "fill": chip = `<span class="chip idle">READY</span>`; title = "Who are you paying, and how much?"; why = "Paste the receiver’s NEAR account and an amount. Then run the check."; break;
     case "check": chip = `<span class="chip idle">NOT CHECKED</span>`; title = "Check before you send."; why = checkError ? `The last check didn’t finish (${esc(checkError)}). That isn’t a pass. Try again.` : `${sum}. The Send button stays locked until Gideon has checked exactly this.`; break;
     case "checking": chip = `<span class="chip idle">CHECKING</span>`; title = "Asking the chain…"; why = sum; tag = "CHECKING"; break;
-    case "safe": chip = `<span class="chip safe">SAFE TO SEND</span>`; title = r?.account?.exists ? "Looks right. The account exists and nothing is wrong." : "Looks right. Every check that applies passed."; why = `${sum}. ${esc(r?.account?.summary ?? "")} Read from live NEAR ${NET} data just now.`; tag = "<b>PASSED</b>"; break;
+    case "safe": chip = `<span class="chip safe">${esc(VERDICT_TEXT.safeChip)}</span>`; title = r ? safeTitle(r) : ""; why = `${sum}. ${esc(safeWhy())}`; tag = "<b>PASSED</b>"; break;
     case "attention": chip = `<span class="chip warn">${cnc ? "COULDN’T CHECK" : "LOOK AGAIN"}</span>`; title = h?.title ?? "Look again before you send."; why = esc(h?.detail ?? ""); tag = `<b>${cnc ? "NOT VERIFIED" : "HELD FOR REVIEW"}</b>`; break;
     case "blocked": chip = `<span class="chip block">BLOCKED</span>`; title = h?.title ?? "Don’t send this."; why = esc(h?.detail ?? ""); tag = "<b>BOUNCED</b>"; break;
     case "sending": chip = `<span class="chip idle">IN YOUR WALLET</span>`; title = "Approve the transfer in your wallet."; why = `${sum}. Gideon is waiting for your wallet.`; tag = "SIGNING"; break;
@@ -149,7 +151,8 @@ function update() {
   if (r && ["safe", "attention", "blocked"].includes(g.kind)) {
     const report = new URLSearchParams({ to: target, amount: amt, from: who?.accountId ?? "", net: NET, dest: "wallet" });
     body = `<div class="meta"><span>NEAR ${esc(NET)}</span><span>${r.ms} ms</span><span>${r.sources.length} lookups</span><span>verdict ${esc(r.verdict)}</span></div>${findingsList(r)}
-     ${drainerPending ? `<p class="vnote" style="margin-top:12px">Checking recent senders for hacked wallets…</p>` : ""}
+     ${((l) => (l ? `<p class="vnote" style="margin-top:12px">${esc(l)}</p>` : ""))(sendersLine(r, { pending: drainerPending }))}
+     ${notChecked(r).map((l) => `<p class="vnote" style="margin-top:12px">${esc(l)}</p>`).join("")}
      <p class="vnote" style="margin-top:12px"><a href="check.html?${esc(report.toString())}" target="_blank" rel="noopener">Full report ↗</a></p>`;
   }
   if (g.kind === "sent" && sent?.hash) body = `<p class="vnote" style="margin-top:14px">Transaction <a href="${esc(explorerTxUrl(NET, sent.hash))}" target="_blank" rel="noopener">${esc(sent.hash)} ↗</a></p>`;

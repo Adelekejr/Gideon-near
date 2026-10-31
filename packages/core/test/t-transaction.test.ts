@@ -209,7 +209,8 @@ describe("the demo request: full access plus a whole-balance send", () => {
     ].join(",");
     const r = await checkTransaction({ request: `https://testnet.mynearwallet.com/sign?transactions=${req}` }, empty({ viewAccount: async (_n, a) => (a === "hammed.testnet" ? acct(5) : null), sentCount: async () => 0 }), opts);
     expect(r.verdict).toBe("BLOCKED");
-    expect(r.findings.map((x) => x.code)).toEqual(["FULL_ACCESS_KEY", "WHOLE_BALANCE_UNSEEN"]);
+    // 0.3.1: the recipient gets the address checks too, and it doesn't exist (R3).
+    expect(r.findings.map((x) => x.code)).toEqual(["FULL_ACCESS_KEY", "ACCOUNT_NOT_FOUND", "WHOLE_BALANCE_UNSEEN"]);
   });
 });
 

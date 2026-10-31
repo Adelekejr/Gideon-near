@@ -1,4 +1,4 @@
-import { check, checkDrainer, DrainerCache, type CheckInput, type CheckResult, type Network, type Sources } from "@gideon/core";
+import { check, checkDrainer, DrainerCache, withDrainer, type CheckInput, type CheckResult, type Network, type Sources } from "@gideon/core";
 import { liveSources, replaySources, type Recording } from "@gideon/sources";
 import casesJson from "../../../demo/cases.json";
 import fixtures from "../../../demo/fixtures.json";
@@ -41,8 +41,11 @@ export const DRAINER_MS = 8000;
  * The drained-wallet check on a finished result: looks at the recipient's recent senders and
  * returns the result with R18 merged in. Never throws; with recorded answers it doesn't run.
  */
-export function runDrainer(r: CheckResult, replay = false): Promise<CheckResult> {
-  return checkDrainer(r, sources(replay), { cache: drainers }, { timeoutMs: DRAINER_MS }).catch(() => r);
+export function runDrainer(r: CheckResult, replay = false, o: { trustFrom?: boolean } = {}): Promise<CheckResult> {
+  // `from` only switches the check off for "your own account" when it's really yours (the wallet
+  // you connected on the send page). A `from` in a checker link is just a name anyone can type.
+  return checkDrainer(r, sources(replay), { cache: drainers, trustFrom: o.trustFrom ?? false }, { timeoutMs: DRAINER_MS })
+    .catch(() => withDrainer(r, { rule: "R18", status: "SKIPPED", code: "FAILED", title: "Drained-wallet check didn't run", detail: "The check failed." }));
 }
 
 /** Build a CheckInput from check.html query params. */

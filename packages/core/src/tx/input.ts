@@ -56,7 +56,7 @@ export function parseWalletUrl(text: string): ParsedRequest | null {
   const base = { wallet: u.host, ...(network ? { network } : {}), ...(site ? { site } : {}) };
   const txs = q.get("transactions");
   if (txs && /\/sign\/?$/.test(u.pathname)) {
-    return { ...base, transactions: decodeTransactions(txs), source: "sign-link" };
+    return { ...base, transactions: readable(() => decodeTransactions(txs)), source: "sign-link" };
   }
   // MyNearWallet (and the old NEAR wallet) sign-in: with a public key but no contract_id, the
   // site gets a key that can do anything with the account.
@@ -150,9 +150,21 @@ export function parseTxRequest(input: string | object): ParsedRequest {
     }
     return { transactions: parseJsonTransactions(v), source: "json" };
   }
+  return { transactions: readable(() => decodeTransactions(text)), source: "base64" };
+}
+
+/** Decoder messages in plain words. Anything not listed is shown as the decoder wrote it. */
+export function friendlyTxError(msg: string): string {
+  if (/string too long/.test(msg)) return "a text field in this request is longer than Gideon reads (over 4,096 bytes)";
+  if (/unknown key type/.test(msg)) return "it uses a key type Gideon doesn't recognise";
+  if (/unknown key permission/.test(msg)) return "it asks for a key permission Gideon doesn't recognise";
+  return msg;
+}
+
+function readable<T>(run: () => T): T {
   try {
-    return { transactions: decodeTransactions(text), source: "base64" };
+    return run();
   } catch (e) {
-    throw new Error(`This isn't a NEAR transaction Gideon can read (${e instanceof Error ? e.message : String(e)}).`);
+    throw new Error(`This isn't a NEAR transaction Gideon can read (${friendlyTxError(e instanceof Error ? e.message : String(e))}).`);
   }
 }

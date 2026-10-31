@@ -9,7 +9,7 @@ const hit = (a: string) => ({ account: a, tx: "tx1", minutesAfterKey: 1, leftNea
 const up = () => true;
 
 describe("drained-wallet line on the card (R18)", () => {
-  it("pending while it looks, the all-clear after, nothing when skipped", async () => {
+  it("pending while it looks, the all-clear after, couldn't check when it failed, nothing when it doesn't apply", async () => {
     const r = await check({ to: "bob.testnet", network: "testnet", destination: "wallet" }, live);
     expect(card(r, { drainerPending: true })).toContain("checking recent senders for hacked wallets…");
     expect(card(r)).not.toContain("senders →");
@@ -17,7 +17,12 @@ describe("drained-wallet line on the card (R18)", () => {
     expect(pass.verdict).toBe("SAFE");
     expect(drainerLine(pass)).toContain("No sign of hacked wallets sending here");
     const skipped = await withDrainer(r, { rule: "R18", status: "SKIPPED", code: "FAILED", title: "Drained-wallet check didn't run", detail: "" });
-    expect(drainerLine(skipped, true)).toBe("");
+    // 0.3.1: a failed check says so instead of vanishing.
+    expect(drainerLine(skipped, true)).toContain("couldn&#39;t check recent senders for hacked wallets");
+    const own = await withDrainer(r, { rule: "R18", status: "SKIPPED", code: "OWN_ACCOUNT", title: "Your own account", detail: "" });
+    expect(drainerLine(own)).toBe("");
+    // The worker never answered (page-side time-out): the card says so too.
+    expect(card(r, { drainerFailed: true })).toContain("couldn&#39;t check recent senders for hacked wallets");
   });
   it("a BLOCK becomes the card's headline (no duplicate line)", async () => {
     const r = await check({ to: "bob.testnet", network: "testnet", destination: "wallet" }, live);

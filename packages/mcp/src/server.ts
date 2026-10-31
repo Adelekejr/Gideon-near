@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import { readFileSync } from "node:fs";
 import {
-  accountHealth, check, checkDrainer, healthNetwork, checkTransaction, DrainerCache, explain, NETWORKS, resolveNetwork, verifyReceipt,
+  accountHealth, check, checkDrainer, drainerFailed, notCheckedLines, VERDICT_TEXT, withDrainer, healthNetwork, checkTransaction, DrainerCache, explain, NETWORKS, resolveNetwork, verifyReceipt,
   type AccountHealthResult, type CheckInput, type CheckResult, type Explainer, type Network, type Sources, type TxCheckResult, type Verdict,
 } from "@gideon/core";
 import { liveSources, nearAiExplainer, replaySources, sourcesOptionsFromEnv } from "@gideon/sources";
@@ -14,7 +14,7 @@ const DRAINER_MS = 8000;
 /** What an agent must do with each verdict. This is the contract of the server. */
 export const AGENT_ACTION = { SAFE: "SEND", ATTENTION: "ASK_HUMAN", BLOCKED: "DO_NOT_SEND" } as const satisfies Record<Verdict, string>;
 const INSTRUCTION: Record<Verdict, string> = {
-  SAFE: "SAFE: every check that applies passed on live data. You may send exactly this recipient, amount, token and network.",
+  SAFE: "SAFE (no problems found): Gideon checked this address live and found nothing wrong. That isn't a guarantee. You may send exactly this recipient, amount, token and network.",
   ATTENTION: "ATTENTION: do not send on your own. Stop and ask a human, showing them the reasons below. \"Couldn't check\" is ATTENTION, never safe.",
   BLOCKED: "BLOCKED: DO NOT SEND. This send would likely lose the funds. Tell the human why and how to fix it; don't retry with the same details.",
 };
@@ -23,7 +23,7 @@ export const INSTRUCTIONS = `Gideon is a read-only pre-send safety check for NEA
 Before you send any NEAR or NEAR token, call gideon_check with the exact recipient, network, amount and token, and \`from\` (the account you send from) when you know it.
 - BLOCKED (agent_action DO_NOT_SEND): do not send. Report the reason and fix steps to the human.
 - ATTENTION (agent_action ASK_HUMAN): do not send on your own. Ask a human and wait for an explicit yes. A lookup that failed ("couldn't check") is ATTENTION, never safe.
-- SAFE (agent_action SEND): you may send, with exactly the details you checked. If anything changes, check again.
+- SAFE (agent_action SEND): no problems found. You may send, with exactly the details you checked. If anything changes, check again. Tell the human about any "not_checked" lines.
 Before you approve or sign any NEAR transaction or sign-in someone else built (a dApp, a link, another agent), call gideon_check_transaction with the sign link, the raw base64 transaction, or signer, receiver and actions. Same verdicts and agent_action; DO_NOT_SEND means do not sign.
 gideon_explain turns a result into plain words. gideon_flags lists community reports about an account; reports are not proof.
 gideon_account_health lists who can act for an account (its keys) and flags risky ones. If move_funds_now is true, tell the human at once. Each entry in remove_links is a ready-to-sign, unsigned DeleteKey (near-mcp account_delete_access_keys args, base64 transaction, wallet links). Never remove a key or sign one yourself without the human's explicit yes for that key; give the link to the human.`;
@@ -76,6 +76,7 @@ const checkOutput = z.object({
   reasons: z.array(reason),
   fix: z.array(z.string()),
   couldnt_check: z.array(z.string()),
+  not_checked: z.array(z.string()).describe("Checks that didn't run because Gideon lacked something (e.g. your account, a failed drained-wallet lookup). Tell the human."),
   receipt: z.object({ sha256: z.string(), signature: z.string().optional(), publicKey: z.string().optional() }),
   result: z.record(z.string(), z.unknown()).describe("Full Gideon result. Pass it to gideon_explain as is."),
 });
@@ -100,13 +101,14 @@ export function summarize(r: CheckResult) {
     }),
     fix: r.headline?.fix ?? [],
     couldnt_check: r.findings.filter((f) => f.status === "COULD_NOT_CHECK").map((f) => `${f.rule}: ${f.detail}`),
+    not_checked: [...notCheckedLines(r), ...(drainerFailed(r) ? [`Not checked: ${VERDICT_TEXT.drainerFailed}.`] : [])],
     receipt: r.receipt,
     result: r as unknown as Record<string, unknown>,
   };
 }
 
 const TX_INSTRUCTION: Record<Verdict, string> = {
-  SAFE: "SAFE: nothing risky found in this request. You may approve exactly this request; if it changes, check again.",
+  SAFE: "SAFE (nothing flagged): Gideon looked for known dangers in this request and found none. That isn't a guarantee. You may approve exactly this request; if it changes, check again.",
   ATTENTION: "ATTENTION: do not approve or sign on your own. Ask a human, showing them the reasons below. \"Couldn't check\" is ATTENTION, never safe.",
   BLOCKED: "BLOCKED: DO NOT SIGN. This request could hand over the account or its funds. Tell the human why; don't approve it.",
 };
@@ -132,9 +134,10 @@ export function summarizeTx(r: TxCheckResult) {
 }
 
 function asText(s: ReturnType<typeof summarize>): string {
-  const lines = [`${s.verdict} → ${s.agent_action}`, s.agent_instruction, `Recipient: ${s.recipient} (${s.network})`];
+  const lines = [`${s.verdict} → ${s.agent_action}${s.verdict === "SAFE" ? ` (${VERDICT_TEXT.safeLabel})` : ""}`, s.agent_instruction, `Recipient: ${s.recipient} (${s.network})`];
   if (s.account) lines.push(`Account: ${s.account.summary}`);
   if (s.headline) lines.push(`Why: ${s.headline}`);
+  for (const l of s.not_checked) lines.push(l);
   for (const x of s.reasons) lines.push(`- ${x.rule} ${x.status}: ${x.title}${x.link ? ` (${x.link})` : ""}`);
   s.fix.forEach((f, i) => lines.push(`Fix ${i + 1}: ${f}`));
   lines.push(`Receipt sha256: ${s.receipt.sha256}`);
@@ -166,8 +169,10 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
     const reg = registryFor(n);
     const receiptKey = env.GIDEON_RECEIPT_KEY || undefined;
     const r = await check(input, sources, { now: deps.now, receiptKey, flagRegistry: reg ?? "", historyTimeoutMs: HISTORY_MS });
-    // Then the drained-wallet check (R18): the recipient's recent senders, time-limited and silent if it fails.
-    return checkDrainer(r, sources, { cache: drainers }, { timeoutMs: DRAINER_MS }, receiptKey).catch(() => r);
+    // Then the drained-wallet check (R18): the recipient's recent senders, time-limited. A failure
+    // is reported as "not checked", never dropped.
+    return checkDrainer(r, sources, { cache: drainers }, { timeoutMs: DRAINER_MS }, receiptKey)
+      .catch(() => withDrainer(r, { rule: "R18", status: "SKIPPED", code: "FAILED", title: "Drained-wallet check didn't run", detail: "The check failed." }, receiptKey));
   }
 
   const server = new McpServer({ name: "gideon", version: VERSION }, { instructions: INSTRUCTIONS });
@@ -292,7 +297,7 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
       return { isError: true, content: [{ type: "text", text: e instanceof Error ? e.message : String(e) }] };
     }
     const s = summarizeTx(r);
-    const lines = [`${s.verdict} → ${s.agent_action}`, s.agent_instruction, `Network: ${s.network}${s.signer ? `, signer ${s.signer}` : ""}`];
+    const lines = [`${s.verdict} → ${s.agent_action}${s.verdict === "SAFE" ? " (Nothing flagged)" : ""}`, s.agent_instruction, `Network: ${s.network}${s.signer ? `, signer ${s.signer}` : ""}`];
     for (const t of s.transactions) lines.push(`Tx → ${t.receiver}: ${t.actions.join(", ") || "no actions"}${t.partial ? " (not fully readable)" : ""}`);
     if (s.headline) lines.push(`Why: ${s.headline}`);
     for (const x of s.reasons) lines.push(`- ${x.rule} ${x.status}: ${x.title}${x.link ? ` (${x.link})` : ""}`);

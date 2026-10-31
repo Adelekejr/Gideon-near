@@ -79,7 +79,7 @@ await page.click('.connect-item[data-type="gideon-mock"]');
 await page.waitForSelector("#disc");
 
 await checkFor(RENT);
-assert.match(await page.locator("#gate .chip").innerText(), /SAFE TO SEND/);
+assert.match(await page.locator("#gate .chip").innerText(), /NO PROBLEMS FOUND/);
 assert.equal(await sendBtn().isDisabled(), false);
 await shot("send-2-safe.png");
 

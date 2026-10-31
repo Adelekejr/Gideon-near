@@ -94,6 +94,8 @@ export function sendDrainer(result: CheckResult, timeoutMs?: number, send: (m: D
 
 /** Check a wallet's transaction request (found on the approval screen or in its address). */
 export interface TxRequestMsg {
+  /** Read off the wallet's screen (Meteor): who it's from and to, not what it does. */
+  screenOnly?: boolean;
   type: "gideon:tx";
   request: string | object;
   network?: Network;

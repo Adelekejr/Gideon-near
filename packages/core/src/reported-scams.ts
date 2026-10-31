@@ -33,11 +33,11 @@ export const REPORTED_SCAMS: ReportedScam[] = [
   {
     account: "dolbabob.near",
     network: "mainnet",
-    what: "received funds stolen by the same fake NEAR wallet",
+    what: "received NEAR taken through the nearcrowd.org seed-phrase phishing site (reported in the same thread)",
     url: "https://gov.near.org/t/11112",
     by: "NEAR Governance Forum, “[ALERT] Fake NEAR Wallet is hacking accounts”, reply of 20 Dec 2021",
-    quote: "I just lose 9 NEAR there … this is the receiver account: dolbabob.near",
-    checked: "2026-10-30",
+    quote: "I just lose 9 NEAR there (In nearcrowd.org), this is the receiver account: dolbabob.near",
+    checked: "2026-10-31",
   },
   {
     account: "9ebef819489ae5e6641cc5573740dadc751c35c3ae37c110e4fad8101494e418",
@@ -53,7 +53,7 @@ export const REPORTED_SCAMS: ReportedScam[] = [
     network: "mainnet",
     what: "a fake “NEAR to AXL arbitrage” deposit address that looks like an Axelar address",
     url: "https://www.reddit.com/r/nearprotocol/comments/1pvnc8n/",
-    by: "r/nearprotocol, “Scam alert - near to axl arbitrage scam”",
+    by: "r/nearprotocol, “Scam alert - near to axl arbitrage scam”, 25 Dec 2025",
     quote: "scammer tells you to add axelar1yzsury9fldydgk425gmphy2zyehh3emc43ds6xusdt.near - scammers own address on near wallet … funds don't come back",
     checked: "2026-10-30",
   },

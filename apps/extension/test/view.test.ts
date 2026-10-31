@@ -23,7 +23,7 @@ describe("verdict colours", () => {
     const r = await check({ to: "bob.testnet", network: "testnet", destination: "wallet" }, live);
     expect(r.verdict).toBe("SAFE");
     expect(toneOf(r)).toBe("safe");
-    expect(statusLabel(r)).toBe("LOOKS RIGHT");
+    expect(statusLabel(r)).toBe("NO PROBLEMS FOUND");
   });
   it("escapes page-supplied text", async () => {
     expect(esc(`<img src=x onerror="a">`)).toBe("&lt;img src=x onerror=&quot;a&quot;&gt;");

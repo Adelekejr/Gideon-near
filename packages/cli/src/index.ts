@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { accountHealth, check, checkDrainer, HEALTH_TEXT, healthNetwork, checkTransaction, explain, newReceiptKey, resolveNetwork, verifyReceipt, type CheckInput, type CheckResult, type Contact, type Destination, type TxCheckResult, type AccountHealthResult } from "@gideon/core";
 import { liveSources, nearAiExplainer, sourcesOptionsFromEnv } from "@gideon/sources";
+import { withDrainer } from "@gideon/core";
+import { notCheckedText, sendLabel, sendSafeText, txLabel, txSafeText } from "./words.js";
 
 const HELP = `gideon — check a NEAR send before you make it
 
@@ -90,8 +92,10 @@ async function main(argv: string[]): Promise<number> {
     historyTimeoutMs: 4000,
     ...(flagRegistry !== undefined ? { flagRegistry } : {}),
   });
-  // The drained-wallet check (R18) on the recipient's recent senders: time-limited, silent if it fails.
-  const r = values["no-drainer"] ? first : await checkDrainer(first, sources, {}, { timeoutMs: 8000 }, receiptKey).catch(() => first);
+  // The drained-wallet check (R18) on the recipient's recent senders: time-limited. If it fails,
+  // the result says so ("Not checked") instead of staying quiet.
+  const r = values["no-drainer"] ? first : await checkDrainer(first, sources, {}, { timeoutMs: 8000 }, receiptKey)
+    .catch(() => withDrainer(first, { rule: "R18", status: "SKIPPED", code: "FAILED", title: "Drained-wallet check didn't run", detail: "The check failed." }, receiptKey));
   if (values.json) console.log(JSON.stringify(r, null, 2));
   else await print(r);
   return r.verdict === "SAFE" ? 0 : r.verdict === "ATTENTION" ? 1 : 2;
@@ -172,8 +176,10 @@ function printKeys(r: AccountHealthResult, links: boolean) {
 
 function printTx(r: TxCheckResult) {
   const col = r.verdict === "BLOCKED" ? C.r : r.verdict === "ATTENTION" ? C.y : C.g;
-  console.log(`\n${C.b}${col}${r.verdict}${C.x}  ${C.d}(${r.network}${r.signer ? `, signer ${r.signer}` : ""}${r.origin ? `, from ${r.origin}` : ""})${C.x}`);
+  console.log(`\n${C.b}${col}${txLabel(r.verdict)}${C.x}  ${C.d}(${r.network}${r.signer ? `, signer ${r.signer}` : ""}${r.origin ? `, from ${r.origin}` : ""})${C.x}`);
   if (r.headline) console.log(`${C.b}${r.headline.title}${C.x}${r.headline.detail ? `\n${r.headline.detail}` : ""}`);
+  const [st, sb] = txSafeText(r);
+  if (st) console.log(`${C.b}${st}${C.x}\n${sb}`);
   for (const [i, s] of (r.headline?.fix ?? []).entries()) console.log(`  ${i + 1}. ${s}`);
   console.log("");
   for (const t of r.transactions) {
@@ -189,8 +195,11 @@ function printTx(r: TxCheckResult) {
 
 async function print(r: CheckResult) {
   const col = r.verdict === "BLOCKED" ? C.r : r.verdict === "ATTENTION" ? C.y : C.g;
-  console.log(`\n${C.b}${col}${r.verdict}${C.x}  ${r.input.to}  ${C.d}(${r.classification.label}, ${r.input.network})${C.x}`);
+  console.log(`\n${C.b}${col}${sendLabel(r.verdict)}${C.x}  ${r.input.to}  ${C.d}(${r.classification.label}, ${r.input.network})${C.x}`);
   if (r.headline) console.log(`${C.b}${r.headline.title}${C.x}\n${r.headline.detail}`);
+  const [st, sb] = sendSafeText(r);
+  if (st) console.log(`${C.b}${st}${C.x}\n${sb}`);
+  for (const l of notCheckedText(r)) console.log(`${C.y}${l}${C.x}`);
   for (const e of r.headline?.evidence ?? []) if (e.url) console.log(`${e.label}: ${e.url}`);
   const ex = process.env.NEARAI_API_KEY ? nearAiExplainer({ apiKey: process.env.NEARAI_API_KEY, model: process.env.NEARAI_MODEL || undefined }) : null;
   if (ex) { const e = await explain(r, ex); console.log(`${C.d}(${e.by})${C.x} ${e.text}`); }

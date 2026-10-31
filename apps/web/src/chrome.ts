@@ -278,7 +278,7 @@ function bigFooter(): string {
 <div><span class="lbl">Built on NEAR</span>${nearMark(22)}<span id="fbh" class="tn">block — · ${net}</span><br><span id="fclk" class="tn"></span></div>
 </div>
 <div class="giant" aria-hidden="true">${LOGO}<b>GIDEON</b></div>
-<div class="ft-base"><span>Check it before it leaves · started 29 Oct 2026</span><span>NEAR and the NEAR logo are trademarks of NEAR Foundation</span></div></footer>`;
+<div class="ft-base"><span>Check it before it leaves · started 29 Oct 2026</span><span>NEAR and the NEAR logo are trademarks of NEAR Foundation. Gideon shows the logo unaltered, only to say it is built on NEAR. Gideon is an independent project, not made or endorsed by NEAR Foundation.</span></div></footer>`;
 }
 
 /** Kept for pages that print a short line above the big footer. */

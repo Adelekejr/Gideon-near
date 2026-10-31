@@ -277,10 +277,15 @@ describe("gideon_check `from` (sender history)", () => {
       expect([a.structuredContent.verdict, b.structuredContent.verdict]).toEqual(["BLOCKED", "BLOCKED"]);
       expect(b.structuredContent.network).toBe("testnet");
     });
-    it("a well-known call is SAFE with no lookups; bad input is a plain error", async () => {
-      const c = await connect({ sources: sources({ viewAccount: down }) });
-      const r = await call(c, "gideon_check_transaction", { signer: "me.near", receiver: "wrap.near", network: "mainnet",
-        actions: [{ type: "FunctionCall", params: { methodName: "near_deposit", args: {}, gas: "30000000000000", deposit: "1000000000000000000000000" } }] });
+    it("a well-known call is SAFE once the accounts are read live, couldn't-check when lookups fail; bad input is a plain error", async () => {
+      const args = { signer: "me.near", receiver: "wrap.near", network: "mainnet",
+        actions: [{ type: "FunctionCall", params: { methodName: "near_deposit", args: {}, gas: "30000000000000", deposit: "1000000000000000000000000" } }] };
+      // 0.3.1: never SAFE without a real check, so a request read with every lookup down is ATTENTION.
+      const offline = await call(await connect({ sources: sources({ viewAccount: down }) }), "gideon_check_transaction", args);
+      expect(offline.structuredContent.verdict).toBe("ATTENTION");
+      expect(offline.structuredContent.agent_action).toBe("ASK_HUMAN");
+      const c = await connect({ sources: sources({ viewAccount: person }) });
+      const r = await call(c, "gideon_check_transaction", args);
       expect(r.structuredContent.verdict).toBe("SAFE");
       const e = await call(c, "gideon_check_transaction", { request: "https://example.com/hi" });
       expect(e.isError).toBe(true);
@@ -325,5 +330,39 @@ describe("gideon_account_health", () => {
     const c = await connect({ sources: sources({ accessKeys: async () => null }) });
     expect((await call(c, "gideon_account_health", { account: "gone.testnet" })).structuredContent.status).toBe("not-found");
     expect((await call(c, "gideon_account_health", { account: "hello world!" })).isError).toBe(true);
+  });
+});
+
+describe("0.3.1 fixes on the MCP surface", () => {
+  it("SAFE stays the machine value; the text says 'No problems found', not a promise", async () => {
+    const c = await connect({ sources: sources({ viewAccount: person }) });
+    const r = await call(c, "gideon_check", { recipient: "kemi-rent.testnet", network: "testnet", amount: "1", destination: "wallet", from: "me.testnet" });
+    expect(r.structuredContent.verdict).toBe("SAFE");
+    expect(r.structuredContent.agent_action).toBe("SEND");
+    expect(r.content[0].text).toMatch(/^SAFE → SEND \(No problems found\)/);
+    expect(r.structuredContent.agent_instruction).toMatch(/isn't a guarantee/);
+    expect(r.structuredContent.agent_instruction).not.toMatch(/every check that applies passed/);
+  });
+  it("no sender: the 'Not checked: your send history' line is returned and printed", async () => {
+    const c = await connect({ sources: sources({ viewAccount: person }) });
+    const r = await call(c, "gideon_check", { recipient: "kemi-rent.testnet", network: "testnet", amount: "1", destination: "wallet" });
+    expect(r.structuredContent.not_checked[0]).toMatch(/^Not checked: your send history/);
+    expect(r.content[0].text).toMatch(/Not checked: your send history/);
+  });
+  it("a failed drained-wallet lookup (R18) is reported as not checked, not dropped", async () => {
+    const c = await connect({ sources: sources({ viewAccount: person, inboundTxs: down, signedTxsUpTo: down }) });
+    const r = await call(c, "gideon_check", { recipient: "kemi-rent.testnet", network: "testnet", amount: "1", destination: "wallet", from: "me.testnet" });
+    expect(r.structuredContent.not_checked).toContain("Not checked: couldn't check recent senders for hacked wallets.");
+  });
+  it("check_transaction: DeleteAccount and DeployContract are BLOCKED, Stake is ATTENTION, SAFE reads 'Nothing flagged'", async () => {
+    const c = await connect({ sources: sources({ viewAccount: person }) });
+    const tx = (actions: unknown[]) => call(c, "gideon_check_transaction", { signer: "me.testnet", receiver: "me.testnet", network: "testnet", actions });
+    expect((await tx([{ type: "DeleteAccount", params: { beneficiaryId: "thief.testnet" } }])).structuredContent.verdict).toBe("BLOCKED");
+    expect((await tx([{ type: "DeployContract", params: { code: [0, 97, 115, 109] } }])).structuredContent.verdict).toBe("BLOCKED");
+    expect((await tx([{ type: "Stake", params: { stake: "1000000000000000000000000", publicKey: "ed25519:11111111111111111111111111111111" } }])).structuredContent.verdict).toBe("ATTENTION");
+    const ok = await call(c, "gideon_check_transaction", { signer: "me.near", receiver: "wrap.near", network: "mainnet",
+      actions: [{ type: "FunctionCall", params: { methodName: "near_deposit", args: {}, gas: "30000000000000", deposit: "1000000000000000000000000" } }] });
+    expect(ok.content[0].text).toMatch(/^SAFE → SEND \(Nothing flagged\)/);
+    expect(ok.structuredContent.agent_instruction).toMatch(/isn't a guarantee/);
   });
 });

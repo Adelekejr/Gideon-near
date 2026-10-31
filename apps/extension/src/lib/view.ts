@@ -1,4 +1,4 @@
-import { deleteKeyLinks, fmtDate, HEALTH_TEXT, type AccountHealthResult, type CheckResult, type Finding, type KeyReport, type TxCheckResult } from "@gideon/core";
+import { deleteKeyLinks, drainerFailed, drainerWanted, fmtDate, HEALTH_TEXT, notCheckedCount, notCheckedLines, VERDICT_TEXT, type AccountHealthResult, type CheckResult, type Finding, type KeyReport, type TxCheckResult } from "@gideon/core";
 
 export type Tone = "block" | "warn" | "safe" | "idle";
 
@@ -17,7 +17,7 @@ export function toneOf(r: CheckResult): Tone {
 
 export function statusLabel(r: CheckResult, held = false): string {
   if (r.verdict === "BLOCKED") return held ? "SEND HELD" : "STOPPED";
-  if (r.verdict === "SAFE") return "LOOKS RIGHT";
+  if (r.verdict === "SAFE") return VERDICT_TEXT.safeChip;
   return couldNotCheck(r) ? "COULDN’T CHECK" : "LOOK AGAIN";
 }
 
@@ -28,7 +28,7 @@ export function titleOf(r: CheckResult): string {
 
 export function detailOf(r: CheckResult): string {
   if (r.headline) return r.headline.detail;
-  return r.account?.exists ? `${r.account.summary} No other check found a problem.` : "Gideon read the account from public chain data and found nothing wrong.";
+  return VERDICT_TEXT.safeBody;
 }
 
 /** One line of live account facts, shown on every card: exists or not, created, balance. */
@@ -93,23 +93,46 @@ export interface CardOptions {
   sender?: { account: string | null; why: string };
   /** The drained-wallet check (R18) is still looking at recent senders. */
   drainerPending?: boolean;
+  /** The drained-wallet check never answered (time-out on the page side). */
+  drainerFailed?: boolean;
 }
 
 /**
  * "senders → …": the drained-wallet check (R18) while it runs, then its answer when it isn't
- * already the card's headline. Nothing when it was skipped, failed or ran out of time.
+ * already the card's headline. "couldn't check" when it failed or ran out of time; nothing when
+ * it didn't apply (your own account, a contact, an exchange).
  */
-export function drainerLine(r: CheckResult, pending = false): string {
+export function drainerLine(r: CheckResult, pending = false, noAnswer = false): string {
   const x = r.findings.find((f) => f.rule === "R18");
+  if (!x && noAnswer && drainerWanted(r)) return `<div class="gn"><b>senders →</b> ${esc(VERDICT_TEXT.drainerFailed)}</div>`;
   if (!x) return pending ? `<div class="gn"><b>senders →</b> checking recent senders for hacked wallets…</div>` : "";
+  if (drainerFailed(r)) return `<div class="gn"><b>senders →</b> ${esc(VERDICT_TEXT.drainerFailed)}</div>`;
   if (x.status === "SKIPPED" || r.headline?.rule === "R18") return "";
   return `<div class="gn"><b>senders →</b> ${esc(x.title)}</div>`;
 }
 
 /** "sender → alice-wallet.near · from your wallet's header", or why it couldn't tell. */
-export function senderLine(s: { account: string | null; why: string }): string {
+export function senderLine(s: { account: string | null; why: string; confirmed?: boolean }): string {
   if (!s.account && !s.why) return "";
-  return `<div class="gn"><b>sender →</b> ${s.account ? `${esc(s.account)} · ${esc(s.why)}` : `couldn't tell · ${esc(s.why)}`}</div>`;
+  const line = `<div class="gn"><b>sender →</b> ${s.account ? `${esc(s.account)} · ${esc(s.why)}` : `couldn't tell · ${esc(s.why)}`}</div>`;
+  return line + (s.account && !s.confirmed ? confirmMine(s.account) : "");
+}
+
+/** UI text added in 0.3.1 (approved). */
+export const MINE_TEXT = {
+  ask: (a: string) => `Is ${a} yours?`,
+  button: "Add to Your accounts",
+  added: "Added ✓",
+} as const;
+
+/** "Is {account} yours? [Add to Your accounts]": nothing is added to Your accounts without you. */
+export function confirmMine(account: string): string {
+  return `<div class="gn">${esc(MINE_TEXT.ask(account))} <button type="button" data-act="mine" data-account="${esc(account)}">${esc(MINE_TEXT.button)}</button></div>`;
+}
+
+/** Checks that couldn't run because Gideon lacked something: shown, never hidden as "not relevant". */
+export function notCheckedHtml(r: CheckResult): string {
+  return notCheckedLines(r).map((l) => `<div class="gn">${esc(l)}</div>`).join("");
 }
 
 /** "network → testnet · from your wallet's account (…)" */
@@ -131,8 +154,9 @@ ${accountLine(r)}
 ${fix ? `<div class="gf"><b>fix →</b> ${esc(fix)}</div>` : ""}
 ${o.net ? netLine(o.net) : ""}
 ${o.sender ? senderLine(o.sender) : ""}
-${drainerLine(r, o.drainerPending)}
-<details class="more"><summary>Details · ${r.findings.filter((f) => f.status !== "SKIPPED").length} checks · ${esc(r.input.network)} · ${r.ms} ms</summary>${findingsList(r)}</details>
+${drainerLine(r, o.drainerPending, o.drainerFailed)}
+${notCheckedHtml(r)}
+<details class="more"><summary>Details · ${r.findings.filter((f) => f.status !== "SKIPPED").length} checks${notCheckedCount(r) ? ` · ${notCheckedCount(r)} not checked` : ""} · ${esc(r.input.network)} · ${r.ms} ms</summary>${findingsList(r)}</details>
 ${o.actions ? `<div class="gacts">${o.actions}</div>` : ""}
 </div></div>`;
 }
@@ -173,7 +197,7 @@ export const TX_FOOTER = "Gideon only read this request from the page. It never 
 export function txCard(r: TxCheckResult, o: { net?: { network: string; why: string }; actions?: string } = {}): string {
   const tone: Tone = r.verdict === "BLOCKED" ? "block" : r.verdict === "SAFE" ? "safe" : "warn";
   const h = r.headline;
-  const chip = r.verdict === "BLOCKED" ? "STOPPED" : r.verdict === "SAFE" ? "LOOKS RIGHT" : h?.status === "COULD_NOT_CHECK" ? "COULDN’T CHECK" : "LOOK AGAIN";
+  const chip = r.verdict === "BLOCKED" ? "STOPPED" : r.verdict === "SAFE" ? VERDICT_TEXT.safeChip : h?.status === "COULD_NOT_CHECK" ? VERDICT_TEXT.cantCheckChip : "LOOK AGAIN";
   const fix = h?.fix?.[0];
   const shown = r.findings.filter((f) => f.status !== "SKIPPED");
   // Every other warning in the request, under the headline.
