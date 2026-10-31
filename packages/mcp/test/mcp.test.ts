@@ -293,6 +293,19 @@ describe("gideon_check `from` (sender history)", () => {
       const n = await call(c, "gideon_check_transaction", {});
       expect(n.isError).toBe(true);
     });
+    it("0.3.2: tokens moved through intents get the address checks, and an amount it can't read is never green", async () => {
+      const c = await connect({ sources: sources({ viewAccount: person, sentCount: async () => 0 }) });
+      const mt = await call(c, "gideon_check_transaction", { signer: "me.near", receiver: "intents.near", network: "mainnet",
+        actions: [{ type: "FunctionCall", params: { methodName: "mt_transfer", args: { receiver_id: "bigbank101.near", token_id: "nep141:wrap.near", amount: "5" }, gas: "30000000000000", deposit: "1" } }] });
+      expect(mt.structuredContent.agent_action).toBe("DO_NOT_SEND");
+      const odd = await call(c, "gideon_check_transaction", { signer: "me.near", receiver: "wrap.near", network: "mainnet",
+        actions: [{ type: "FunctionCall", params: { methodName: "near_deposit", args: {}, gas: "30000000000000", deposit: "1e30" } }] });
+      expect(odd.structuredContent.verdict).toBe("ATTENTION");
+      expect(odd.structuredContent.agent_action).toBe("ASK_HUMAN");
+      const key = await call(c, "gideon_check_transaction", { signer: "me.near", receiver: "intents.near", network: "mainnet",
+        actions: [{ type: "FunctionCall", params: { methodName: "add_public_key", args: { public_key: KEY }, gas: "30000000000000", deposit: "1" } }] });
+      expect(key.structuredContent.reasons[0].code).toBe("CONTRACT_KEY");
+    });
   });
 });
 

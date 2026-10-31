@@ -73,8 +73,20 @@ export function parseWalletUrl(text: string): ParsedRequest | null {
 
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : typeof v === "number" || typeof v === "bigint" ? String(v) : undefined);
 
+/**
+ * An amount in yocto (deposit, stake, allowance): digits only. Anything else ("1e30", "1.5", " 5",
+ * a float) isn't what the wallet will send, so the action counts as unreadable, never as 0.
+ */
+const BAD = Symbol("bad amount");
+const amount = (v: unknown): string | undefined | typeof BAD => {
+  if (v == null || v === "") return undefined;
+  if (typeof v === "bigint") return v >= 0n ? String(v) : BAD;
+  if (typeof v === "number") return Number.isSafeInteger(v) && v >= 0 ? String(v) : BAD;
+  return typeof v === "string" && /^\d+$/.test(v) ? v : BAD;
+};
+
 function jsonAction(a: any): TxAction {
-  const type = a?.type ?? Object.keys(a ?? {})[0];
+  const type = a?.type ?? (typeof a?.enum === "string" ? a.enum : undefined) ?? Object.keys(a ?? {})[0];
   const p = a?.params ?? a?.[type] ?? a ?? {};
   const norm = String(type ?? "").replace(/^[a-z]/, (c) => c.toUpperCase());
   switch (norm) {
@@ -85,19 +97,31 @@ function jsonAction(a: any): TxAction {
       if (typeof args === "string") {
         try { args = JSON.parse(args); } catch { /* keep as text */ }
       }
-      return { type: "FunctionCall", methodName: String(p.methodName ?? p.method_name ?? ""), args, gas: str(p.gas) ?? "0", deposit: str(p.deposit) ?? "0" };
+      const deposit = amount(p.deposit);
+      if (deposit === BAD) return { type: "Unknown", tag: -1 };
+      return { type: "FunctionCall", methodName: String(p.methodName ?? p.method_name ?? ""), args, gas: str(p.gas) ?? "0", deposit: deposit ?? "0" };
     }
-    case "Transfer": return { type: "Transfer", deposit: str(p.deposit) ?? "0" };
-    case "Stake": return { type: "Stake", stake: str(p.stake) ?? "0", publicKey: String(p.publicKey ?? "") };
+    case "Transfer": {
+      const deposit = amount(p.deposit);
+      return deposit === BAD ? { type: "Unknown", tag: -1 } : { type: "Transfer", deposit: deposit ?? "0" };
+    }
+    case "Stake": {
+      const stake = amount(p.stake);
+      return stake === BAD ? { type: "Unknown", tag: -1 } : { type: "Stake", stake: stake ?? "0", publicKey: String(p.publicKey ?? "") };
+    }
     case "AddKey": {
       const ak = p.accessKey ?? p.access_key ?? {};
       const perm = ak.permission ?? "FullAccess";
-      if (perm === "FullAccess" || perm?.fullAccess || perm?.gasKeyFullAccess) return { type: "AddKey", publicKey: String(p.publicKey ?? p.public_key ?? ""), fullAccess: true };
+      // Any spelling of "full access" is read as full access; another string, or an app key with no contract, can't be read.
+      if ((typeof perm === "string" && perm.toLowerCase() === "fullaccess") || perm?.fullAccess || perm?.gasKeyFullAccess) return { type: "AddKey", publicKey: String(p.publicKey ?? p.public_key ?? ""), fullAccess: true };
+      if (typeof perm !== "object" || perm === null) return { type: "Unknown", tag: -1 };
       const fc = perm.FunctionCall ?? perm.functionCall ?? perm;
+      const allowance = amount(fc.allowance);
+      if (allowance === BAD || !(fc.receiverId ?? fc.receiver_id)) return { type: "Unknown", tag: -1 };
       return {
         type: "AddKey", publicKey: String(p.publicKey ?? p.public_key ?? ""), fullAccess: false,
         receiverId: String(fc.receiverId ?? fc.receiver_id ?? ""), methodNames: Array.isArray(fc.methodNames ?? fc.method_names) ? (fc.methodNames ?? fc.method_names).map(String) : [],
-        allowance: str(fc.allowance) ?? null,
+        allowance: allowance ?? null,
       };
     }
     case "DeleteKey": return { type: "DeleteKey", publicKey: String(p.publicKey ?? p.public_key ?? "") };

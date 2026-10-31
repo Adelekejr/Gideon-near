@@ -37,6 +37,15 @@ const METEOR = /(^|\.)meteorwallet\.app$/;
 const HEADING = /^\s*(approve|confirm|sign)\s+(the\s+)?transactions?(\s*\(s\))?\s*$/i;
 const FULL_ACCESS = /\bfull[\s-]access key\b|\bfull control of (this|your) account\b/i;
 const WALLET_HOST = /(^|\.)(meteorwallet\.app|mynearwallet\.com|wallet\.near\.org|bitte\.ai|wallet\.bitte\.ai)$/;
+
+/**
+ * May a "nothing flagged" (green) card show on this page? Only on a known wallet. Any page can put
+ * `?transactions=` in its own address, so elsewhere a green card would be the page vouching for
+ * itself. Warnings (blocked, look again, couldn't check) still show everywhere.
+ */
+export function greenAllowed(hostname: string): boolean {
+  return WALLET_HOST.test(hostname.toLowerCase());
+}
 /** What wallets show when they can't read a request (Meteor's couldnt_parse_arg_tx, and common forms). */
 const WALLET_ERROR = /couldn['’]t parse the correct arguments|could not parse the (correct )?arguments|(invalid|malformed|unable to (parse|decode)|failed to (parse|decode)) (the )?transactions?\b/i;
 const EXPLORER = /^https:\/\/(testnet\.)?nearblocks\.io\/address\/([a-z0-9._-]{2,64})\/?$/i;

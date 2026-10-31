@@ -5,7 +5,7 @@ import { findSendButtons, plainTrim, isRecipientField, isTextField, shouldCheck,
 import { card, checking, failed, MINE_TEXT, tamperCard, toneOf, txCard, updated } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
 import { extensionAlive, sendCheck, sendDrainer, sendTx, type CheckResponse } from "./lib/messages.js";
-import { findApproval } from "./lib/approval.js";
+import { findApproval, greenAllowed } from "./lib/approval.js";
 import { collectSignals, pageHint, recipientScope } from "./lib/network.js";
 import { pageAccounts } from "./lib/wallets.js";
 import { rememberAccount, rememberSend, senderHint, type SenderHint } from "./lib/sender.js";
@@ -559,6 +559,12 @@ async function scanApproval(): Promise<void> {
   lastFailedKey = "";
   approvalTries = 0;
   const r = res.result;
+  // A green card only on a known wallet: any page can put a harmless request in its own address.
+  if (r.verdict === "SAFE" && !greenAllowed(location.hostname)) {
+    if (approvalShown && panel?.field === null) hide();
+    approvalShown = false;
+    return;
+  }
   const tone = r.verdict === "BLOCKED" ? "block" : r.verdict === "SAFE" ? "safe" : "warn";
   const why = found.from === "url" ? "from the wallet link" : "from the approval screen";
   // Name the network only when the link or screen showed it.

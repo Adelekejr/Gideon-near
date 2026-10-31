@@ -76,6 +76,13 @@ export const TX_TEXT = {
   drainerUnknownDetail: "The transaction history Gideon uses for this check didn't answer in time. Gideon won't call this request safe until it can check. Try again in a minute.",
   tooManyAccounts: (n: number) => `Couldn't check ${n} more account${n === 1 ? "" : "s"} in this request`,
   tooManyAccountsDetail: `Gideon checks up to ${MAX_CHECKED_ACCOUNTS} accounts per request. Check the others in your wallet.`,
+  // 0.3.2
+  mixedSigners: "This request signs as more than one account",
+  mixedSignersDetail: "A normal request signs for one account. Check every account and amount in your wallet before you approve.",
+  contractKey: (c: string) => `This adds a key that can move what you hold in ${c}.`,
+  contractKeyDetail: "Anyone with this key can move those funds. Approve only if you're setting up a wallet or device you own.",
+  selfAppKey: "This adds a key that can call your own account's code.",
+  selfAppKeyDetail: "If your account runs a contract (a multisig or lockup, for example), this key may be able to move funds. Approve only if you meant to.",
 } as const;
 
 /** Big, long-running contracts and services. Never "new", never "unseen". */
@@ -212,8 +219,14 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
   const ask = <T>(p: () => Promise<T>) => withTimeout(Promise.resolve().then(p), timeout, "A lookup");
 
   // Only signers the request itself names are "yours". `input.signerId` is an assumption (often read
-  // off the page), so it never makes an account trusted.
-  const mine = new Set([...(input.myAccounts ?? []), ...parsed.transactions.map((t) => t.signerId ?? "")].map((x) => x.trim().toLowerCase()).filter(Boolean));
+  // off the page), so it never makes an account trusted. A request that names more than one signer
+  // trusts none of them: otherwise an attacker's own transaction in the batch would make their
+  // account "yours", and a send to it would skip every check.
+  const named = [...new Set(parsed.transactions.map((t) => (t.signerId ?? "").trim().toLowerCase()).filter(Boolean))];
+  // The same goes for a signer that isn't the account you said signs (MCP `signer`, the extension's page account).
+  const guess = input.signerId?.trim().toLowerCase();
+  const trustNamed = named.length === 1 && (!guess || guess === named[0]);
+  const mine = new Set([...(input.myAccounts ?? []).map((x) => x.trim().toLowerCase()), ...(trustNamed ? named : [])].filter(Boolean));
   const known = new Set([...(input.addressBook ?? []).map((c) => c.account), ...(input.deviceSends ?? [])].map((x) => x.trim().toLowerCase()));
   const seen = (a: string) => mine.has(a) || known.has(a) || wellKnown(network, a);
 
@@ -269,14 +282,18 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
   /** Value leaving with no known signer: the balance can't be compared. */
   const unsigned: string[] = [];
   /** Accounts that get the address checks, and what they are in this request. */
-  const targets = new Map<string, "recipient" | "contract" | "beneficiary">();
-  const target = (a: string | undefined, role: "recipient" | "contract" | "beneficiary") => {
+  /** "named": an account a contract call names as receiver_id (e.g. mt_transfer); it may live only inside that contract, so it needn't exist on chain. */
+  type Role = "recipient" | "contract" | "beneficiary" | "named";
+  const targets = new Map<string, Role>();
+  const target = (a: string | undefined, role: Role) => {
     const x = a?.trim().toLowerCase();
     if (!x || mine.has(x) || wellKnown(network, x)) return;
     const prev = targets.get(x);
     // A recipient or beneficiary is checked as one (it must exist); a contract only needs to be real code.
-    if (!prev || prev === "contract") targets.set(x, role);
+    const weak = (r?: Role) => r === "contract" || r === "named";
+    if (!prev || (weak(prev) && !(role === "contract" && prev === "named"))) targets.set(x, role);
   };
+  const keyFindings: Finding[] = [];
   const nfts: { contract: string; tokenId: string; to: string; signer?: string; how: string }[] = [];
   for (const t of txs) {
     for (const a of t.actions) {
@@ -288,7 +305,14 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
         }
       }
       if (a.type === "DeleteAccount") target(a.beneficiaryId, "beneficiary");
-      if (a.type === "AddKey" && !a.fullAccess && a.receiverId) target(a.receiverId, "contract");
+      if (a.type === "AddKey" && !a.fullAccess && a.receiverId) {
+        target(a.receiverId, "contract");
+        // A key for the account's own code: on a multisig or lockup it may move funds.
+        if (a.receiverId.trim().toLowerCase() === t.receiverId) {
+          keyFindings.push(f("T1", "ATTENTION", "SELF_APP_KEY", TX_TEXT.selfAppKey, TX_TEXT.selfAppKeyDetail,
+            { evidence: [acctEv("Account", t.receiverId), { label: "Key", value: short(a.publicKey, 16, 6) }] }));
+        }
+      }
       if (!ft(a)) continue;
       target(t.receiverId, "contract");
       // NEAR attached to a call leaves your account just like a transfer.
@@ -310,10 +334,26 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
         const tokenId = argStr(a.args, "token_id");
         if (who) target(who, "recipient");
         if (who && tokenId != null) nfts.push({ contract: t.receiverId, tokenId, to: who, ...(t.signerId ? { signer: t.signerId } : {}), how: a.methodName });
+      } else if (to && a.methodName !== "ft_transfer" && a.methodName !== "ft_transfer_call") {
+        // Any other call that names a receiver (mt_transfer on intents.near, a lockup's transfer, …):
+        // the receiver gets the address and drained-wallet checks too.
+        target(to, "named");
+        if (!seen(to)) counterparts.add(to);
+      }
+      // A contract-held key (intents.near add_public_key): it can move what you hold there.
+      if (a.methodName === "add_public_key") {
+        const key = argStr(a.args, "public_key");
+        keyFindings.push(f("T1", "ATTENTION", "CONTRACT_KEY", TX_TEXT.contractKey(t.receiverId), TX_TEXT.contractKeyDetail,
+          { evidence: [acctEv("Contract", t.receiverId), ...(key ? [{ label: "Key", value: short(key, 16, 6) }] : [])] }));
       }
     }
   }
 
+  findings.push(...keyFindings);
+  if (named.length > 1) {
+    findings.push(f("T1", "ATTENTION", "MIXED_SIGNERS", TX_TEXT.mixedSigners, TX_TEXT.mixedSignersDetail,
+      { evidence: named.map((a) => acctEv("Signer", a)) }));
+  }
   const work: Promise<void>[] = [];
 
   // New contract: age (indexer, archival) and how many transactions it has.
@@ -366,7 +406,8 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
         let decimals = 24;
         if (g.contract) {
           const [bal, meta] = await Promise.all([
-            sources.ftBalance ? ask(() => sources.ftBalance!(network, g.contract!, g.signer)) : Promise.resolve(null),
+            // No balance source means Gideon can't compare: that's "couldn't check", never a pass.
+            sources.ftBalance ? ask(() => sources.ftBalance!(network, g.contract!, g.signer)) : Promise.reject(new Error("no token balance source")),
             ask(() => sources.ftMetadata(network, g.contract!)).catch(() => null),
           ]);
           balance = bal == null ? null : BigInt(bal);
@@ -449,7 +490,7 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
       for (const x of out) {
         if (x.status === "PASS" || x.status === "SKIPPED") continue;
         // Calling an account with no code does nothing (the call fails), and T2 reports lookups that failed.
-        if (role === "contract" && x.rule === "R3") continue;
+        if ((role === "contract" || role === "named") && x.rule === "R3") continue;
         const ev = x.evidence ?? [];
         findings.push({
           ...x,
@@ -487,9 +528,14 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
     })());
   }
 
-  // Drained-wallet links (R18), for called contracts and accounts receiving value or control. At most 4.
+  // Drained-wallet links (R18), for called contracts and accounts receiving value or control. At most
+  // MAX_CHECKED_ACCOUNTS; the rest are shown as "couldn't check", never dropped.
   const beneficiaries = [...targets.entries()].filter(([, r]) => r === "beneficiary").map(([a]) => a);
-  const drainTargets = [...new Set([...called, ...counterparts, ...beneficiaries])].filter(nearKind).slice(0, 4);
+  const allDrain = [...new Set([...called, ...counterparts, ...beneficiaries])].filter(nearKind);
+  const drainTargets = allDrain.slice(0, MAX_CHECKED_ACCOUNTS);
+  for (const d of allDrain.slice(MAX_CHECKED_ACCOUNTS)) {
+    findings.push(f("T2", "COULD_NOT_CHECK", "DRAINER_UNKNOWN", TX_TEXT.drainerUnknown(d), TX_TEXT.tooManyAccountsDetail, { evidence: [acctEv("Account", d)] }));
+  }
   for (const d of drainTargets) {
     work.push((async () => {
       const x = await drainerCheck({ to: d, network, ...(signer && mine.has(signer) ? { from: signer } : {}), ...(input.addressBook ? { addressBook: input.addressBook } : {}), myAccounts: [...mine] },
