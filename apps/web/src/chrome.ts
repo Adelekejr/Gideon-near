@@ -2,7 +2,7 @@
 // and the Arrow G stopper that plays the result of a real check.
 import "./styles/shift.css";
 import "./styles/pages.css";
-import { NETWORKS, type Network } from "@gideon/core";
+import { NETWORKS, STOP_LABEL, type Network } from "@gideon/core";
 import { getNetwork, setNetwork } from "./state";
 
 /** Brand mark: the Arrow G. The G's crossbar is the send arrow; the vermilion spur is the wall (the brand's one red). */
@@ -17,7 +17,6 @@ export function esc(s: unknown): string {
 
 /* ---------------- Arrow G stopper ---------------- */
 export type StopState = "block" | "safe" | "warn" | "idle";
-const STOP_LABEL: Record<StopState, string> = { block: "Send stopped at the wall", warn: "Send held at the wall, look again", safe: "Wall open, send cleared", idle: "Checking" };
 let gsN = 0;
 /** Arrow G in a pose. idle = waiting (arrow breathes); block/warn/safe = the final frame of playVerdict(). */
 export function stopper(state: StopState, cls = ""): string {

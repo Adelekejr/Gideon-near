@@ -121,7 +121,8 @@ export async function runTx(req: TxRequestMsg): Promise<TxCheckResult> {
     ...(req.screenOnly ? { screenOnly: true } : {}),
     myAccounts,
     addressBook: contacts,
-    deviceSends: sends.map((s) => s.to),
+    // "Sent here before" only counts on the same network (0.3.0's address check does the same).
+    deviceSendsByNetwork: { mainnet: sendsOn(sends, "mainnet"), testnet: sendsOn(sends, "testnet") },
   }, sources, { sourceTimeoutMs: LIMITS.sourceMs, drainerTimeoutMs: LIMITS.drainerMs, drainerCache: drainers });
 }
 

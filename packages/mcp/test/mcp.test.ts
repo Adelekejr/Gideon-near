@@ -306,6 +306,27 @@ describe("gideon_check `from` (sender history)", () => {
         actions: [{ type: "FunctionCall", params: { methodName: "add_public_key", args: { public_key: KEY }, gas: "30000000000000", deposit: "1" } }] });
       expect(key.structuredContent.reasons[0].code).toBe("CONTRACT_KEY");
     });
+    it("0.3.2 follow-ups: not_checked for an intents balance, softer SAFE wording, an empty request isn't SAFE", async () => {
+      const c = await connect({ sources: sources({ viewAccount: person, sentCount: async () => 3 }) });
+      const mt = await call(c, "gideon_check_transaction", { signer: "me.near", receiver: "intents.near", network: "mainnet", my_accounts: ["me.near"],
+        address_book: [{ account: "friend.near", label: "Friend" }],
+        actions: [{ type: "FunctionCall", params: { methodName: "mt_transfer", args: { receiver_id: "friend.near", token_id: "nep141:wrap.near", amount: "5" }, gas: "30000000000000", deposit: "1" } }] });
+      expect(mt.structuredContent.not_checked).toEqual([expect.stringMatching(/^Couldn't check: how much of your intents balance this sends\./)]);
+      expect(mt.content[0].text).toContain("Couldn't check: how much of your intents balance this sends");
+      expect(mt.structuredContent.verdict).toBe("SAFE");
+      expect(mt.structuredContent.agent_instruction).toContain("found nothing wrong in the checks it could run");
+      expect(mt.structuredContent.agent_instruction).toContain("not_checked");
+      expect(mt.structuredContent.agent_instruction).not.toMatch(/You may approve exactly/);
+      const plain = await call(c, "gideon_check_transaction", { signer: "me.near", receiver: "wrap.near", network: "mainnet",
+        actions: [{ type: "FunctionCall", params: { methodName: "near_deposit", args: {}, gas: "30000000000000", deposit: "0" } }] });
+      expect(plain.structuredContent.verdict).toBe("SAFE");
+      expect(plain.structuredContent.not_checked).toEqual([]);
+      expect(plain.structuredContent.agent_instruction).toMatch(/^SAFE \(nothing flagged\): Gideon found nothing wrong in the checks it could run\./);
+      const empty = await call(c, "gideon_check_transaction", { signer: "me.near", receiver: "wrap.near", network: "mainnet", actions: [] });
+      expect(empty.structuredContent.verdict).toBe("ATTENTION");
+      expect(empty.structuredContent.agent_action).toBe("ASK_HUMAN");
+      expect(empty.structuredContent.headline).toMatch(/^Gideon couldn't read this request/);
+    });
   });
 });
 

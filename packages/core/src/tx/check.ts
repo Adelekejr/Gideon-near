@@ -13,7 +13,7 @@ import { r14ReportedScam } from "../rules/r14-reported-scam.js";
 import { r15FakeLetters } from "../rules/r15-fake-letters.js";
 import { r17DisguisedName } from "../rules/r17-disguised-name.js";
 import type { RuleResult } from "../rules/util.js";
-import { VERDICT_TEXT } from "../text.js";
+import { TX_NOT_CHECKED, VERDICT_TEXT } from "../text.js";
 import { HEADLINE_ORDER } from "../rules/index.js";
 import type { TxAction, TxRequest } from "./decode.js";
 import { parseTxRequest, type ParsedRequest } from "./input.js";
@@ -82,6 +82,10 @@ export const TX_TEXT = {
   contractKey: (c: string) => `This adds a key that can move what you hold in ${c}.`,
   contractKeyDetail: "Anyone with this key can move those funds. Approve only if you're setting up a wallet or device you own.",
   selfAppKey: "This adds a key that can call your own account's code.",
+  shareNotChecked: (kind: string) => `Couldn't check: how much of your ${kind} balance this sends`,
+  shareNotCheckedDetail: (c: string) => `Gideon can't read balances held inside ${c}, so it didn't compare this amount with what you hold there. Check the amount in your wallet.`,
+  emptyRequest: "Gideon couldn't read this request",
+  emptyRequestDetail: "It has a transaction with no actions in it, which no normal app sends. Don't approve it; go back and start again from the app.",
   selfAppKeyDetail: "If your account runs a contract (a multisig or lockup, for example), this key may be able to move funds. Approve only if you meant to.",
 } as const;
 
@@ -117,6 +121,8 @@ export interface TxCheckInput {
   myAccounts?: string[];
   addressBook?: Contact[];
   deviceSends?: string[];
+  /** Sends from this device kept per network (the extension): only the request's network counts. Used instead of deviceSends. */
+  deviceSendsByNetwork?: Partial<Record<Network, string[]>>;
   /** The site asking, when known (the extension passes the page or callback host). */
   origin?: string;
   /**
@@ -203,6 +209,9 @@ function counted(sources: Sources, onAnswer: () => void): Sources {
   });
 }
 
+/** Calls that move tokens held inside a contract (intents.near mt_*, a lockup's transfer). */
+const MOVES_HELD = /^(mt_(batch_)?transfer(_call)?|transfer)$/;
+
 const nearKind = (a: string) => ["near-named", "near-implicit", "eth-implicit"].includes(classify(a).kind);
 
 export async function checkTransaction(input: TxCheckInput, rawSources: Sources, opts: TxCheckOptions = {}): Promise<TxCheckResult> {
@@ -227,7 +236,8 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
   const guess = input.signerId?.trim().toLowerCase();
   const trustNamed = named.length === 1 && (!guess || guess === named[0]);
   const mine = new Set([...(input.myAccounts ?? []).map((x) => x.trim().toLowerCase()), ...(trustNamed ? named : [])].filter(Boolean));
-  const known = new Set([...(input.addressBook ?? []).map((c) => c.account), ...(input.deviceSends ?? [])].map((x) => x.trim().toLowerCase()));
+  const deviceSends = input.deviceSendsByNetwork ? (input.deviceSendsByNetwork[network] ?? []) : input.deviceSends;
+  const known = new Set([...(input.addressBook ?? []).map((c) => c.account), ...(deviceSends ?? [])].map((x) => x.trim().toLowerCase()));
   const seen = (a: string) => mine.has(a) || known.has(a) || wellKnown(network, a);
 
   const findings: Finding[] = [];
@@ -240,7 +250,7 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
     let c = ctxs.get(a);
     if (!c) {
       c = makeCtx({ to: a, network, asset: { symbol: "NEAR" }, destination: "unknown",
-        ...(input.addressBook ? { addressBook: input.addressBook } : {}), ...(input.deviceSends ? { deviceSends: input.deviceSends } : {}) },
+        ...(input.addressBook ? { addressBook: input.addressBook } : {}), ...(deviceSends ? { deviceSends } : {}) },
       classify(a), sources, now, null, { sourceTimeoutMs: timeout, optionalBudgetMs: timeout });
       ctxs.set(a, c);
     }
@@ -294,6 +304,7 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
     if (!prev || (weak(prev) && !(role === "contract" && prev === "named"))) targets.set(x, role);
   };
   const keyFindings: Finding[] = [];
+  const shareNoted = new Set<string>();
   const nfts: { contract: string; tokenId: string; to: string; signer?: string; how: string }[] = [];
   for (const t of txs) {
     for (const a of t.actions) {
@@ -339,6 +350,13 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
         // the receiver gets the address and drained-wallet checks too.
         target(to, "named");
         if (!seen(to)) counterparts.add(to);
+        // Tokens held inside the contract (intents, a lockup): Gideon has no balance to compare with.
+        // Shown as not checked; the verdict is unchanged.
+        if (MOVES_HELD.test(a.methodName) && !mine.has(to) && !shareNoted.has(t.receiverId)) {
+          shareNoted.add(t.receiverId);
+          findings.push(f("T3", "SKIPPED", TX_NOT_CHECKED, TX_TEXT.shareNotChecked(a.methodName.startsWith("mt_") ? "intents" : "lockup"), TX_TEXT.shareNotCheckedDetail(t.receiverId),
+            { evidence: [acctEv("Contract", t.receiverId), acctEv("To", to)] }));
+        }
       }
       // A contract-held key (intents.near add_public_key): it can move what you hold there.
       if (a.methodName === "add_public_key") {
@@ -595,6 +613,10 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
   if (txs.some((t) => t.partial)) {
     findings.push(f("T1", "COULD_NOT_CHECK", "UNREADABLE_ACTION", "Couldn't read all of this request",
       "Part of it uses an action Gideon can't read yet, so it may do more than is shown here. Check it carefully in your wallet."));
+  }
+  // A transaction with no actions: nothing a normal app sends, and nothing Gideon can vouch for.
+  if (txs.some((t) => !t.partial && t.actions.length === 0)) {
+    findings.push(f("T1", "COULD_NOT_CHECK", "EMPTY_REQUEST", TX_TEXT.emptyRequest, TX_TEXT.emptyRequestDetail));
   }
   // Read off the wallet's screen (Meteor) or a placeholder with no method: what it does is unknown.
   if (input.screenOnly || txs.some((t) => t.actions.some((a) => ft(a) && !a.methodName))) {

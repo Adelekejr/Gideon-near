@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import { readFileSync } from "node:fs";
 import {
-  accountHealth, check, checkDrainer, drainerFailed, notCheckedLines, VERDICT_TEXT, withDrainer, healthNetwork, checkTransaction, DrainerCache, explain, NETWORKS, resolveNetwork, verifyReceipt,
+  accountHealth, check, checkDrainer, drainerFailed, notCheckedLines, txNotCheckedLines, VERDICT_TEXT, withDrainer, healthNetwork, checkTransaction, DrainerCache, explain, NETWORKS, resolveNetwork, verifyReceipt,
   type AccountHealthResult, type CheckInput, type CheckResult, type Explainer, type Network, type Sources, type TxCheckResult, type Verdict,
 } from "@gideon/core";
 import { liveSources, nearAiExplainer, replaySources, sourcesOptionsFromEnv } from "@gideon/sources";
@@ -24,7 +24,7 @@ Before you send any NEAR or NEAR token, call gideon_check with the exact recipie
 - BLOCKED (agent_action DO_NOT_SEND): do not send. Report the reason and fix steps to the human.
 - ATTENTION (agent_action ASK_HUMAN): do not send on your own. Ask a human and wait for an explicit yes. A lookup that failed ("couldn't check") is ATTENTION, never safe.
 - SAFE (agent_action SEND): no problems found. You may send, with exactly the details you checked. If anything changes, check again. Tell the human about any "not_checked" lines.
-Before you approve or sign any NEAR transaction or sign-in someone else built (a dApp, a link, another agent), call gideon_check_transaction with the sign link, the raw base64 transaction, or signer, receiver and actions. Same verdicts and agent_action; DO_NOT_SEND means do not sign.
+Before you approve or sign any NEAR transaction or sign-in someone else built (a dApp, a link, another agent), call gideon_check_transaction with the sign link, the raw base64 transaction, or signer, receiver and actions. Same verdicts and agent_action; DO_NOT_SEND means do not sign, and SAFE only means nothing was flagged in the checks Gideon could run: review any "not_checked" items before approving.
 gideon_explain turns a result into plain words. gideon_flags lists community reports about an account; reports are not proof.
 gideon_account_health lists who can act for an account (its keys) and flags risky ones. If move_funds_now is true, tell the human at once. Each entry in remove_links is a ready-to-sign, unsigned DeleteKey (near-mcp account_delete_access_keys args, base64 transaction, wallet links). Never remove a key or sign one yourself without the human's explicit yes for that key; give the link to the human.`;
 
@@ -108,7 +108,7 @@ export function summarize(r: CheckResult) {
 }
 
 const TX_INSTRUCTION: Record<Verdict, string> = {
-  SAFE: "SAFE (nothing flagged): Gideon looked for known dangers in this request and found none. That isn't a guarantee. You may approve exactly this request; if it changes, check again.",
+  SAFE: "SAFE (nothing flagged): Gideon found nothing wrong in the checks it could run. That isn't a guarantee. Review any not_checked items with the human before approving; approve only exactly this request, and if it changes, check again.",
   ATTENTION: "ATTENTION: do not approve or sign on your own. Ask a human, showing them the reasons below. \"Couldn't check\" is ATTENTION, never safe.",
   BLOCKED: "BLOCKED: DO NOT SIGN. This request could hand over the account or its funds. Tell the human why; don't approve it.",
 };
@@ -128,6 +128,8 @@ export function summarizeTx(r: TxCheckResult) {
     }),
     fix: r.headline?.fix ?? [],
     couldnt_check: r.findings.filter((f) => f.status === "COULD_NOT_CHECK").map((f) => `${f.rule}: ${f.title}. ${f.detail}`),
+    /** Checks Gideon couldn't run that don't change the verdict (e.g. an intents or lockup balance). */
+    not_checked: txNotCheckedLines(r),
     transactions: r.transactions.map((t) => ({ signer: t.signerId ?? null, receiver: t.receiverId, actions: t.actions.map((a) => a.type === "FunctionCall" ? `FunctionCall ${a.methodName}` : a.type === "AddKey" ? `AddKey ${a.fullAccess ? "FullAccess" : "FunctionCall"}` : a.type), ...(t.partial ? { partial: true } : {}) })),
     result: r as unknown as Record<string, unknown>,
   };
@@ -275,6 +277,7 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
       reasons: z.array(reason),
       fix: z.array(z.string()),
       couldnt_check: z.array(z.string()),
+      not_checked: z.array(z.string()),
       transactions: z.array(z.object({ signer: z.string().nullable(), receiver: z.string(), actions: z.array(z.string()), partial: z.boolean().optional() })),
       result: z.record(z.string(), z.unknown()),
     }),
@@ -302,6 +305,7 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
     if (s.headline) lines.push(`Why: ${s.headline}`);
     for (const x of s.reasons) lines.push(`- ${x.rule} ${x.status}: ${x.title}${x.link ? ` (${x.link})` : ""}`);
     s.fix.forEach((f, i) => lines.push(`Fix ${i + 1}: ${f}`));
+    for (const n of s.not_checked) lines.push(n);
     return { content: [{ type: "text", text: lines.join("\n") }], structuredContent: s };
   });
 

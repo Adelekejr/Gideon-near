@@ -63,3 +63,17 @@ describe("fix 1: a request read off the wallet's screen is never green (extensio
     expect(r.verdict).toBe("SAFE");
   });
 });
+
+describe("0.3.2 follow-up: 'sent here before' is kept per network (extension worker)", () => {
+  const whole = { signerId: "me.testnet", receiverId: "bob.testnet", actions: [{ type: "Transfer", params: { deposit: (5n * 10n ** 24n).toString() } }] };
+  it("a mainnet send to the same name doesn't count on testnet", async () => {
+    store.sends = [{ network: "mainnet", to: "bob.testnet", at: 1 }];
+    const r = await bg.runTx({ type: "gideon:tx", host: "x", network: "testnet", request: whole });
+    expect(r.findings.map((f) => f.code)).toContain("WHOLE_BALANCE_UNSEEN");
+  });
+  it("a testnet send does", async () => {
+    store.sends = [{ network: "testnet", to: "bob.testnet", at: 1 }];
+    const r = await bg.runTx({ type: "gideon:tx", host: "x", network: "testnet", request: whole });
+    expect(r.findings.map((f) => f.code)).not.toContain("WHOLE_BALANCE_UNSEEN");
+  });
+});

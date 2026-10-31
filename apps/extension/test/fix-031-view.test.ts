@@ -21,11 +21,12 @@ describe("fix 5: wording on the extension cards", () => {
     expect(h).toContain(esc(VERDICT_TEXT.senderUnknown));
     expect(h).toContain("1 not checked");
   });
-  it("SAFE transaction card: NO PROBLEMS FOUND", async () => {
+  it("SAFE transaction card: NOTHING FLAGGED (same words as the CLI and MCP)", async () => {
     const r = await checkTransaction({ request: { signerId: "me.testnet", receiverId: "app.testnet", actions: [{ type: "FunctionCall", params: { methodName: "ping", args: {}, gas: "1", deposit: "0" } }] }, network: "testnet" }, live);
     expect(r.verdict).toBe("SAFE");
-    expect(txCard(r)).toContain("NO PROBLEMS FOUND");
+    expect(txCard(r)).toContain("NOTHING FLAGGED");
     expect(txCard(r)).not.toContain("LOOKS RIGHT");
+    expect(txCard(r)).not.toContain("NO PROBLEMS FOUND");
   });
 });
 
@@ -36,5 +37,21 @@ describe("fix 4: 'Is {account} yours?' instead of saving it", () => {
     expect(ask).toContain('data-act="mine"');
     expect(ask).toContain("Add to Your accounts");
     expect(senderLine({ account: "x.near", why: "w", confirmed: true })).not.toContain("data-act=\"mine\"");
+  });
+});
+
+describe("0.3.2 follow-ups on the extension cards", () => {
+  it("an intents transfer shows a 'not checked' line on a NOTHING FLAGGED card", async () => {
+    const r = await checkTransaction({ request: { signerId: "me.testnet", receiverId: "intents.testnet", actions: [{ type: "FunctionCall", params: { methodName: "mt_transfer", args: { receiver_id: "bob.testnet", token_id: "a", amount: "1" }, gas: "1", deposit: "1" } }] }, network: "testnet" }, live);
+    const h = txCard(r);
+    expect(h).toContain("not checked →");
+    expect(h).toContain("Couldn&#39;t check: how much of your intents balance this sends");
+  });
+  it("the Arrow G's label matches the verdict (no 'send cleared')", async () => {
+    const r = await checkTransaction({ request: { signerId: "me.testnet", receiverId: "app.testnet", actions: [{ type: "FunctionCall", params: { methodName: "ping", args: {}, gas: "1", deposit: "0" } }] }, network: "testnet" }, live);
+    expect(r.verdict).toBe("SAFE");
+    const h = txCard(r);
+    expect(h).toContain('aria-label="Nothing flagged"');
+    expect(h).not.toMatch(/cleared|Wall open/);
   });
 });

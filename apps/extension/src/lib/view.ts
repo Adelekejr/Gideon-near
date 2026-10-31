@@ -1,4 +1,4 @@
-import { deleteKeyLinks, drainerFailed, drainerWanted, fmtDate, HEALTH_TEXT, notCheckedCount, notCheckedLines, VERDICT_TEXT, type AccountHealthResult, type CheckResult, type Finding, type KeyReport, type TxCheckResult } from "@gideon/core";
+import { deleteKeyLinks, drainerFailed, drainerWanted, fmtDate, HEALTH_TEXT, notCheckedCount, notCheckedLines, STOP_LABEL, txNotCheckedLines, VERDICT_TEXT, type AccountHealthResult, type CheckResult, type Finding, type KeyReport, type TxCheckResult } from "@gideon/core";
 
 export type Tone = "block" | "warn" | "safe" | "idle";
 
@@ -44,7 +44,6 @@ export function accountLine(r: CheckResult): string {
 export const LOGO =
   '<svg viewBox="0 0 100 100" aria-hidden="true"><rect x="78" y="29" width="13" height="21" fill="#FF4D1A"/><rect x="28" y="33.5" width="25" height="13" fill="currentColor"/><path d="M52 26 L72 40 L52 54 Z" fill="currentColor"/><path d="M68.28 20.74 A34.5 34.5 0 1 0 84.5 50" fill="none" stroke="currentColor" stroke-width="13"/></svg>';
 
-const STOP_LABEL: Record<Tone, string> = { block: "Send stopped at the wall", warn: "Send held at the wall, look again", safe: "Wall open, send cleared", idle: "Checking" };
 /** The Arrow G in a verdict pose. motion.ts plays it: blocked = bounces off the wall; warn = stops and waits; safe = the wall opens and the arrow passes. */
 let gsN = 0;
 export function stopper(tone: Tone): string {
@@ -197,7 +196,7 @@ export const TX_FOOTER = "Gideon only read this request from the page. It never 
 export function txCard(r: TxCheckResult, o: { net?: { network: string; why: string }; actions?: string } = {}): string {
   const tone: Tone = r.verdict === "BLOCKED" ? "block" : r.verdict === "SAFE" ? "safe" : "warn";
   const h = r.headline;
-  const chip = r.verdict === "BLOCKED" ? "STOPPED" : r.verdict === "SAFE" ? VERDICT_TEXT.safeChip : h?.status === "COULD_NOT_CHECK" ? VERDICT_TEXT.cantCheckChip : "LOOK AGAIN";
+  const chip = r.verdict === "BLOCKED" ? "STOPPED" : r.verdict === "SAFE" ? VERDICT_TEXT.txSafeChip : h?.status === "COULD_NOT_CHECK" ? VERDICT_TEXT.cantCheckChip : "LOOK AGAIN";
   const fix = h?.fix?.[0];
   const shown = r.findings.filter((f) => f.status !== "SKIPPED");
   // Every other warning in the request, under the headline.
@@ -209,6 +208,7 @@ ${h?.detail ? `<div class="gr">${esc(h.detail)}</div>` : ""}
 ${h ? findingLine(h) : ""}
 ${fix ? `<div class="gf"><b>fix →</b> ${esc(fix)}</div>` : ""}
 ${more.map((f) => `<div class="gr">${esc(f.title)}${f.detail ? ` ${esc(f.detail)}` : ""}</div>${findingLine(f)}`).join("\n")}
+${txNotCheckedLines(r).map((n) => `<div class="gf nc"><b>not checked →</b> ${esc(n)}</div>`).join("\n")}
 ${o.net ? netLine(o.net) : ""}
 <div class="gn">${esc(TX_FOOTER)}</div>
 <details class="more"><summary>Details · ${shown.length} checks${o.net ? ` · ${esc(o.net.network)}` : ""} · ${r.ms} ms</summary><ul class="fl">${shown

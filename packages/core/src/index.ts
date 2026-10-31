@@ -1,6 +1,6 @@
 export * from "./types.js";
 export { check, verdictOf, headlineOf, ruleErrorText, ENGINE_VERSION } from "./engine.js";
-export { VERDICT_TEXT, notCheckedLines, notCheckedCount, drainerFailed } from "./text.js";
+export { VERDICT_TEXT, STOP_LABEL, TX_NOT_CHECKED, txNotCheckedLines, notCheckedLines, notCheckedCount, drainerFailed } from "./text.js";
 export { classify, networkOfName, isNearAccountKind } from "./classify.js";
 export { editDistance, skeleton, lookalike, sharedEnds } from "./similarity.js";
 export { senderOf } from "./history.js";

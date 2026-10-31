@@ -4,7 +4,7 @@ import { parseArgs } from "node:util";
 import { accountHealth, check, checkDrainer, HEALTH_TEXT, healthNetwork, checkTransaction, explain, newReceiptKey, resolveNetwork, verifyReceipt, type CheckInput, type CheckResult, type Contact, type Destination, type TxCheckResult, type AccountHealthResult } from "@gideon/core";
 import { liveSources, nearAiExplainer, sourcesOptionsFromEnv } from "@gideon/sources";
 import { withDrainer } from "@gideon/core";
-import { notCheckedText, sendLabel, sendSafeText, txLabel, txSafeText } from "./words.js";
+import { notCheckedText, sendLabel, sendSafeText, txLabel, txNotCheckedText, txSafeText } from "./words.js";
 
 const HELP = `gideon — check a NEAR send before you make it
 
@@ -181,6 +181,7 @@ function printTx(r: TxCheckResult) {
   const [st, sb] = txSafeText(r);
   if (st) console.log(`${C.b}${st}${C.x}\n${sb}`);
   for (const [i, s] of (r.headline?.fix ?? []).entries()) console.log(`  ${i + 1}. ${s}`);
+  for (const n of txNotCheckedText(r)) console.log(`${C.y}${n}${C.x}`);
   console.log("");
   for (const t of r.transactions) {
     const acts = t.actions.map((a) => a.type === "FunctionCall" ? `${a.methodName}()` : a.type === "AddKey" ? `AddKey(${a.fullAccess ? "FULL ACCESS" : "function-call"})` : a.type);
