@@ -3,14 +3,10 @@
 // Gideon over MCP before every send. It never signs: "sent" here means "would send".
 //   node packages/mcp/demo/agent.mjs            live, free public APIs (testnet)
 //   node packages/mcp/demo/agent.mjs --offline  recorded answers from demo/fixtures.json
-import { fileURLToPath } from "node:url";
-import { Client } from "@modelcontextprotocol/client";
-import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { colors, connectGideon, wantsOffline } from "./session.mjs";
 
-const root = fileURLToPath(new URL("../../../", import.meta.url));
-const offline = process.argv.includes("--offline");
-const tty = process.stdout.isTTY && !process.env.NO_COLOR;
-const c = (code, s) => (tty ? `\x1b[${code}m${s}\x1b[0m` : s);
+const offline = wantsOffline();
+const { c } = colors();
 const color = { SAFE: 32, ATTENTION: 33, BLOCKED: 31 };
 
 const contacts = [{ account: "northwind-payroll.testnet", label: "Northwind payroll" }];
@@ -21,19 +17,7 @@ const queue = [
   { memo: "Vendor invoice", recipient: "alice.near", amount: "1" },
 ];
 
-const transport = new StdioClientTransport({
-  command: process.execPath,
-  args: [`${root}packages/mcp/dist/index.js`],
-  env: {
-    PATH: process.env.PATH ?? "",
-    ...(offline ? { GIDEON_REPLAY: `${root}demo/fixtures.json` } : {}),
-    ...(process.env.GIDEON_DAILY_LIMIT ? { GIDEON_DAILY_LIMIT: process.env.GIDEON_DAILY_LIMIT } : {}),
-  },
-  stderr: "ignore",
-});
-const client = new Client({ name: "demo-payments-agent", version: "0.1.0" });
-await client.connect(transport);
-const { tools } = await client.listTools();
+const { client, tools, close } = await connectGideon({ name: "demo-payments-agent", offline });
 
 console.log(c(1, `payments agent · ${queue.length} payouts on testnet · Gideon MCP (${tools.map((t) => t.name).join(", ")})${offline ? " · offline replay" : ""}`));
 console.log(c(2, "policy: this demo follows Gideon. It can't stop an agent that ignores the advice. SAFE is not proof of ownership.\n"));
@@ -63,5 +47,5 @@ for (const [i, p] of queue.entries()) {
   console.log("");
 }
 console.log(c(1, `done: ${sent} sent (simulated), ${held} waiting for a human, ${halted ? "run stopped on BLOCKED" : "no blocks"}. No transaction was signed.`));
-await client.close();
+await close();
 process.exit(halted ? 2 : held ? 1 : 0);

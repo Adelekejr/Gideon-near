@@ -224,6 +224,35 @@ describe("compatibility and demo", () => {
     expect(p.stdout).toMatch(/4\/4 Vendor invoice: not attempted/);
     expect(p.stdout).toMatch(/No transaction was signed/);
   });
+
+  it("the attack demo reads the planted lookalike invoice and stops", () => {
+    const p = spawnSync(process.execPath, [`${root}packages/mcp/demo/attack.mjs`, "--offline"], { encoding: "utf8", timeout: 15000, env: { ...process.env, NO_COLOR: "1" } });
+    expect(p.status).toBe(2);
+    expect(p.stdout).toMatch(/northwind-payrol1\.testnet/);
+    expect(p.stdout).toMatch(/northwind-payroll\.testnet/);
+    expect(p.stdout).toMatch(/STOP {2}BLOCKED {2}DO_NOT_SEND/);
+    expect(p.stdout).toMatch(/not sent\. 40 NEAR did not go to northwind-payrol1\.testnet/);
+    expect(p.stdout).toMatch(/ignores DO_NOT_SEND can still send/);
+    expect(p.stdout).toMatch(/No transaction was signed/);
+    expect(p.stdout).not.toMatch(/adelekejr/);
+  });
+
+  it("the function-call key demo refuses full access and does not call on DO_NOT_SEND", () => {
+    const p = spawnSync(process.execPath, [`${root}packages/mcp/demo/function-call-key.mjs`, "--offline"], { encoding: "utf8", timeout: 15000, env: { ...process.env, NO_COLOR: "1" } });
+    expect(p.status).toBe(2);
+    expect(p.stdout).toMatch(/hammed-stampdue\.testnet/);
+    expect(p.stdout).toMatch(/receiver_id: wrap\.testnet/);
+    expect(p.stdout).toMatch(/methods:\s+ft_transfer/);
+    expect(p.stdout).toMatch(/0\.25 NEAR of gas/);
+    expect(p.stdout).toMatch(/KEY REFUSED: a function-call key cannot sign Transfer/);
+    expect(p.stdout).toMatch(/KEY REFUSED: a function-call key cannot sign AddKey/);
+    expect(p.stdout).toMatch(/STOP {2}BLOCKED {2}DO_NOT_SEND/);
+    expect(p.stdout).toMatch(/not calling ft_transfer/);
+    expect(p.stdout).toMatch(/ATTENTION → ASK_HUMAN/);
+    expect(p.stdout).toMatch(/ignores DO_NOT_SEND/);
+    expect(p.stdout).toMatch(/No transaction was signed/);
+    expect(p.stdout).not.toMatch(/adelekejr/);
+  });
 });
 
 describe("gideon_check `from` (sender history)", () => {
