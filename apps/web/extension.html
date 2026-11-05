@@ -27,6 +27,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
   <button class="btn ghost" id="sim4" type="button">A brand-new 0x address</button>
   <button class="btn ghost" id="sim2" type="button">The correct account</button></div>
 </section>
+<p class="small madeup"><b>Northwind is not a real exchange.</b> The page under this note is made up, so you can see the extension’s card. The checks are real: every paste runs Gideon live on the network selected in the bar above (testnet or mainnet), and the card is the extension’s own card.</p>
 <div class="xgrid">
  <div><div class="browser" aria-label="Example exchange page">
   <div class="bar"><i></i><i></i><i></i><div class="url">northwind.example/wallet/withdraw/NEAR</div><div class="ext" id="ext" title="Gideon extension"><span class="logo-slot"></span><b>1</b></div></div>
@@ -38,12 +39,12 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
     <label for="addr">Withdrawal address</label>
     <div class="in" id="inbox"><input id="addr" placeholder="Paste NEAR address" spellcheck="false"><span class="paste" id="pbtn">Paste</span></div>
     <div id="gw" class="gwhost"></div>
-    <label>Amount</label><div class="in"><input value="25" aria-label="Amount"><span class="u">NEAR</span></div>
-    <div class="sub"><span>Network fee 0.01 NEAR</span><span>You receive 24.99 NEAR</span></div>
+    <label>Amount</label><div class="in"><input id="amt" value="2" aria-label="Amount" inputmode="decimal"><span class="u">NEAR</span></div>
+    <div class="sub"><span>Network fee 0.01 NEAR</span><span id="recv">You receive 1.99 NEAR</span></div>
     <button class="wd" id="wd" type="button">Withdraw</button>
    </div>
   </div>
- </div><p class="small" style="margin-top:12px">“Northwind” is a made-up exchange page. The checks are real: every paste runs the Gideon engine live on NEAR testnet, and the card under the field is the extension’s own card code. Try pasting your own value too.</p></div>
+ </div></div>
  <div class="popcol"><span class="label">Extension popup · preview</span><div id="pop"></div>
   <p class="small" style="margin-top:12px">The popup’s light and dark themes follow this site. Auto follows your system setting.</p></div>
 </div>
@@ -56,15 +57,19 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
  </ol>
 </section>
 <section class="blk"><div class="sec-hd"><div><span class="lbl">02 / Install</span><h2 class="rv">Install it.</h2></div></div>
+ <div class="actions" style="margin-bottom:18px">
+  <a class="btn" href="/downloads/gideon-extension-0.3.1.zip">Download for Chrome, Brave, Edge <span class="ar">→</span></a>
+  <a class="btn ghost" href="/downloads/gideon-extension-firefox-0.3.1.zip">Download for Firefox</a>
+ </div>
  <div class="two">
   <div class="panel rv"><div class="hd"><span class="lbl">Chrome · Brave · Edge</span><span class="lbl">MV3</span></div><div class="code" style="border:0;border-radius:0">npm run zip:extension
 <span class="c"># chrome://extensions → Developer mode → Load unpacked</span>
-<span class="c"># → apps/extension/dist  (or gideon-extension-0.3.0.zip)</span></div></div>
-  <div class="panel rv"><div class="hd"><span class="lbl">Firefox</span><span class="lbl">MV3</span></div><div class="code" style="border:0;border-radius:0">npm run zip:extension
+<span class="c"># → apps/extension/dist  (or the Chrome zip above)</span></div></div>
+  <div class="panel rv"><div class="hd"><span class="lbl">Firefox</span><span class="lbl">unsigned</span></div><div class="code" style="border:0;border-radius:0">npm run zip:firefox -w @gideon/extension
 <span class="c"># about:debugging → This Firefox → Load Temporary Add-on</span>
-<span class="c"># → gideon-extension-firefox-0.3.0.zip</span></div></div>
+<span class="c"># → the Firefox zip above (release Firefox won’t install an unsigned add-on)</span></div></div>
  </div>
- <p class="small" style="margin-top:14px">Permissions: <code>storage</code> only. It reads the page you are on locally and asks public NEAR RPC for account state. It never touches keys and can’t move funds.</p>
+ <p class="small" style="margin-top:14px">Permissions: <code>storage</code>, a content script on http and https pages (it reads the recipient field you paste or type), and calls to public NEAR, explorer and chain APIs. Details are in <a href="/PRIVACY.md">PRIVACY.md</a>. It never touches keys and can’t move funds.</p>
 </section>
 </main>
 <script type="module" src="/src/extension.ts"></script>

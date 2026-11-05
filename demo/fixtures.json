@@ -93,7 +93,7 @@
         "indexedHeight": 222169099
       }
     },
-    "viewAccount(\"testnet\",\"adelekejr.testnet\")": {
+    "viewAccount(\"testnet\",\"hammed-stampdue.testnet\")": {
       "value": {
         "amountYocto": "58432331527578699999968",
         "codeHash": "11111111111111111111111111111111",
@@ -108,10 +108,10 @@
         "decimals": 24
       }
     },
-    "storageRegistered(\"testnet\",\"wrap.testnet\",\"adelekejr.testnet\")": {
+    "storageRegistered(\"testnet\",\"wrap.testnet\",\"hammed-stampdue.testnet\")": {
       "value": false
     },
-    "accountCreated(\"testnet\",\"adelekejr.testnet\")": {
+    "accountCreated(\"testnet\",\"hammed-stampdue.testnet\")": {
       "value": {
         "createdMs": 1651301529639,
         "indexed": true,

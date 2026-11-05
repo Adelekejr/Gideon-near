@@ -53,6 +53,8 @@ export const HEALTH_TEXT = {
   whyDrain: (m: number) => `It sent funds out ${m === 0 ? "within a minute" : `${m} min`} after taking control, and the account was left nearly empty.`,
   whyRecent: (d: number) => `Added ${d === 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`} by another key of this account.`,
   noHistory: "Couldn't read this account's history, so some checks didn't run.",
+  noKeyRecords: "Couldn't read this account's key records, so some checks didn't run.",
+  lookupGap: "Some checks didn't run, so this isn't a clean result.",
   // Beyond the approved text, new in 0.3.0:
   tidyHeading: "You can tidy these up",
   tidyNote: "Not a risk. Old or broad app keys you can remove when you like.",
@@ -200,7 +202,11 @@ export async function accountHealth(input: AccountHealthInput, sources: Sources,
   try { live = await keysP; } catch { return base("could-not-check", HEALTH_TEXT.couldNotCheck); }
   if (live === null) return base("not-found", HEALTH_TEXT.notFound(network));
   const [info, recs, hist] = await Promise.all([infoP, recsP, histP]);
-  if (hist === null) notes.push(HEALTH_TEXT.noHistory);
+  // A missing source wasn't asked. A source that failed is not a green CLEAN.
+  const historyFailed = !!sources.signedTxs && hist === null;
+  const recordsFailed = !!sources.keyRecords && recs === null;
+  if (historyFailed) notes.push(HEALTH_TEXT.noHistory);
+  if (recordsFailed) notes.push(HEALTH_TEXT.noKeyRecords);
   const history: ChainTx[] = hist ?? [];
   const historyComplete = hist !== null && hist.length < HISTORY_LIMIT;
 
@@ -358,9 +364,11 @@ export async function accountHealth(input: AccountHealthInput, sources: Sources,
   const tidy = keys.filter((k) => k.tidy).length;
   const danger = keys.some((k) => k.flags.some((f) => f.code === "UNKNOWN_FULL_KEY"));
   const red = keys.some((k) => k.flags.some((f) => f.level === "red"));
-  const status: HealthStatus = danger ? "danger" : flagged ? "attention" : "clean";
+  const lookupGap = historyFailed || recordsFailed;
+  const status: HealthStatus = danger ? "danger" : flagged || lookupGap ? "attention" : "clean";
+  const summary = danger ? HEALTH_TEXT.danger : flagged ? HEALTH_TEXT.attention(flagged) : lookupGap ? HEALTH_TEXT.lookupGap : tidy ? HEALTH_TEXT.cleanTidy(tidy) : HEALTH_TEXT.clean;
   return {
-    ...base(status, danger ? HEALTH_TEXT.danger : flagged ? HEALTH_TEXT.attention(flagged) : tidy ? HEALTH_TEXT.cleanTidy(tidy) : HEALTH_TEXT.clean),
+    ...base(status, summary),
     red, moveFundsNow: danger, advice: danger ? HEALTH_TEXT.moveFunds : null, keys,
     counts: { full: fullCount, app: keys.filter((k) => k.kind === "app").length, flagged, tidy },
   };

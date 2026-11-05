@@ -34,11 +34,11 @@ async function play() {
     ["agent", "Agent", "Preparing a 25 NEAR transfer. Checking the recipient first."],
     ["tool", "→ tool", `<pre><span class="k">gideon_check</span>({ recipient: "${cut(BAD)}", token: "NEAR", amount: "25", network: "testnet" })</pre>`],
     ["tool", "← gideon", toolOut(a)],
-    ["agent", "Agent", blocked ? "I didn’t send it. That string isn’t a NEAR account, so the money would be lost. Can you share Northwind’s NEAR deposit address?" : "Gideon couldn’t confirm this one, so I’m not sending. Can you double-check the address?"],
+    ["agent", "Agent", blocked ? "This demo follows Gideon and doesn’t send. Gideon can’t stop an agent that ignores it. That string isn’t a NEAR account. Can you share Northwind’s NEAR deposit address?" : "Gideon couldn’t confirm this one. This demo won’t send. Can you double-check the address?"],
     ["user", "User", `Sorry, it’s ${GOOD}`],
     ["tool", "→ tool", `<pre><span class="k">gideon_check</span>({ recipient: "${GOOD}", token: "NEAR", amount: "25", network: "testnet" })</pre>`],
     [cleared ? "tool ok" : "tool", "← gideon", toolOut(b)],
-    ["agent", "Agent", cleared ? `Cleared. Handing 25 NEAR to ${GOOD} to the wallet for signing, with the receipt attached.` : "Still not cleared. I’ll wait."],
+    ["agent", "Agent", cleared ? `Nothing flagged for ${GOOD}. This demo would hand it to a wallet to sign. SAFE isn’t proof of ownership, and Gideon can’t send by itself.` : "Still not cleared. This demo will wait."],
   ];
   tl.innerHTML = S.map(([c, w, t]) => `<div class="ln ${c}"><span class="who">${w}</span><div>${t}</div></div>`).join("");
   const WORD = { block: ["vb", "Bounced"], warn: ["vw", "Held"], safe: ["vs", "Passed"], idle: ["vw", ""] } as const;

@@ -69,6 +69,8 @@ describe("gideon MCP server", () => {
     const ins = c.getInstructions() ?? "";
     expect(ins).toMatch(/BLOCKED.*do not send/i);
     expect(ins).toMatch(/ATTENTION.*ask a human/i);
+    expect(ins).toMatch(/not proof of who controls/i);
+    expect(ins).toMatch(/pass `from`/i);
   });
 
   it("BLOCKED → DO_NOT_SEND with fix steps and a receipt", async () => {
@@ -82,11 +84,13 @@ describe("gideon MCP server", () => {
     expect(r.content[0].text).toMatch(/^BLOCKED → DO_NOT_SEND/);
   });
 
-  it("SAFE → SEND for a normal account with every source answering", async () => {
+  it("SAFE without `from` is ASK_HUMAN: not proof of ownership, and first-send didn't run", async () => {
     const c = await connect({ sources: sources({ viewAccount: person }) });
     const r = await call(c, "gideon_check", { recipient: "kemi-rent.testnet", network: "testnet", amount: "1", destination: "wallet" });
     expect(r.structuredContent.verdict).toBe("SAFE");
-    expect(r.structuredContent.agent_action).toBe("SEND");
+    expect(r.structuredContent.agent_action).toBe("ASK_HUMAN");
+    expect(r.structuredContent.agent_instruction).toMatch(/not proof of who controls/);
+    expect(r.structuredContent.agent_instruction).toMatch(/`from`/);
     expect(r.structuredContent.account.exists).toBe(true);
     expect(r.structuredContent.account.summary).toMatch(/^Account exists on NEAR testnet/);
     expect(r.content[0].text).toMatch(/Account: Account exists on NEAR testnet/);
@@ -246,11 +250,13 @@ describe("gideon_check `from` (sender history)", () => {
       expect(r.structuredContent.reasons[0].code).toBe("LOOKALIKE_OF_PAST_RECIPIENT");
     }
   });
-  it("history down → no first-send note, verdict unaffected", async () => {
+  it("history down → LOOK AGAIN with Not checked lines, never SAFE", async () => {
     const c = await connect({ sources: sources({ viewAccount: person, recentTransfers: down, sentCount: down }) });
     const r = await call(c, "gideon_check", { recipient: "kemi-rent.testnet", network: "testnet", from: me, destination: "wallet" });
-    expect(r.structuredContent.verdict).toBe("SAFE");
-    expect(r.structuredContent.couldnt_check).toEqual([]);
+    expect(r.structuredContent.verdict).toBe("ATTENTION");
+    expect(r.structuredContent.agent_action).toBe("ASK_HUMAN");
+    expect(r.structuredContent.not_checked.join("\n")).toMatch(/recent history/);
+    expect(r.structuredContent.not_checked.join("\n")).toMatch(/sent here before/);
   });
   it("the schema documents `from`", async () => {
     const c = await connect({ sources: sources() });
@@ -375,6 +381,7 @@ describe("0.3.1 fixes on the MCP surface", () => {
     expect(r.structuredContent.agent_action).toBe("SEND");
     expect(r.content[0].text).toMatch(/^SAFE → SEND \(No problems found\)/);
     expect(r.structuredContent.agent_instruction).toMatch(/isn't a guarantee/);
+    expect(r.structuredContent.agent_instruction).toMatch(/proof of who controls/);
     expect(r.structuredContent.agent_instruction).not.toMatch(/every check that applies passed/);
   });
   it("no sender: the 'Not checked: your send history' line is returned and printed", async () => {

@@ -15,7 +15,7 @@ const color = { SAFE: 32, ATTENTION: 33, BLOCKED: 31 };
 
 const contacts = [{ account: "northwind-payroll.testnet", label: "Northwind payroll" }];
 const queue = [
-  { memo: "Rent for October", recipient: "adelekejr.testnet", amount: "1", destination: "wallet" },
+  { memo: "Rent for October", recipient: "hammed-stampdue.testnet", amount: "1", destination: "wallet" },
   { memo: "Refund, customer pasted an Ethereum address", recipient: "0x94a0abA1283aF69Cb260b7e0Ea0366Dca0dd3cd8", amount: "5" },
   { memo: "Payroll run (from an emailed invoice)", recipient: "northwind-payro11.testnet", amount: "40", address_book: contacts },
   { memo: "Vendor invoice", recipient: "alice.near", amount: "1" },
@@ -32,7 +32,7 @@ await client.connect(transport);
 const { tools } = await client.listTools();
 
 console.log(c(1, `payments agent · ${queue.length} payouts on testnet · Gideon MCP (${tools.map((t) => t.name).join(", ")})${offline ? " · offline replay" : ""}`));
-console.log(c(2, "policy: SAFE → send · ATTENTION → ask a human · BLOCKED → do not send, stop the run\n"));
+console.log(c(2, "policy: this demo follows Gideon. It can't stop an agent that ignores the advice. SAFE is not proof of ownership.\n"));
 
 let sent = 0, held = 0, halted = false;
 for (const [i, p] of queue.entries()) {
@@ -44,7 +44,8 @@ for (const [i, p] of queue.entries()) {
   const s = r.structuredContent;
   if (r.isError || !s) { console.log(c(31, `    tool error, treating as DO_NOT_SEND: ${r.content?.[0]?.text}`)); halted = true; continue; }
   console.log(`    ${c(color[s.verdict], c(1, s.verdict))} ${c(2, `(${s.agent_action})`)}${s.headline ? ` ${s.headline}` : ""}`);
-  if (s.verdict === "SAFE") { sent++; console.log(c(32, `    ✓ would send ${p.amount} NEAR (simulated, this demo has no keys)`)); }
+  if (s.verdict === "SAFE" && s.agent_action === "SEND") { sent++; console.log(c(32, `    ✓ would send ${p.amount} NEAR (simulated, this demo has no keys)`)); }
+  else if (s.verdict === "SAFE") { held++; console.log(c(33, `    ⏸ SAFE is not proof of ownership, and agent_action is ${s.agent_action} (pass from so first-send runs). Nothing sent.`)); }
   else if (s.verdict === "ATTENTION") { held++; console.log(c(33, `    ⏸ held: asking a human before sending. Nothing sent.`)); }
   else {
     halted = true;

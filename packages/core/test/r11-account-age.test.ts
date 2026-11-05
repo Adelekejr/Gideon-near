@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { VERDICT_TEXT } from "../src/text.js";
 import { acct, empty, find, NOW, run } from "./helpers.js";
 
 const H = 3_600_000;
@@ -49,23 +50,27 @@ describe("R11 account age (brand-new accounts)", () => {
     expect(r.account?.summary).toBe("Account exists on NEAR testnet. Created recently (newer than our indexer's data). Holds 10 NEAR.");
   });
 
-  it("an old account the lagging indexer knows (no date) is NOT called new", async () => {
+  it("an old account the lagging indexer knows (no date) is NOT called new, and it is not SAFE", async () => {
     const r = await run({ to: "genesis.testnet" }, live({ accountCreated: async () => ({ createdMs: null, indexed: true, indexedHeight: 1000 }) }));
-    expect(r.verdict).toBe("SAFE");
-    expect(find(r, "R11")[0]).toMatchObject({ status: "PASS", code: "CREATED_UNKNOWN", title: "Creation date unavailable" });
+    expect(r.verdict).toBe("ATTENTION");
+    expect(find(r, "R11")[0]).toMatchObject({ status: "ATTENTION", code: "CREATED_UNKNOWN", title: "Not checked: when this account was created" });
+    expect(find(r, "R11")[0].code).not.toMatch(/NEW_ACCOUNT/);
+    expect(r.findings.map((f) => f.title).join(" ")).toContain(VERDICT_TEXT.ageUnknown.split(".")[0]);
   });
 
-  it("indexer down → 'Creation date unavailable' is said, never dropped, and the verdict doesn't change", async () => {
+  it("indexer down → a Not checked line, and the verdict is LOOK AGAIN, never SAFE", async () => {
     const r = await run({ to: "bob.testnet" }, live({ accountCreated: async () => { throw new Error("rate limited"); } }));
-    expect(r.verdict).toBe("SAFE");
+    expect(r.verdict).toBe("ATTENTION");
     expect(r.account?.summary).toMatch(/Creation date unavailable\./);
-    expect(find(r, "R11")[0].title).toBe("Creation date unavailable");
+    expect(find(r, "R11")[0]).toMatchObject({ status: "ATTENTION", code: "CREATED_UNKNOWN", title: "Not checked: when this account was created" });
     expect(find(r, "R3")[0].evidence).toContainEqual({ label: "Created", value: "date unavailable" });
   });
 
-  it("no indexer source at all → still says 'Creation date unavailable'", async () => {
+  it("no indexer source at all → still says 'Creation date unavailable', and nothing failed so the verdict can be SAFE", async () => {
     const r = await run({ to: "bob.testnet" }, empty({ viewAccount: async () => acct(1) }));
     expect(r.account?.summary).toMatch(/Creation date unavailable/);
+    expect(r.verdict).toBe("SAFE");
+    expect(find(r, "R11")[0].status).toBe("PASS");
   });
 
   it("wallet flow (sender given) still looks up the date", async () => {

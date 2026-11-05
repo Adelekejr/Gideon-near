@@ -31,13 +31,13 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
    <div class="runs" role="group" aria-label="Run a real check">
     <button type="button" data-case="lookalike" aria-pressed="false">Poisoned<small>northwind-payro11</small></button>
     <button type="button" data-case="evm-address" aria-pressed="false">0x address<small>never used on NEAR</small></button>
-    <button type="button" data-case="safe" aria-pressed="false">Real account<small>adelekejr.testnet</small></button>
+    <button type="button" data-case="safe" aria-pressed="false">Real account<small>hammed-stampdue.testnet</small></button>
    </div>
    <div class="ft" id="stagefoot">Each button runs the real checker against NEAR testnet. If the network is down it replays a recorded answer and says so.</div>
   </div>
  </div>
  <ul class="types" aria-label="What Gideon checks">
-  <li><span class="lbl">01 · Named</span><b>.near and .testnet accounts</b><code>payroll.near · adelekejr.testnet</code></li>
+  <li><span class="lbl">01 · Named</span><b>.near and .testnet accounts</b><code>payroll.near · hammed-stampdue.testnet</code></li>
   <li><span class="lbl">02 · Implicit</span><b>64-character accounts</b><code>9f2c41e07ab35d8c…a3f50c62d17e9b04</code></li>
   <li><span class="lbl">03 · Ethereum-style</span><b>0x addresses on NEAR</b><code>0x94a0abA1…Dca0dd3cd8</code></li>
   <li><span class="lbl">04 · Poisoned</span><b>Lookalikes of who you pay</b><code>northwind-payro<span class="x">11</span>.testnet</code></li>
@@ -91,6 +91,15 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
  <p class="ledger-note">Red means blocked. Nothing else on this site uses it.</p>
 </section>
 
+<section class="blk wrap" id="limits">
+ <div class="sec-hd"><div><span class="lbl">Honest limits</span><h2 class="rv">What Gideon can’t catch.</h2></div><p class="rv">Gideon reads public chain data and advises. A lookup that fails is look again, never “no problems found”.</p></div>
+ <ol class="how">
+  <li class="rv"><h3>Who holds the key</h3><p>SAFE is not proof the recipient is who they say they are, and it isn’t proof an exchange will credit the token. Unverified exchange rows are marked unconfirmed.</p></li>
+  <li class="rv"><h3>A failed lookup</h3><p>If account age, first-send or your recent history can’t be read, Gideon says so and won’t call the send safe.</p></li>
+  <li class="rv"><h3>An agent that ignores it</h3><p>The MCP server returns DO_NOT_SEND or ASK_HUMAN. It can’t stop an agent, or a wallet, that goes ahead anyway.</p></li>
+ </ol>
+</section>
+
 <section class="blk wrap">
  <div class="rcpt">
   <div>
@@ -112,16 +121,17 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
   <a class="surf rv" href="#check"><span class="lbl">Website · live</span><h3>Paste &amp; check</h3><p>This page. The rule engine runs in your browser against free public NEAR, Tron, Ethereum and Bitcoin APIs.</p><span class="go">Check a send <span class="ar">→</span></span></a>
   <a class="surf rv" href="send.html"><span class="lbl">Send · live</span><h3>Check, then send</h3><p>Connect a NEAR wallet. Send unlocks only after the check: safe goes, attention needs your tick, blocked never sends.</p><span class="go">Open Send <span class="ar">→</span></span></a>
   <a class="surf rv" href="extension.html"><span class="lbl">Extension · load unpacked</span><h3>In your wallet</h3><p>Checks the address you paste on NEAR wallet and exchange pages and holds Send if it’s wrong.</p><span class="go">See it work <span class="ar">→</span></span></a>
-  <a class="surf rv" href="agents.html"><span class="lbl">Agents · MCP</span><h3>For AI agents</h3><p>Agents that pay ask Gideon first and get a yes, or a no with the reason and a receipt.</p><span class="go">For agents <span class="ar">→</span></span></a>
+  <a class="surf rv" href="agents.html"><span class="lbl">Agents · MCP</span><h3>For AI agents</h3><p>Agents that pay can ask Gideon first. It answers with a verdict and a receipt. It can’t stop one that ignores the answer.</p><span class="go">For agents <span class="ar">→</span></span></a>
  </div>
  <div class="onecall">
-  <div><span class="sec-n">From code</span><h3 class="h2" style="margin-top:12px">One call before the send.</h3><p class="small" style="margin-top:12px;font-size:15px">CLI exit codes: 0 safe, 1 look again, 2 blocked, so scripts can stop a send.</p></div>
-  <pre class="code rv"><span class="c">// before the send</span>
+  <div><span class="sec-n">From the repo</span><h3 class="h2" style="margin-top:12px">One call before the send.</h3><p class="small" style="margin-top:12px;font-size:15px">This sample imports <span class="mono">@gideon/core</span> from this repo. The npm scope <span class="mono">@gideon</span> is already taken, so it is not an npm install. CLI exit codes: 0 safe, 1 look again, 2 blocked.</p></div>
+  <pre class="code rv"><span class="c">// from this repo, not the npm package @gideon/core</span>
 <span class="k">import</span> { check } <span class="k">from</span> <span class="s">"@gideon/core"</span>
 <span class="k">import</span> { liveSources } <span class="k">from</span> <span class="s">"@gideon/sources"</span>
 
 <span class="k">const</span> r = <span class="k">await</span> check({
-  to: <span class="s">"89a46298…f4126944"</span>, network: <span class="s">"mainnet"</span>,
+  to: <span class="s">"89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944"</span>,
+  network: <span class="s">"mainnet"</span>,
   destination: <span class="s">"exchange"</span>, exchange: <span class="s">"binance"</span>
 }, liveSources())
 <span class="c">// → verdict "BLOCKED", headline.code "TX_HASH_AS_ACCOUNT"</span>

@@ -19,12 +19,13 @@ describe("creation date for genesis accounts", () => {
     expect(find(r, "R11")[0]!.status).toBe("PASS");
   });
 
-  it("not at genesis, or the lookup fails: stays unavailable and the verdict doesn't change", async () => {
+  it("not at genesis, or the lookup fails: stays unavailable, not called new, and the verdict is LOOK AGAIN", async () => {
     for (const g of [async () => false, async () => { throw new Error("archival down"); }]) {
       const r = await run({ to: "bob.near", network: "mainnet" }, empty({ viewAccount: async () => acct(5), accountCreated: noDate, accountAtGenesis: g }));
       expect(r.account?.createdAt).toBeUndefined();
       expect(r.account?.summary).toContain("Creation date unavailable.");
-      expect(r.verdict).not.toBe("BLOCKED");
+      expect(r.verdict).toBe("ATTENTION");
+      expect(find(r, "R11")[0]).toMatchObject({ status: "ATTENTION", code: "CREATED_UNKNOWN" });
     }
   });
 

@@ -1,6 +1,6 @@
 import type { CheckResult } from "@gideon/core";
 import { initChrome, esc, LOGO } from "./chrome";
-import { getContacts } from "./state";
+import { getContacts, getNetwork } from "./state";
 import { runCheck, CASES } from "./run";
 // The demo uses the extension's own card, styles and motion, so the page shows exactly what the extension draws.
 import { STYLE } from "../../extension/src/lib/style";
@@ -10,7 +10,11 @@ import { playAll } from "../../extension/src/lib/motion";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 document.querySelectorAll(".logo-slot").forEach((s) => (s.outerHTML = LOGO));
-initChrome("Extension");
+initChrome("Extension", () => {
+  syncNetLabel();
+  const input = document.getElementById("addr") as HTMLInputElement | null;
+  if (input?.value.trim()) void run(input.value);
+});
 
 // Inside the site the extension's font names resolve to the site's copies of the same files.
 const FONTS = `.g-root{--display:'Bricolage Grotesque',system-ui,sans-serif;--serif:'Newsreader',Georgia,serif;--mono:'JetBrains Mono',ui-monospace,Menlo,monospace}`;
@@ -23,7 +27,7 @@ function shadow(host: HTMLElement, css: string, cls: string): HTMLElement {
 const gwRoot = shadow($("gw"), STYLE, "");
 const popCss = POPUP_STYLE.replace(/@font-face\{[^}]*\}/g, "").replace(/html[^{]*\{[^}]*\}/g, "");
 const pop = shadow($("pop"), STYLE + popCss + ".pp{width:100%;max-width:380px;border:1px solid var(--line);border-radius:4px;box-shadow:0 30px 60px -30px rgba(0,0,0,.5)}", "pp");
-pop.innerHTML = `<header class="top"><span class="logo">${LOGO}</span><b class="word">Gideon</b><label class="net"><span class="dot"></span><select aria-label="Network" disabled><option>testnet</option></select></label></header>
+pop.innerHTML = `<header class="top"><span class="logo">${LOGO}</span><b class="word">Gideon</b><label class="net"><span class="dot"></span><select aria-label="Network" disabled id="popnet"><option>testnet</option></select></label></header>
 <div class="themes"><div class="seg" role="radiogroup" aria-label="Colour theme" id="rail"></div></div>
 <section class="sec"><div class="lab">LAST CHECK ON A PAGE</div><div class="last" id="plast">Nothing checked on a page yet. Paste an address into the form and Gideon checks it there.</div></section>
 <div class="sec res" id="pres"></div>
@@ -53,6 +57,20 @@ new MutationObserver(syncTheme).observe(document.documentElement, { attributes: 
 syncTheme();
 
 const addr = $<HTMLInputElement>("addr"), wd = $<HTMLButtonElement>("wd"), inbox = $("inbox"), ext = $("ext");
+const amt = $<HTMLInputElement>("amt"), recv = $("recv");
+function syncReceive() {
+  const n = Number(amt.value);
+  const out = Number.isFinite(n) ? Math.max(0, Math.round((n - 0.01) * 100) / 100) : 0;
+  recv.textContent = `You receive ${out.toFixed(2)} NEAR`;
+}
+function syncNetLabel() {
+  const net = getNetwork();
+  const sel = pop.querySelector("#popnet");
+  if (sel) sel.innerHTML = `<option>${net}</option>`;
+}
+amt.addEventListener("input", syncReceive);
+syncReceive();
+syncNetLabel();
 q("sv").textContent = String(getContacts().length);
 const caseOf = (id: string) => CASES.find((c) => c.id === id)!.input;
 const TRON_HASH = caseOf("tron-hash").to, GOOD = caseOf("safe").to;
@@ -69,7 +87,9 @@ async function run(v: string) {
   let r: CheckResult;
   try {
     const book = [...getContacts(), ...extraBook];
-    r = await runCheck({ to: v, network: "testnet", asset: { symbol: "NEAR" }, destination: "unknown", amount: "25", addressBook: book as never });
+    const network = getNetwork();
+    syncNetLabel();
+    r = await runCheck({ to: v, network, asset: { symbol: "NEAR" }, destination: "unknown", amount: amt.value || "2", addressBook: book as never });
   } catch (e) {
     if (my !== seq) return;
     gwRoot.innerHTML = failed(`${(e as Error).message}.`);
@@ -80,7 +100,7 @@ async function run(v: string) {
   const tone = toneOf(r);
   q("sc").textContent = String(+q("sc").textContent! + 1);
   if (tone === "block") q("ss").textContent = String(+q("ss").textContent! + 1);
-  const report = `check.html?net=testnet&to=${encodeURIComponent(r.input.to)}&amount=25`;
+  const report = `check.html?net=${encodeURIComponent(r.input.network)}&to=${encodeURIComponent(r.input.to)}&amount=${encodeURIComponent(amt.value || "2")}`;
   const actions = tone === "safe" ? "" : `<button id="clr">Clear &amp; paste again</button><button class="g" id="full">Full report</button>`;
   gwRoot.innerHTML = card(r, { held: tone === "block", actions });
   playAll(gwRoot); // the real result plays: bounce, hold or pass

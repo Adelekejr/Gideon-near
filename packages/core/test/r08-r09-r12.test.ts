@@ -11,6 +11,7 @@ describe("R8 exchange registry", () => {
     const r = await run({ to: "deposit.testnet", destination: "exchange", exchange: "binance", asset: { symbol: "wNEAR", contract: "wrap.testnet" } }, live);
     expect(r.verdict).toBe("ATTENTION");
     expect(r.headline?.code).toBe("EXCHANGE_MAY_NOT_CREDIT");
+    expect(r.headline?.title).toMatch(/\(unconfirmed\)/);
     expect(r.headline?.fix?.[0]).toMatch(/Unwrap/);
   });
   it("native NEAR to an exchange → PASS", async () => {

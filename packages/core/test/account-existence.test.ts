@@ -13,7 +13,7 @@ describe("account existence (live view_account on the selected network)", () => 
     expect(r.verdict).toBe("BLOCKED");
     expect(r.headline?.code).toBe("ACCOUNT_NOT_FOUND");
     expect(r.headline?.title).toBe("This account doesn't exist on NEAR testnet");
-    expect(r.headline?.detail).toMatch(/Anything sent there will fail or be lost/);
+    expect(r.headline?.detail).toMatch(/fails and comes back, minus the network fee/);
     expect(r.headline?.fix?.[0]).toMatch(/spelling/);
     expect(r.account).toMatchObject({ id: "adelekejr-nope.testnet", network: "testnet", exists: false });
   });
@@ -58,10 +58,10 @@ describe("account existence (live view_account on the selected network)", () => 
     expect(p).toMatchObject({ status: "PASS", code: "ACCOUNT_EXISTS", title: "Account exists on NEAR testnet" });
   });
 
-  it("a failed creation-date lookup doesn't change the verdict", async () => {
+  it("a failed creation-date lookup is LOOK AGAIN, never SAFE", async () => {
     const r = await run({ to: "bob.testnet" },
       empty({ viewAccount: async () => acct(1), accountCreated: async () => { throw new Error("rate limited"); } }));
-    expect(r.verdict).toBe("SAFE");
+    expect(r.verdict).toBe("ATTENTION");
     expect(r.account?.createdAt).toBeUndefined();
     expect(r.sources.find((s) => s.source.startsWith("nearblocks"))).toMatchObject({ ok: false, optional: true });
   });

@@ -73,6 +73,8 @@ interface Panel {
   value: string;
   seq: number;
   held: HTMLElement[];
+  /** True while a BLOCKED result should keep Send held, including after the page replaces the button. */
+  holdWanted: boolean;
   prevOutline: string;
   /** The answer showing for `value`, to remember the send if you press Send. */
   shown?: { to: string; network: Network; verdict: string; from?: string };
@@ -111,7 +113,7 @@ function getPanel(): Panel {
   root.append(style, div);
   root.addEventListener("click", onPanelClick);
   document.documentElement.appendChild(host);
-  panel = { host, root, field: null, value: "", seq: 0, held: [], prevOutline: "" };
+  panel = { host, root, field: null, value: "", seq: 0, held: [], holdWanted: false, prevOutline: "" };
   return panel;
 }
 
@@ -190,17 +192,28 @@ function hide(): void {
 /* ---------- holding the Send button ---------- */
 
 function hold(p: Panel, field: Field): void {
-  release(p);
+  release(p, true);
+  p.holdWanted = true;
   p.held = findSendButtons(field);
   for (const b of p.held) {
-    b.dataset.gideonHeld = (b as HTMLButtonElement).disabled ? "was-disabled" : "1";
+    b.dataset.gideonHeld = (b as HTMLButtonElement).disabled && b.dataset.gideonHeld !== "1" ? "was-disabled" : "1";
     if ("disabled" in b) (b as HTMLButtonElement).disabled = true;
     b.setAttribute("aria-disabled", "true");
     b.title = "Held by Gideon: this send looks like a mistake";
   }
 }
 
-function release(p: Panel): void {
+/** Grab a Send button the page just rendered, so a replaced button stays held. */
+function reapplyHold(): void {
+  const p = panel;
+  if (!p?.holdWanted || !p.field?.isConnected) return;
+  const next = findSendButtons(p.field);
+  const same = next.length === p.held.length && next.every((b, i) => b === p.held[i] && b.dataset.gideonHeld);
+  if (same) return;
+  hold(p, p.field);
+}
+
+function release(p: Panel, keep = false): void {
   for (const b of p.held) {
     if (b.dataset.gideonHeld !== "was-disabled" && "disabled" in b) (b as HTMLButtonElement).disabled = false;
     b.removeAttribute("aria-disabled");
@@ -208,12 +221,51 @@ function release(p: Panel): void {
     delete b.dataset.gideonHeld;
   }
   p.held = [];
+  if (!keep) p.holdWanted = false;
 }
 
 function isHeld(t: EventTarget | null): boolean {
   return !!panel?.held.some((b) => t instanceof Node && b.contains(t));
 }
+function isSendClick(t: EventTarget | null, field: Field): boolean {
+  return t instanceof Node && findSendButtons(field).some((b) => b.contains(t));
+}
+/** The last field value that came from a trusted keystroke or paste. A page script can't set this. */
+let trustedValue = "";
+function markTrusted(field: Field): void {
+  trustedValue = plainTrim(field.value);
+}
+/**
+ * The field no longer matches the checked value, and the user didn't type this new value.
+ * Clear a value that isn't checkable; otherwise check the swapped recipient.
+ */
+function onSilentSwap(): void {
+  const p = panel;
+  if (!p?.field || p.host.style.display === "none") return;
+  const now = plainTrim(p.field.value);
+  if (!now || now === plainTrim(p.value) || now === trustedValue) return;
+  if (shouldCheck(p.field, now)) void run(p.field, now, null, true);
+  else hide();
+}
 document.addEventListener("click", (e) => {
+  const p = panel;
+  const field = p?.field ?? null;
+  if (field && p?.holdWanted && isSendClick(e.target, field)) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    reapplyHold();
+    return;
+  }
+  if (e.isTrusted && field && p && isSendClick(e.target, field)) {
+    const now = plainTrim(field.value);
+    if (p.host.style.display !== "none" && now !== plainTrim(p.value)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (shouldCheck(field, now)) void run(field, now, null, true);
+      else hide();
+      return;
+    }
+  }
   if (isHeld(e.target)) {
     e.preventDefault();
     e.stopImmediatePropagation();
@@ -221,6 +273,7 @@ document.addEventListener("click", (e) => {
   }
   if (e.isTrusted) noteSend(e.target);
 }, true);
+setInterval(onSilentSwap, 400);
 
 /**
  * You pressed the page's Send button for a recipient Gideon checked (and didn't stop): remember it
@@ -251,7 +304,7 @@ function noteSend(t: EventTarget | null): void {
 }
 document.addEventListener("submit", (e) => {
   const f = panel?.field?.form;
-  if (f && panel!.held.length && e.target === f) {
+  if (f && (panel!.held.length || panel!.holdWanted) && e.target === f) {
     e.preventDefault();
     e.stopImmediatePropagation();
   }
@@ -349,7 +402,7 @@ async function run(field: Field, value: string, copied: string | null, force = f
   if (!force && alreadyChecking(field, value)) return;
   const p = getPanel();
   const seq = ++p.seq;
-  release(p);
+  release(p, p.holdWanted);
   show(field, checking(value), "idle");
   p.seq = seq;
   p.value = value;
@@ -473,7 +526,9 @@ document.addEventListener("paste", (e) => {
   const field = e.target;
   const pasted = e.clipboardData?.getData("text/plain") ?? "";
   const copied = settings.clipboardCheck ? watch.copiedFor() : null;
+  markTrusted(field);
   setTimeout(() => {
+    markTrusted(field);
     const value = plainTrim(field.value || pasted);
     if (shouldCheck(field, value)) void run(field, value, copied);
   }, 0);
@@ -485,6 +540,7 @@ document.addEventListener("input", (e) => {
   if (!settings.checkOnPaste || !isTextField(e.target)) return;
   if ((e as InputEvent).inputType === "insertFromPaste") return; // handled by the paste listener
   const field = e.target;
+  markTrusted(field);
   const value = plainTrim(field.value);
   if (!value) {
     if (panel?.field === field) hide();
@@ -596,7 +652,7 @@ function scheduleApproval(): void {
 void scanApproval();
 try {
   // Wallets are single-page apps: the approval screen appears and changes without a page load.
-  new MutationObserver(scheduleApproval).observe(document.documentElement, { childList: true, subtree: true });
+  new MutationObserver(() => { reapplyHold(); scheduleApproval(); }).observe(document.documentElement, { childList: true, subtree: true });
 } catch {
   /* no observer: the address check above still ran */
 }

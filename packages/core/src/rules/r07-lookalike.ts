@@ -23,7 +23,7 @@ export async function r07Lookalike(ctx: Ctx): Promise<RuleResult> {
   if (saved) return f("R7", "PASS", "SAVED_CONTACT", `Saved contact${saved.label ? `: ${saved.label}` : ""}`, "Exact match with your address book.");
 
   /** The live lookup is shared with R3, so this costs no extra call. */
-  const missing = async () => ((await ctx.accountFacts())?.exists === false ? ` And ${to} doesn't exist on NEAR ${input.network}, so anything sent there would fail or be lost.` : "");
+  const missing = async () => ((await ctx.accountFacts())?.exists === false ? ` And ${to} doesn't exist on NEAR ${input.network}, so a native NEAR send fails and comes back, minus the network fee. It doesn't arrive.` : "");
   for (const b of book) {
     const m = lookalike(to, b.account);
     if (m) {
@@ -54,9 +54,9 @@ export async function r07Lookalike(ctx: Ctx): Promise<RuleResult> {
     return f("R7", "PASS", "NO_LOOKALIKE", "No lookalike of your contacts", `Compared with ${compared}. Gideon couldn't tell which account you're sending from, so your on-chain history wasn't compared.`);
   }
   if (!hist.ok) {
-    // Info-only: a slow or rate-limited history never holds up the verdict. Contacts were compared above.
-    return f("R7", "PASS", "HISTORY_UNAVAILABLE", book.length ? "No lookalike of your contacts" : "Couldn't compare with your history",
-      `Couldn't read your recent history in time (${hist.error}), so ${book.length || device.length ? `only your ${compared} were compared` : "no past recipients were compared"}. Check every character before you send.`);
+    // A failed history lookup is not a pass. Contacts (if any) were compared above; the verdict is LOOK AGAIN.
+    return f("R7", "ATTENTION", "HISTORY_UNAVAILABLE", "Not checked: your recent history",
+      `Couldn't read your recent history (${hist.error}), so ${book.length || device.length ? `only your ${compared} were compared` : "no past recipients were compared"}. This send isn't called safe until that history can be read.`);
   }
 
   const { from, transfers, pastRecipients, counterparties } = hist.value;
