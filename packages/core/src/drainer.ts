@@ -4,6 +4,7 @@ import { explorerTxUrl } from "./networks.js";
 import { makeReceipt } from "./receipt.js";
 import { withTimeout } from "./time.js";
 import type { AccountInfo, ChainTx, CheckResult, Contact, Finding, Network, Sources } from "./types.js";
+import { isExchangeAccount } from "./exchange-accounts.js";
 import { f, short } from "./rules/util.js";
 
 /**
@@ -46,10 +47,6 @@ const DUST_YOCTO = 10n ** 23n;
 /** A recipient this rich or this busy is an exchange or a big service: its senders say nothing about it. */
 const BUSY_BALANCE_YOCTO = 100_000n * 10n ** 24n;
 const BUSY_INBOUND_TXS = 50_000;
-/** Known exchange hot wallets (deposit sweeps look like drains). */
-const KNOWN_BUSY = new Set([
-  "ccb91e1db61e8d7e1d4ae3e043001140132959a86ee35a548b6563a46284a6ea",
-]);
 const HOW_MANY_INBOUND = 40;
 // Room to see past a drainer deleting dozens of keys before sweeping (dolbabob.near's victims did 30 to 500).
 const SIGNED_FIRST = 20;
@@ -148,7 +145,7 @@ export function drainerPrecheck(input: DrainerInput, sources: Sources): Finding 
   if (mine.has(to)) return skip("OWN_ACCOUNT", "This is one of your own accounts.");
   if ((input.addressBook ?? []).some((x) => x.account.trim().toLowerCase() === to)) return skip("CONTACT", "This account is in your address book.");
   if (!sources.inboundTxs || !sources.signedTxsUpTo) return skip("UNAVAILABLE", "No transaction source for this check.");
-  if (KNOWN_BUSY.has(to)) return skip("BUSY_ACCOUNT", "This is a known exchange or busy service.");
+  if (isExchangeAccount(input.network, to)) return skip("BUSY_ACCOUNT", "This is a known exchange wallet. Deposit sweeps can look like drains, so this check doesn't call it a drainer. Per-user deposit addresses are not all listed.");
   return null;
 }
 

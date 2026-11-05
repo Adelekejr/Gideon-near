@@ -1,4 +1,4 @@
-import type { Sources } from "@gideon/core";
+import { mergeMoves, type Sources } from "@gideon/core";
 import type { HttpOptions } from "./http.js";
 import { NearRpc, type RpcOptions } from "./nearRpc.js";
 import { NearBlocks } from "./nearblocks.js";
@@ -35,6 +35,13 @@ export function liveSources(o: LiveSourcesOptions = {}): Sources {
     oneClickStatus: (d) => oc.status(d),
     // Fresh (FastNEAR) and deep (NearBlocks, whose free testnet index can lag weeks) merged.
     recentTransfers: (n, a) => mergedHistory(() => fast.recentTransfers(n, a), () => nb.recentTransfers(n, a)),
+    // Fresh (FastNEAR) and deep (NearBlocks). Fails only when both fail, so one outage isn't "no history"
+    // and a real outage of both is not called safe.
+    accountActivity: async (n, a) => {
+      const [x, y] = await Promise.allSettled([fast.accountActivity(n, a), nb.accountActivity(n, a)]);
+      if (x.status === "rejected" && y.status === "rejected") throw x.reason;
+      return mergeMoves(x.status === "fulfilled" ? x.value : [], y.status === "fulfilled" ? y.value : []);
+    },
     nearTx: (n, h) => nb.nearTx(n, h),
     communityFlags: (n, reg, a) => rpc.communityFlags(n, reg, a),
     accountCreated: (n, a) => nb.accountCreated(n, a),

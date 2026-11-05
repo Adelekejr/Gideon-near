@@ -28,6 +28,8 @@ export const VERDICT_TEXT = {
   historyUnknown: "Not checked: your recent history. Gideon couldn't read it, so it didn't compare this address with accounts you've dealt with.",
   /** The first-send lookup failed. Not safe. */
   firstSendUnknown: "Not checked: whether you've sent here before. The send-history lookup didn't answer, so this isn't called a send you've made before.",
+  /** An amount was given but the sender wasn't, so R19 didn't compare it. Not a pass. */
+  amountNoSender: "Not checked: whether this is more than you usually send. Gideon couldn't tell which account you're sending from, so it didn't compare the amount.",
   /** The drained-wallet check (R18) failed or timed out. */
   drainerFailed: "couldn't check recent senders for hacked wallets",
 } as const;
@@ -47,6 +49,7 @@ export function notCheckedLine(f: Finding): string | null {
   if (f.code === "CREATED_UNKNOWN" && f.status === "ATTENTION") return VERDICT_TEXT.ageUnknown;
   if (f.code === "HISTORY_UNAVAILABLE" && f.status === "ATTENTION") return VERDICT_TEXT.historyUnknown;
   if (f.code === "FIRST_SEND_UNKNOWN") return VERDICT_TEXT.firstSendUnknown;
+  if (f.code === "AMOUNT_NO_SENDER") return VERDICT_TEXT.amountNoSender;
   return null;
 }
 

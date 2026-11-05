@@ -1,4 +1,4 @@
-import type { AccountCreation, KeyRecord, NearTx, Network, Transfer } from "@gideon/core";
+import { movesFromNearBlocks, type AccountCreation, type AccountMove, type KeyRecord, type NearTx, type Network, type Transfer } from "@gideon/core";
 import { NETWORKS } from "@gideon/core";
 import { json, request, SourceError, type HttpOptions } from "./http.js";
 
@@ -15,6 +15,12 @@ export class NearBlocks {
     if (res.status === 429) throw new SourceError("NearBlocks rate limit reached");
     if (!res.ok) throw new SourceError(`NearBlocks HTTP ${res.status}`);
     return { status: res.status, body: await json<T>(res, url) };
+  }
+
+  /** Same rows as recentTransfers, with token amounts when the actions include them. */
+  async accountActivity(network: Network, accountId: string): Promise<AccountMove[]> {
+    const { body } = await this.get<{ txns?: unknown[] }>(network, `/v1/account/${encodeURIComponent(accountId)}/txns-only?per_page=25&order=desc`);
+    return movesFromNearBlocks(accountId, body?.txns ?? []);
   }
 
   async recentTransfers(network: Network, accountId: string): Promise<Transfer[]> {

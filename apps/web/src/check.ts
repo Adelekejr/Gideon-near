@@ -14,6 +14,8 @@ const RULE_NAMES: Record<string, string> = {
   R16: "Other network",
   R17: "Fake address name",
   R18: "Drained wallets",
+  R19: "Unusual amount",
+  R20: "Collector pattern",
 };
 const ST: Record<Status, [string, string]> = {
   BLOCKED: ["block", "BLOCK"], ATTENTION: ["warn", "LOOK"], PASS: ["safe", "PASS"], COULD_NOT_CHECK: ["cnc", "COULDN’T CHECK"], SKIPPED: ["skip", "—"],

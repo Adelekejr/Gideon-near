@@ -1,0 +1,57 @@
+{
+  "_about": "Public exchange custody accounts on NEAR (hot and cold wallets). Used by R20 so a collector-shaped history is not called a drainer, and by R18 so deposit sweeps are not called hacked wallets. This is not an official exchange list and it is not complete: each user gets their own deposit address, and those are not here.",
+  "_checked": "2026-11-05",
+  "_limit": "Per-user deposit addresses are not listed. A recipient missing from this file can still be an exchange deposit.",
+  "mainnet": [
+    {
+      "account": "binancecold3.near",
+      "name": "Binance",
+      "role": "cold",
+      "source": "https://nearblocks.io/address/binancecold3.near",
+      "note": "Public account name on NearBlocks. It holds on the order of 100 million NEAR plus large USDT and USDC balances, and moves funds with the hot wallets below."
+    },
+    {
+      "account": "5c33c6218d47e00ef229f60da78d0897e1ee9665312550b8afd5f9c7bc6957d2",
+      "name": "Binance",
+      "role": "hot",
+      "source": "https://nearblocks.io/address/binancecold3.near",
+      "note": "Implicit account that binancecold3.near funds with multi-million NEAR and USDC transfers (NearBlocks history of binancecold3.near). Treated as a Binance hot wallet. Not a personal deposit address."
+    },
+    {
+      "account": "451913e633c72fb951effe076d3bd2977e3f08083dcf6c87fa89992b0d437c5c",
+      "name": "Binance",
+      "role": "hot",
+      "source": "https://nearblocks.io/address/binancecold3.near",
+      "note": "Sends large NEAR balances into binancecold3.near on the public NearBlocks history. Operational wallet, not a personal deposit address."
+    },
+    {
+      "account": "d04204b6591fefb973a8ed60929f8211af89ee38020da9faf905acdc7a320063",
+      "name": "Binance",
+      "role": "hot",
+      "source": "https://nearblocks.io/address/binancecold3.near",
+      "note": "Sends large NEAR balances into binancecold3.near on the public NearBlocks history. Operational wallet, not a personal deposit address."
+    },
+    {
+      "account": "9c484fa5d2d069569ba063fc555c34e621ccd88fdbb0295fc79bad232621c5c1",
+      "name": "Binance",
+      "role": "hot",
+      "source": "https://nearblocks.io/address/binancecold3.near",
+      "note": "Sends large NEAR balances into binancecold3.near on the public NearBlocks history. Operational wallet, not a personal deposit address."
+    },
+    {
+      "account": "7e6e17fcb8e8e6a22ecd47bbd1b58b1af3582b97bbfd4a8d974bb9c266fa282b",
+      "name": "Binance",
+      "role": "hot",
+      "source": "https://nearblocks.io/address/binancecold3.near",
+      "note": "Sends large NEAR balances into binancecold3.near on the public NearBlocks history. Operational wallet, not a personal deposit address."
+    },
+    {
+      "account": "ccb91e1db61e8d7e1d4ae3e043001140132959a86ee35a548b6563a46284a6ea",
+      "name": "Exchange hot wallet",
+      "role": "hot",
+      "source": "https://nearblocks.io/address/ccb91e1db61e8d7e1d4ae3e043001140132959a86ee35a548b6563a46284a6ea",
+      "note": "Already skipped by the drained-wallet check. The public page shows a large NEAR balance (about 2.2 million). No exchange has published this as a named deposit address. Listed so it is not called a drainer."
+    }
+  ],
+  "testnet": []
+}

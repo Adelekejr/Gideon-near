@@ -1,4 +1,4 @@
-import type { ChainAction, ChainTx, Network, Transfer } from "@gideon/core";
+import { movesFromFastNear, type AccountMove, type ChainAction, type ChainTx, type Network, type Transfer } from "@gideon/core";
 import { NETWORKS } from "@gideon/core";
 import { json, request, SourceError, type HttpOptions } from "./http.js";
 
@@ -67,8 +67,8 @@ export class FastNearTx {
     return this.txs(network, [...new Set(hashes)].map((h) => ({ transaction_hash: h })));
   }
 
-  /** The newest transactions: up to 20 the account signed, plus up to 20 of any kind (incoming, dust). */
-  async recentTransfers(network: Network, accountId: string): Promise<Transfer[]> {
+  /** The newest transactions (raw), up to 20 signed plus up to 20 of any kind. */
+  private async recentRaw(network: Network, accountId: string): Promise<any[]> {
     type Row = { transaction_hash?: string };
     const [signed, all] = await Promise.all([
       this.post<{ account_txs?: Row[] }>(network, "/v0/account", { account_id: accountId, is_real_signer: true, limit: 20 }),
@@ -79,8 +79,13 @@ export class FastNearTx {
     const batches: string[][] = [];
     for (let i = 0; i < hashes.length; i += 20) batches.push(hashes.slice(i, i + 20));
     const got = await Promise.all(batches.map((b) => this.post<{ transactions?: any[] }>(network, "/v0/transactions", { tx_hashes: b })));
+    return got.flatMap((g) => g.transactions ?? []);
+  }
+
+  /** The newest transactions: up to 20 the account signed, plus up to 20 of any kind (incoming, dust). */
+  async recentTransfers(network: Network, accountId: string): Promise<Transfer[]> {
     const out: Transfer[] = [];
-    for (const g of got) for (const t of g.transactions ?? []) {
+    for (const t of await this.recentRaw(network, accountId)) {
       const tx = t?.transaction;
       if (!tx?.signer_id || !tx?.receiver_id) continue;
       let deposit = 0;
@@ -89,6 +94,11 @@ export class FastNearTx {
       out.push({ hash: tx.hash, signer: tx.signer_id, receiver: tx.receiver_id, depositYocto: deposit, ...(ts ? { blockTimestampNs: String(ts) } : {}) });
     }
     return out.sort((a, b) => Number(b.blockTimestampNs ?? 0) - Number(a.blockTimestampNs ?? 0));
+  }
+
+  /** R19 / R20: NEAR transfers and ft_transfer amounts, newest first. */
+  async accountActivity(network: Network, accountId: string): Promise<AccountMove[]> {
+    return movesFromFastNear(accountId, await this.recentRaw(network, accountId));
   }
 }
 

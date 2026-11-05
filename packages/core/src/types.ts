@@ -8,8 +8,10 @@ export type Verdict = "BLOCKED" | "ATTENTION" | "SAFE";
 
 export type RuleId =
   | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12" | "R13" | "R14" | "R15" | "R16" | "R17" | "R18"
-  /** Transaction checks (checkTransaction): full access, new or drainer-linked contract, whole balance, NFT control. */
-  | "T1" | "T2" | "T3" | "T4" | "T5" | "T6";
+  /** R19 unusual amount. R20 collector pattern (not a block) plus the exchange-wallet list. */
+  | "R19" | "R20"
+  /** Transaction checks (checkTransaction): full access, new or drainer-linked contract, whole balance, NFT control, swap/bridge minimum. */
+  | "T1" | "T2" | "T3" | "T4" | "T5" | "T6" | "T7";
 
 export type Destination = "wallet" | "exchange" | "intents" | "unknown";
 
@@ -258,6 +260,23 @@ export interface Transfer {
   /** Native NEAR attached, in yocto (approximate; NearBlocks returns floats). */
   depositYocto: number;
   blockTimestampNs?: string;
+  /**
+   * Token sends inside this transaction, when the source could read ft_transfer args.
+   * Absent means the source didn't say, not that there were none.
+   */
+  tokens?: { contract: string; receiver: string; amount: string }[];
+}
+
+/** One movement of NEAR or a token, from one account's public history (R19, R20). */
+export interface AccountMove {
+  hash: string;
+  atMs: number;
+  direction: "in" | "out";
+  /** "NEAR" or the token contract. */
+  asset: string;
+  counterparty: string;
+  /** Smallest units, integer string (yoctoNEAR for NEAR). */
+  amount: string;
 }
 
 /**
@@ -273,6 +292,11 @@ export interface Sources {
   storageRegistered(network: Network, contract: string, accountId: string): Promise<boolean>;
   oneClickStatus(depositAddress: string): Promise<OneClickStatus | null>;
   recentTransfers(network: Network, accountId: string): Promise<Transfer[]>;
+  /**
+   * Optional (R19, R20): recent NEAR and token movements for this account, newest first.
+   * Missing means the build has no activity source (the rules stay quiet). Throwing is "couldn't check".
+   */
+  accountActivity?(network: Network, accountId: string): Promise<AccountMove[]>;
   nearTx(network: Network, hash: string): Promise<NearTx | null>;
   /** `get_flags` view call on the registry. null = the registry account or contract doesn't exist. */
   communityFlags(network: Network, registry: string, accountId: string): Promise<CommunityFlag[] | null>;
