@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { verdictOf } from "../src/engine.js";
+import { ENGINE_VERSION, verdictOf } from "../src/engine.js";
 import { acct, empty, fake, run } from "./helpers.js";
 import type { Finding } from "../src/types.js";
 
@@ -12,6 +13,11 @@ describe("verdict", () => {
 });
 
 describe("engine", () => {
+  it("prints the extension version the site ships", () => {
+    const ext = JSON.parse(readFileSync(new URL("../../../apps/extension/package.json", import.meta.url), "utf8")) as { version: string };
+    expect(ENGINE_VERSION).toBe(`gideon-core/${ext.version}`);
+  });
+
   it("every source down → ATTENTION with couldn't-check, never SAFE", async () => {
     const r = await run({ to: "hammed-stampdue.testnet" }, fake());
     expect(r.verdict).toBe("ATTENTION");

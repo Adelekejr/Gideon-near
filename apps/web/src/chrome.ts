@@ -280,7 +280,7 @@ function header(on: string): string {
 function bigFooter(): string {
   const net = getNetwork();
   return `<footer class="big"><div class="ft-top">
-<div><span class="lbl">Gideon</span>A pre-send checker for NEAR. It reads the address, token and destination before you sign and stops the mistakes wallets let through.<br><br>No keys. No custody. Read-only checks. MIT.</div>
+<div><span class="lbl">Gideon</span>A pre-send checker for NEAR. It reads the address, token and destination before you sign and stops the mistakes wallets let through.<br><br>No keys. No custody. Read-only checks. <a class="inl" href="/PRIVACY.md">Privacy</a> · <a class="inl" href="/LICENSE.txt">MIT</a>.</div>
 <div><span class="lbl">Doors</span><a href="index.html">Checker</a><a href="send.html">Send with a check</a><a href="keys.html">Account health</a><a href="extension.html">Browser extension</a><a href="agents.html">For AI agents</a></div>
 <div><span class="lbl">Built on NEAR</span>${nearMark(22)}<span id="fbh" class="tn">block — · ${net}</span><br><span id="fclk" class="tn"></span></div>
 </div>
@@ -346,6 +346,7 @@ export function initChrome(on: string, onNetworkChange?: () => void) {
   }), { rootMargin: "0px 0px -8% 0px" }) : null;
   reveal();
   addCopyButtons();
+  if (!document.querySelector("footer.big")) document.body.insertAdjacentHTML("beforeend", bigFooter());
   fitGiant(); addEventListener("resize", fitGiant); document.fonts?.ready.then(fitGiant);
   // hero headline lines rise, stop, settle
   if (!STATIC) document.querySelectorAll<HTMLElement>(".mega .ln>span").forEach((s, i) => s.animate([{ transform: "translateY(105%)" }, { transform: "translateY(0)", offset: .62, easing: OUT }, { transform: "translateY(4px)", offset: .8 }, { transform: "translateY(0)" }], { duration: 900, delay: 120 + i * 90, fill: "backwards", easing: STOP }));
@@ -362,6 +363,7 @@ function addCopyButtons(root: ParentNode = document): void {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "codecopy";
+    btn.setAttribute("aria-label", "Copy code");
     btn.textContent = "Copy";
     btn.addEventListener("click", async () => {
       const text = el.innerText.replace(/\u00a0/g, " ").replace(/\n{3,}/g, "\n\n").trim();
@@ -385,5 +387,8 @@ export function tearSlip(slip: HTMLElement, hash: string) {
   for (let x = 100; x >= 0; x -= 1.6) pts.push(`${x.toFixed(1)}% calc(100% - ${(rnd() * 11).toFixed(1)}px)`);
   slip.style.clipPath = `polygon(${pts.join(",")})`;
   const bars = slip.querySelector(".bars");
-  if (bars) bars.innerHTML = Array.from(hash.slice(0, 64)).map((c) => { const n = parseInt(c, 16) || 0; return `<i style="width:${1 + n % 3}px;margin-right:${1 + (n >> 2) % 3}px"></i>`; }).join("");
+  if (bars) bars.innerHTML = Array.from(hash.slice(0, 56)).map((c) => {
+    const n = parseInt(c, 16);
+    return `<i style="flex-grow:${Number.isNaN(n) ? 1 : 1 + (n % 3)}"></i>`;
+  }).join("");
 }
