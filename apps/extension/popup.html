@@ -4,18 +4,23 @@
 <meta charset="utf-8">
 <title>Gideon</title>
 <meta name="color-scheme" content="light dark">
-
+<script>
+/* Saved theme before first paint. Auto follows this device. */
+(function(){var m="",s="";try{m=localStorage.getItem("gideon:theme")||"";s=localStorage.getItem("gideon:shift")||""}catch(e){}
+if(m!=="light"&&m!=="dark"&&m!=="system"){m=s==="night"||s==="plan"?"dark":s==="day"||s==="signal"?"light":"system"}
+var dark=m==="dark"||(m==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);
+document.documentElement.setAttribute("data-mode",m);document.documentElement.setAttribute("data-theme",dark?"dark":"light");})();
+</script>
 </head>
 <body>
 <div class="g-root pp" id="app">
   <header class="top">
-    <span class="logo" id="logo"></span><b class="word">GIDEON</b>
+    <span class="logo" id="logo"></span><b class="word">Gideon</b>
     <label class="net"><span class="dot"></span><select id="net" aria-label="Network" title="Auto reads the network from the wallet page; pick one to override"><option value="auto">auto</option><option value="testnet">testnet</option><option value="mainnet">mainnet</option></select></label>
   </header>
 
-  <div class="shifts">
-    <div class="rail" role="radiogroup" aria-label="Colour shift" id="shiftrail"></div>
-    <span class="autonote" id="autonote" aria-live="polite"></span>
+  <div class="themes">
+    <div class="seg" role="radiogroup" aria-label="Colour theme" id="themerail"></div>
   </div>
 
   <form id="f" class="sec" autocomplete="off">

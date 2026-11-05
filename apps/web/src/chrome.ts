@@ -1,12 +1,12 @@
-// Shared chrome for every page: shift lever + gate wipe, live watch log, grain, big footer, reveals,
-// and the Arrow G stopper that plays the result of a real check.
+// Shared chrome for every page: light/dark theme, live watch log, big footer, reveals,
+// and the Gate G that plays the result of a real check.
 import "./styles/shift.css";
 import "./styles/pages.css";
 import { NETWORKS, STOP_LABEL, type Network } from "@gideon/core";
 import { getNetwork, setNetwork } from "./state";
 
-/** Brand mark: the Arrow G. The G's crossbar is the send arrow; the vermilion spur is the wall (the brand's one red). */
-export const LOGO = '<svg viewBox="0 0 100 100" aria-hidden="true"><rect x="78" y="29" width="13" height="21" fill="#FF4D1A"/><rect x="28" y="33.5" width="25" height="13" fill="currentColor"/><path d="M52 26 L72 40 L52 54 Z" fill="currentColor"/><path d="M68.28 20.74 A34.5 34.5 0 1 0 84.5 50" fill="none" stroke="currentColor" stroke-width="13"/></svg>';
+/** Brand mark: Gate G, static. The short bar is the G's crossbar. Red is reserved for a BLOCKED pose. */
+export const LOGO = '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M35.31 12.69A16 16 0 1 0 40 24" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><rect x="22" y="20.5" width="18" height="7" fill="currentColor"/><circle cx="40" cy="24" r="4.6" fill="currentColor"/></svg>';
 
 export const REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;
 export const STATIC = REDUCE || /static/.test(location.hash);
@@ -15,94 +15,115 @@ export function esc(s: unknown): string {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
-/* ---------------- Arrow G stopper ---------------- */
+/* ---------------- Gate G ---------------- */
 export type StopState = "block" | "safe" | "warn" | "idle";
-let gsN = 0;
-/** Arrow G in a pose. idle = waiting (arrow breathes); block/warn/safe = the final frame of playVerdict(). */
+/** Gate G in a pose. idle = checking (the bar rocks); block/warn/safe = the final frame of playVerdict(). Pass "cnc" for couldn't-check (amber outline, never green). */
 export function stopper(state: StopState, cls = ""): string {
-  const id = `gsc${(++gsN).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  return `<svg class="gs ${state} ${cls}" viewBox="0 0 100 100" role="img" aria-label="${STOP_LABEL[state]}">
-<defs><clipPath id="${id}"><rect x="70" y="0" width="30" height="50"/></clipPath></defs>
-<g clip-path="url(#${id})"><rect class="gs-wall" x="78" y="29" width="13" height="21"/></g>
-<g class="gs-arw"><rect x="28" y="33.5" width="25" height="13"/><path d="M52 26 L72 40 L52 54 Z"/></g>
-<path class="gs-g" d="M68.28 20.74 A34.5 34.5 0 1 0 84.5 50"/>
-<path class="gs-hit" d="M74 26 l-5 -5 M74 54 l-5 5 M84.5 25 v-7"/></svg>`;
+  return `<svg class="gs ${state}${cls ? " " + cls : ""}" viewBox="0 0 48 48" overflow="visible" role="img" aria-label="${STOP_LABEL[state]}">
+<path class="gs-arc" d="M35.31 12.69A16 16 0 1 0 40 24"/>
+<rect class="gs-ghost" x="4.5" y="20.5" width="35.5" height="7" rx="3.5"/>
+<rect class="gs-bar" x="4.5" y="20.5" width="35.5" height="7" rx="3.5"/>
+<rect class="gs-out" x="6" y="22" width="32.5" height="4" rx="2"/>
+<circle class="gs-pivot" cx="40" cy="24" r="4.6"/></svg>`;
 }
 
 export function verdictState(v: string | undefined): StopState {
   return v === "BLOCKED" ? "block" : v === "SAFE" ? "safe" : v ? "warn" : "idle";
 }
 
-const STOP = "cubic-bezier(.5,0,.9,.55)", OUT = "cubic-bezier(.2,.7,.3,1)", IO = "cubic-bezier(.4,0,.2,1)";
-/** Play a real verdict on an Arrow G. BLOCKED: the arrow hits the wall and bounces (1.0s).
- *  ATTENTION: the arrow stops short of an amber wall and waits; it never passes (0.9s).
- *  SAFE: the wall drops open and the arrow passes through (1.1s). Reduced motion: final pose only. */
+const STOP = "cubic-bezier(.5,0,.9,.55)", OUT = "cubic-bezier(.2,.7,.3,1)", IO = "cubic-bezier(.4,0,.2,1)", SETTLE = "cubic-bezier(.2,.8,.2,1)";
+
+function barAngle(el: SVGElement): number {
+  const t = getComputedStyle(el).transform;
+  if (!t || t === "none") return 0;
+  const m = t.match(/matrix\(([^)]+)\)/);
+  if (!m) return 0;
+  const p = m[1].split(",").map((n) => parseFloat(n));
+  if (p.length < 2 || Number.isNaN(p[0]) || Number.isNaN(p[1])) return 0;
+  return Math.atan2(p[1], p[0]) * 180 / Math.PI;
+}
+
+/** Play a real verdict on a Gate G. The rock stops where it is and the verdict path starts from that angle.
+ *  BLOCKED: the bar slams shut in red (1.0s). ATTENTION: it lifts to 45° in amber and blinks (0.9s).
+ *  Couldn't check (class cnc): the same lift, then the fill empties to an amber outline. Never green.
+ *  SAFE: the bar rises to 90° in green (1.1s). No tick. Reduced motion: the final pose only. */
 export function playVerdict(svg: Element | null | undefined, state: StopState): Promise<void> {
   if (!svg) return Promise.resolve();
+  const bar0 = svg.querySelector(".gs-bar") as SVGElement | null;
+  const from = bar0 ? barAngle(bar0) : 0;
   svg.classList.remove("block", "safe", "warn", "idle");
   svg.classList.add(state);
   svg.setAttribute("aria-label", STOP_LABEL[state]);
   (svg as HTMLElement).dataset.played = "";
   const done = () => { (svg as HTMLElement).dataset.played = state; };
+  const cnc = svg.classList.contains("cnc");
   if (REDUCE || state === "idle" || !("animate" in svg)) { done(); return Promise.resolve(); }
-  const arw = svg.querySelector(".gs-arw") as SVGElement, wall = svg.querySelector(".gs-wall") as SVGElement, hit = svg.querySelector(".gs-hit") as SVGElement;
-  const mute = getComputedStyle(svg).getPropertyValue("--mute").trim() || "#8F8878";
+  const bar = svg.querySelector(".gs-bar") as SVGElement | null;
+  const outline = svg.querySelector(".gs-out") as SVGElement | null;
+  if (!bar) { done(); return Promise.resolve(); }
+  const cs = getComputedStyle(svg);
+  const red = cs.getPropertyValue("--b").trim() || "#D42A10";
+  const amber = cs.getPropertyValue("--a").trim() || "#E8A400";
+  const green = cs.getPropertyValue("--s").trim() || "#4FB57A";
   let a: Animation;
   if (state === "block") {
-    a = arw.animate([
-      { transform: "translateX(0px)" },
-      { transform: "translateX(-16px)", offset: .25, easing: STOP },
-      { transform: "translateX(6px)", offset: .55, easing: OUT },
-      { transform: "translateX(-6px)", offset: .74, easing: IO },
-      { transform: "translateX(-4px)" },
-    ], { duration: 1000 });
-    wall.animate([{ transform: "translateX(0)", fill: mute }, { transform: "translateX(0)", fill: mute, offset: .54 }, { transform: "translateX(1.8px)", fill: "#FF4D1A", offset: .58 }, { transform: "translateX(-.7px)", offset: .7 }, { transform: "translateX(0)", fill: "#FF4D1A" }], { duration: 1000 });
-    hit.animate([{ opacity: 0 }, { opacity: 0, offset: .55 }, { opacity: 1, offset: .6 }, { opacity: 1 }], { duration: 1000 });
+    bar.style.fill = red;
+    a = bar.animate([
+      { transform: `rotate(${from}deg)`, offset: 0, easing: STOP },
+      { transform: "rotate(0deg)", offset: .6 },
+      { transform: "rotate(3deg)", offset: .75, easing: SETTLE },
+      { transform: "rotate(0deg)", offset: 1 },
+    ], { duration: 1000, fill: "both" });
   } else if (state === "warn") {
-    a = arw.animate([
-      { transform: "translateX(0px)" },
-      { transform: "translateX(-14px)", offset: .28, easing: STOP },
-      { transform: "translateX(5px)", offset: .6, easing: OUT },
-      { transform: "translateX(3px)", offset: .78, easing: IO },
-      { transform: "translateX(4px)" },
-    ], { duration: 900 });
-    wall.animate([{ fill: mute, opacity: 1 }, { fill: "#F4B400", opacity: 1, offset: .58 }, { opacity: .45, offset: .74 }, { opacity: 1, offset: .86 }, { opacity: .55, offset: .94 }, { fill: "#F4B400", opacity: 1 }], { duration: 900 });
+    bar.style.fill = amber;
+    a = bar.animate([
+      { transform: `rotate(${from}deg)`, offset: 0, easing: OUT },
+      { transform: "rotate(50deg)", offset: .42 },
+      { transform: "rotate(45deg)", offset: .5 },
+      { transform: "rotate(45deg)", offset: 1 },
+    ], { duration: 900, fill: "both" });
+    if (cnc && outline) {
+      bar.animate([{ opacity: 1, offset: 0 }, { opacity: 1, offset: .55 }, { opacity: .35, offset: .7 }, { opacity: 0, offset: .9 }, { opacity: 0, offset: 1 }], { duration: 900, fill: "both" });
+      outline.animate([{ opacity: 0, offset: 0 }, { opacity: 0, offset: .7 }, { opacity: 1, offset: .9 }, { opacity: 1, offset: 1 }], { duration: 900, fill: "both" });
+    } else {
+      bar.animate([{ opacity: 1, offset: .5 }, { opacity: .35, offset: .72 }, { opacity: 1, offset: 1 }], { duration: 900, fill: "both" });
+    }
   } else {
-    wall.animate([
-      { transform: "translateY(0)", opacity: 1, fill: mute },
-      { transform: "translateY(0)", opacity: 1, fill: "#2DB36F", offset: .12, easing: STOP },
-      { transform: "translateY(30px)", opacity: 0, fill: "#2DB36F", offset: .34 },
-      { transform: "translateY(30px)", opacity: 0, fill: "#2DB36F" },
-    ], { duration: 1100 });
-    a = arw.animate([
-      { transform: "translateX(0px)", opacity: 1 },
-      { transform: "translateX(0px)", opacity: 1, offset: .2, easing: STOP },
-      { transform: "translateX(70px)", opacity: 0, offset: .52 },
-      { transform: "translateX(-30px)", opacity: 0, offset: .53, easing: OUT },
-      { transform: "translateX(2px)", opacity: 1, offset: .86, easing: IO },
-      { transform: "translateX(0px)", opacity: 1 },
-    ], { duration: 1100 });
+    bar.style.fill = green;
+    a = bar.animate([
+      { transform: `rotate(${from}deg)`, offset: 0, easing: SETTLE },
+      { transform: "rotate(90deg)", offset: 1 },
+    ], { duration: 1100, fill: "both" });
   }
   return new Promise((res) => { a.onfinish = () => { done(); res(); }; a.oncancel = () => { done(); res(); }; });
 }
 
-/* ---------------- shifts ---------------- */
-type Shift = "day" | "night" | "plan" | "signal" | "auto";
-const SHIFTS: [Shift, string][] = [["day", "DAY"], ["night", "NIGHT"], ["plan", "PLAN"], ["signal", "SIGNAL"], ["auto", "AUTO"]];
-const NAMES: Record<string, string> = { day: "Day Shift", night: "Night Watch", plan: "Blueprint", signal: "Signal Box" };
-const BG: Record<string, string> = { day: "#F2F0EB", night: "#0C0B09", plan: "#10283F", signal: "#FFFFFF" };
-const KEY = "gideon:shift";
+/* ---------------- theme: one light, one dark, or the system setting ---------------- */
+type Mode = "light" | "dark" | "system";
+const BG: Record<"light" | "dark", string> = { light: "#F5F3EE", dark: "#0E0E0C" };
+const KEY = "gideon:theme";
+const OLD = "gideon:shift";
 const R = document.documentElement;
-/** AUTO follows the clock on this device: Day Shift from 06:00, Night Watch from 18:30. Plan and Signal are manual picks. */
-export function autoTheme(d = new Date()): "day" | "night" {
-  const m = d.getHours() * 60 + d.getMinutes();
-  return m >= 18 * 60 + 30 || m < 6 * 60 ? "night" : "day";
+
+export function systemTheme(): "light" | "dark" {
+  return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
-function applyShift(s: Shift) {
-  const t = s === "auto" ? autoTheme() : s;
-  R.dataset.shift = s; R.dataset.theme = t;
+function readMode(): Mode {
+  let m = "";
+  try { m = localStorage.getItem(KEY) || ""; } catch { /* private mode */ }
+  if (m === "light" || m === "dark" || m === "system") return m;
+  let s = "";
+  try { s = localStorage.getItem(OLD) || ""; } catch { /* private mode */ }
+  if (s === "night" || s === "plan") return "dark";
+  if (s === "day" || s === "signal") return "light";
+  return "system";
+}
+function applyTheme(m: Mode) {
+  const t = m === "system" ? systemTheme() : m;
+  R.dataset.mode = m;
+  R.dataset.theme = t;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", BG[t]);
-  try { localStorage.setItem(KEY, s); } catch { /* private mode */ }
+  try { localStorage.setItem(KEY, m); } catch { /* private mode */ }
 }
 
 /** Approach, hard stop, small recoil, settle: the one motion the whole site uses. */
@@ -116,64 +137,53 @@ export function stopFrames(fmt: (v: number) => string, from: number, to: number,
   ];
 }
 
-function lever(): string {
-  return `<div class="lever"><span class="lbl">Shift</span>
-<div class="rail" role="radiogroup" aria-label="Colour shift">${SHIFTS.map(([s, t]) => `<button type="button" role="radio" data-s="${s}" aria-checked="false" title="${s === "auto" ? "Follows your clock: Day from 06:00, Night Watch from 18:30" : NAMES[s]}">${t}</button>`).join("")}<span class="handle" aria-hidden="true"></span></div>
-<span class="autonote" aria-live="polite"></span></div>`;
+function themeToggle(): string {
+  return `<div class="tools">
+<div class="seg" role="radiogroup" aria-label="Colour theme" id="themerail">
+<button type="button" role="radio" data-m="light">Light</button>
+<button type="button" role="radio" data-m="dark">Dark</button>
+<button type="button" role="radio" data-m="system" title="Follow this device’s setting">Auto</button>
+</div>
+<div class="seg nets" role="group" aria-label="Network" id="netseg">
+<button type="button" data-net="testnet" aria-pressed="false">Testnet</button>
+<button type="button" data-net="mainnet" aria-pressed="false">Mainnet</button>
+</div></div>`;
 }
 
-function initLever() {
-  const rail = document.querySelector(".rail") as HTMLElement, handle = rail.querySelector(".handle") as HTMLElement;
+function initTheme() {
+  const rail = document.getElementById("themerail");
+  if (!rail) return;
   const btns = Array.from(rail.querySelectorAll("button")) as HTMLButtonElement[];
-  const note = document.querySelector(".autonote") as HTMLElement;
-  const gate = document.createElement("div");
-  gate.className = "gate"; gate.setAttribute("aria-hidden", "true");
-  gate.innerHTML = '<div class="pnl"><span class="edge"></span><span class="tag"></span></div>';
-  document.body.appendChild(gate);
-  const pnl = gate.firstElementChild as HTMLElement, tag = pnl.querySelector(".tag") as HTMLElement;
-
-  const place = (animate: boolean) => {
-    const s = R.dataset.shift ?? "auto", b = rail.querySelector(`[data-s="${s}"]`) as HTMLElement;
-    if (!b) return;
-    btns.forEach((x) => { x.setAttribute("aria-checked", String(x === b)); x.tabIndex = x === b ? 0 : -1; });
-    const x = b.offsetLeft, prev = parseFloat(handle.dataset.x ?? String(x));
-    handle.style.width = b.offsetWidth + "px"; handle.style.transform = `translateX(${x}px)`; handle.dataset.x = String(x);
-    if (animate && !REDUCE && prev !== x) handle.animate(stopFrames((v) => `translateX(${v}px)`, prev, x, 4), { duration: 520 });
-    note.textContent = s === "auto" ? `Auto → ${NAMES[R.dataset.theme ?? "day"]}` : NAMES[s];
+  const place = () => {
+    const m = (R.dataset.mode as Mode) || "system";
+    btns.forEach((b) => {
+      const on = b.dataset.m === m;
+      b.setAttribute("aria-checked", String(on));
+      b.tabIndex = on ? 0 : -1;
+    });
   };
-  let busy = false;
-  const set = (s: Shift) => {
-    if (busy || s === R.dataset.shift) return;
-    const t = s === "auto" ? autoTheme() : s;
-    if (REDUCE || t === R.dataset.theme) { applyShift(s); place(true); return; }
-    busy = true;
-    pnl.style.background = BG[t]; pnl.style.color = t === "day" || t === "signal" ? "#111210" : "#EFE8D8";
-    tag.textContent = NAMES[t] + " ▸";
-    gate.style.display = "block";
-    R.dataset.shift = s; place(true);
-    const a = pnl.animate(stopFrames((v) => `translateX(${v}px)`, -innerWidth, 0, 4), { duration: 620, fill: "forwards" });
-    a.onfinish = () => {
-      applyShift(s); place(false); fitGiant();
-      const b = pnl.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, easing: "ease-out", fill: "forwards" });
-      b.onfinish = () => { gate.style.display = "none"; a.cancel(); b.cancel(); busy = false; };
-    };
+  const set = (m: Mode) => {
+    if (m === R.dataset.mode) return;
+    applyTheme(m); place(); fitGiant();
   };
-  btns.forEach((b) => b.addEventListener("click", () => set(b.dataset.s as Shift)));
+  btns.forEach((b) => b.addEventListener("click", () => set(b.dataset.m as Mode)));
   rail.addEventListener("keydown", (e) => {
-    let i = btns.findIndex((b) => b.getAttribute("aria-checked") === "true");
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") i = (i + 1) % 5;
-    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") i = (i + 4) % 5;
+    const order: Mode[] = ["light", "dark", "system"];
+    let i = order.indexOf((R.dataset.mode as Mode) || "system");
+    if (i < 0) i = 2;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") i = (i + 1) % 3;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") i = (i + 2) % 3;
     else return;
-    e.preventDefault(); btns[i].focus(); set(btns[i].dataset.s as Shift);
+    e.preventDefault(); set(order[i]); btns[i].focus();
   });
-  addEventListener("resize", () => place(false));
-  setInterval(() => { if (R.dataset.shift === "auto" && autoTheme() !== R.dataset.theme) { applyShift("auto"); place(false); } }, 60000);
-  document.fonts?.ready.then(() => place(false));
-  place(false);
-  (window as unknown as { __gideon: object }).__gideon = { setShift: (s: Shift) => { applyShift(s); place(false); fitGiant(); } };
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (R.dataset.mode === "system") { applyTheme("system"); place(); }
+  });
+  place();
+  (window as unknown as { __gideon: object }).__gideon = { setTheme: (m: Mode) => { applyTheme(m); place(); fitGiant(); } };
 }
 
-/* ---------------- NEAR logo (official, unaltered: black on light shifts, white on dark) ---------------- */
+/* ---------------- NEAR logo (official, unaltered: black on light, white on dark) ---------------- */
 export function nearMark(h = 13): string {
   return `<span class="near-mark"><img class="on-light" src="/brand/near-logo-black.svg" alt="NEAR" style="height:${h}px;width:auto"><img class="on-dark" src="/brand/near-logo-white.svg" alt="NEAR" style="height:${h}px;width:auto"></span>`;
 }
@@ -198,10 +208,9 @@ const VNAME: Record<StopState, string> = { block: "Blocked", warn: "Attention", 
 // Clearly labelled sample traffic. Not real checks; real checks from this browser show as YOU.
 const DEMO: [string, StopState][] = [["payroll.near", "safe"], ["northwind-payrol1.near", "block"], ["fresh-shop-77.testnet", "warn"], ["89a46298…f4126944 (tx hash)", "block"], ["0x5aAe…eAed", "warn"], ["v2.ref-finance.near", "safe"], ["alice.near on testnet", "block"], ["9f2c41e0…d17e9b04", "safe"]];
 
-function watchStrip(net: Network): string {
+function watchStrip(): string {
   return `<div class="watch" data-state="connecting" aria-label="Watch log">
 <div class="live"><span><span class="dot"></span><span class="wst">Connecting</span></span>
-<label class="netsel" title="Network Gideon checks against"><i class="${net}"></i><select id="netsel" aria-label="Network"><option value="testnet"${net === "testnet" ? " selected" : ""}>Testnet</option><option value="mainnet"${net === "mainnet" ? " selected" : ""}>Mainnet</option></select></label>
 <span><span class="k">Block</span><span class="h" id="bh">—</span></span>
 <span class="clk"><span class="k">Local</span><span class="tn" id="clk"></span></span>
 <span class="near" title="Gideon checks sends on NEAR"><span class="k" style="margin:0">Built on</span>${nearMark(11)}</span></div>
@@ -264,8 +273,8 @@ function startWatch() {
 /* ---------------- header / footer ---------------- */
 const PAGES: [string, string][] = [["index.html", "Checker"], ["send.html", "Send"], ["keys.html", "Account health"], ["extension.html", "Extension"], ["agents.html", "Agents"]];
 function header(on: string): string {
-  return `<header class="top"><a class="brand" href="index.html" aria-label="Gideon home">${LOGO}<b>GIDEON</b></a>
-<nav class="links" aria-label="Primary">${PAGES.map(([h, t]) => `<a href="${h}"${t === on ? ' aria-current="page"' : ""}>${t}</a>`).join("")}</nav>${lever()}</header>`;
+  return `<header class="top"><a class="brand" href="index.html" aria-label="Gideon home">${LOGO}<b>Gideon</b></a>
+<nav class="links" aria-label="Primary">${PAGES.map(([h, t]) => `<a href="${h}"${t === on ? ' aria-current="page"' : ""}>${t}</a>`).join("")}</nav>${themeToggle()}</header>`;
 }
 
 function bigFooter(): string {
@@ -273,10 +282,9 @@ function bigFooter(): string {
   return `<footer class="big"><div class="ft-top">
 <div><span class="lbl">Gideon</span>A pre-send checker for NEAR. It reads the address, token and destination before you sign and stops the mistakes wallets let through.<br><br>No keys. No custody. Read-only checks. MIT.</div>
 <div><span class="lbl">Doors</span><a href="index.html">Checker</a><a href="send.html">Send with a check</a><a href="keys.html">Account health</a><a href="extension.html">Browser extension</a><a href="agents.html">For AI agents</a></div>
-<div><span class="lbl">Shifts</span>Day · Night Watch · Blueprint · Signal Box.<br>AUTO follows this device's clock: Day Shift from 06:00, Night Watch from 18:30. Plan and Signal are manual picks.<br><b>Vermilion means blocked. Nothing else.</b></div>
 <div><span class="lbl">Built on NEAR</span>${nearMark(22)}<span id="fbh" class="tn">block — · ${net}</span><br><span id="fclk" class="tn"></span></div>
 </div>
-<div class="giant" aria-hidden="true">${LOGO}<b>GIDEON</b></div>
+<div class="giant" aria-hidden="true">${LOGO}<b>Gideon</b></div>
 <div class="ft-base"><span>Check it before it leaves · started 29 Oct 2026</span><span>NEAR and the NEAR logo are trademarks of NEAR Foundation. Gideon shows the logo unaltered, only to say it is built on NEAR. Gideon is an independent project, not made or endorsed by NEAR Foundation.</span></div></footer>`;
 }
 
@@ -291,7 +299,7 @@ function fitGiant() {
   b.style.fontSize = "";
   const avail = g.clientWidth - sv.getBoundingClientRect().width - parseFloat(getComputedStyle(g).columnGap || "0") - 2;
   const fs = parseFloat(getComputedStyle(b).fontSize);
-  b.style.fontSize = fs * avail / b.scrollWidth + "px";
+  if (b.scrollWidth > 0) b.style.fontSize = fs * avail / b.scrollWidth + "px";
 }
 
 /* ---------------- reveals ---------------- */
@@ -306,23 +314,28 @@ export function reveal(root: ParentNode = document) {
   }
 }
 
+function paintNet(net: Network) {
+  document.querySelectorAll<HTMLButtonElement>("#netseg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.net === net)));
+}
+
 export function initChrome(on: string, onNetworkChange?: () => void) {
   if (STATIC) R.classList.add("static");
+  applyTheme(readMode());
   const net = getNetwork();
   const n = document.getElementById("nav");
-  const top = header(on) + watchStrip(net);
+  const top = header(on) + watchStrip();
   if (n) n.outerHTML = top; else document.body.insertAdjacentHTML("afterbegin", top);
-  const grain = document.createElement("div"); grain.className = "grain"; grain.setAttribute("aria-hidden", "true");
-  document.body.prepend(grain);
-  if (!document.querySelector("footer.big")) document.body.insertAdjacentHTML("beforeend", bigFooter());
-  initLever();
+  initTheme();
+  paintNet(net);
   const restart = startWatch();
-  const sel = document.getElementById("netsel") as HTMLSelectElement;
-  sel.addEventListener("change", () => {
-    setNetwork(sel.value as Network);
+  document.getElementById("netseg")?.addEventListener("click", (e) => {
+    const b = (e.target as HTMLElement).closest("button");
+    const value = b?.dataset.net as Network | undefined;
+    if (!value || value === getNetwork()) return;
+    setNetwork(value);
     // ?net= wins over the saved choice, so drop it from the URL once the user picks
     const u = new URL(location.href); if (u.searchParams.has("net")) { u.searchParams.delete("net"); history.replaceState(null, "", u); }
-    document.querySelectorAll(".netsel i").forEach((i) => (i.className = sel.value));
+    paintNet(value);
     restart();
     onNetworkChange?.();
   });

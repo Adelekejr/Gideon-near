@@ -40,25 +40,23 @@ export function accountLine(r: CheckResult): string {
   return `<div class="ga"><b>account →</b> ${esc(v)}</div>`;
 }
 
-/** Brand mark: the Arrow G. */
+/** Brand mark: Gate G, static. Red is reserved for a BLOCKED pose. */
 export const LOGO =
-  '<svg viewBox="0 0 100 100" aria-hidden="true"><rect x="78" y="29" width="13" height="21" fill="#FF4D1A"/><rect x="28" y="33.5" width="25" height="13" fill="currentColor"/><path d="M52 26 L72 40 L52 54 Z" fill="currentColor"/><path d="M68.28 20.74 A34.5 34.5 0 1 0 84.5 50" fill="none" stroke="currentColor" stroke-width="13"/></svg>';
+  '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M35.31 12.69A16 16 0 1 0 40 24" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><rect x="22" y="20.5" width="18" height="7" fill="currentColor"/><circle cx="40" cy="24" r="4.6" fill="currentColor"/></svg>';
 
-/** The Arrow G in a verdict pose. motion.ts plays it: blocked = bounces off the wall; warn = stops and waits; safe = the wall opens and the arrow passes. */
-let gsN = 0;
-export function stopper(tone: Tone): string {
-  const id = `gsc${(++gsN).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  return `<svg class="gs ${tone}" viewBox="0 0 100 100" role="img" aria-label="${STOP_LABEL[tone]}">
-<defs><clipPath id="${id}"><rect x="70" y="0" width="30" height="50"/></clipPath></defs>
-<g clip-path="url(#${id})"><rect class="gs-wall" x="78" y="29" width="13" height="21"/></g>
-<g class="gs-arw"><rect x="28" y="33.5" width="25" height="13"/><path d="M52 26 L72 40 L52 54 Z"/></g>
-<path class="gs-g" d="M68.28 20.74 A34.5 34.5 0 1 0 84.5 50"/>
-<path class="gs-hit" d="M74 26 l-5 -5 M74 54 l-5 5 M84.5 25 v-7"/></svg>`;
+/** Gate G in a verdict pose. motion.ts plays it. Pass "cnc" for couldn't-check (amber outline, never green). */
+export function stopper(tone: Tone, cls = ""): string {
+  return `<svg class="gs ${tone}${cls ? " " + cls : ""}" viewBox="0 0 48 48" overflow="visible" role="img" aria-label="${STOP_LABEL[tone]}">
+<path class="gs-arc" d="M35.31 12.69A16 16 0 1 0 40 24"/>
+<rect class="gs-ghost" x="4.5" y="20.5" width="35.5" height="7" rx="3.5"/>
+<rect class="gs-bar" x="4.5" y="20.5" width="35.5" height="7" rx="3.5"/>
+<rect class="gs-out" x="6" y="22" width="32.5" height="4" rx="2"/>
+<circle class="gs-pivot" cx="40" cy="24" r="4.6"/></svg>`;
 }
 
-/** Card head: the Arrow G stage, wordmark, status chip and title. */
-function head(tone: Tone, chip: string, title: string): string {
-  return `<div class="gh"><div class="gst">${stopper(tone)}</div><div class="ghm"><div class="ghr"><b>GIDEON</b><span class="chip ${tone}">${esc(chip)}</span></div><div class="gt">${esc(title)}</div></div></div>`;
+/** Card head: the Gate G, wordmark, status chip and title. */
+function head(tone: Tone, chip: string, title: string, cls = ""): string {
+  return `<div class="gh"><div class="gst">${stopper(tone, cls)}</div><div class="ghm"><div class="ghr"><b>Gideon</b><span class="chip ${tone}">${esc(chip)}</span></div><div class="gt">${esc(title)}</div></div></div>`;
 }
 
 function findingLine(f: Finding): string {
@@ -145,7 +143,7 @@ export function card(r: CheckResult, o: CardOptions = {}): string {
   const h = r.headline;
   const fix = h?.fix?.[0];
   return `<div class="gw t-${tone}" role="alert">
-${head(tone, statusLabel(r, o.held), titleOf(r))}
+${head(tone, statusLabel(r, o.held), titleOf(r), couldNotCheck(r) ? "cnc" : "")}
 <div class="gb">
 <div class="gr">${esc(detailOf(r))}</div>
 ${h ? findingLine(h) : ""}
@@ -167,7 +165,7 @@ export function checking(value: string): string {
 
 export function failed(message: string): string {
   const m = message.trim().replace(/([^.!?])$/, "$1.");
-  return `<div class="gw t-warn" role="alert">${head("warn", "COULDN’T CHECK", "Couldn't check this address")}
+  return `<div class="gw t-warn" role="alert">${head("warn", "COULDN’T CHECK", "Couldn't check this address", "cnc")}
 <div class="gb"><div class="gr">${esc(m)} That doesn't mean the address is safe. Check it another way before you send.</div></div></div>`;
 }
 
@@ -202,7 +200,7 @@ export function txCard(r: TxCheckResult, o: { net?: { network: string; why: stri
   // Every other warning in the request, under the headline.
   const more = shown.filter((f) => !(h && f.rule === h.rule && f.title === h.title) && (f.status === "BLOCKED" || f.status === "ATTENTION" || f.status === "COULD_NOT_CHECK"));
   return `<div class="gw t-${tone}" role="alert">
-${head(tone, chip, h?.title ?? "")}
+${head(tone, chip, h?.title ?? "", h?.status === "COULD_NOT_CHECK" ? "cnc" : "")}
 <div class="gb">
 ${h?.detail ? `<div class="gr">${esc(h.detail)}</div>` : ""}
 ${h ? findingLine(h) : ""}
@@ -277,7 +275,7 @@ export function healthCard(r: AccountHealthResult, ui: HealthUi = {}): string {
   const tidy = r.keys.filter((k) => k.tidy);
   const rest = r.keys.filter((k) => !k.flags.length);
   return `<div class="gw t-${tone}" role="alert">
-${head(tone, chip, r.summary)}
+${head(tone, chip, r.summary, r.status === "could-not-check" ? "cnc" : "")}
 <div class="gb">
 ${r.advice ? `<div class="gr"><b>${esc(r.advice)}</b></div>` : ""}
 <div class="ga"><b>account →</b> ${esc(r.account)} · ${esc(r.network)} · ${r.counts.full} full · ${r.counts.app} app</div>

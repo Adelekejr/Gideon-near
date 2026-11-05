@@ -20,13 +20,13 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 | --- | --- |
 | `src/background.ts` | Service worker. Runs `check()` with the free live sources, adds your network and address book, keeps the stats and the last page check. |
 | `src/content.ts` | Watches paste and typing in recipient-looking fields, asks the worker to check, shows the warning in a closed shadow root under the field, and holds the page's Send button on STOPPED. Also the in-page clipboard check (R9). |
-| `src/popup.ts`, `popup.html` | The popup: shift picker (AUTO by default: Day from 06:00, Night Watch from 18:30; Blueprint and Signal Box are manual), manual check, last page check, guards, network switch, address book. Footer shows the NEAR logo. NEAR and the NEAR logo are trademarks of NEAR Foundation. Gideon shows the logo unaltered, only to say it is built on NEAR. Gideon is an independent project, not made or endorsed by NEAR Foundation. |
+| `src/popup.ts`, `popup.html` | The popup: Light / Dark / Auto (Auto follows the device setting), manual check, last page check, guards, network switch, address book. Footer shows the NEAR logo. NEAR and the NEAR logo are trademarks of NEAR Foundation. Gideon shows the logo unaltered, only to say it is built on NEAR. Gideon is an independent project, not made or endorsed by NEAR Foundation. |
 | `src/lib/approval.ts` | Finds a wallet's request to approve a NEAR transaction: in the page address (MyNearWallet and Meteor sign links, any decodable `transactions=`), or on Meteor's approval screen (heading, From / To links, full-access wording). Read only. |
 | `src/lib/detect.ts` | Which fields are recipients, which values are worth checking, which buttons to hold. |
 | `src/lib/clipboard.ts` | What you copied on this page (forgotten after 2 minutes, on blur or tab switch), and whether a page swapped it. |
-| `src/lib/view.ts`, `style.ts` | The verdict card and its styles, in the same fonts and shift colours as the website. Vermilion only for STOPPED, amber for look again or couldn't check, green for no problems found. |
-| `src/lib/motion.ts` | Plays the Arrow G on each real result: bounces on STOPPED, waits at an amber wall on look again, passes on no problems found. Under 1.2 s; final pose only with reduced motion. |
-| `src/lib/shift.ts` | The shift choice, saved in `chrome.storage.local` under its own key. |
+| `src/lib/view.ts`, `style.ts` | The verdict card and its styles, in the same fonts and light/dark colours as the website. Red only for STOPPED, amber for look again or couldn't check, green for no problems found. |
+| `src/lib/motion.ts` | Plays the Gate G on each real result: slams shut on STOPPED, lifts and blinks on look again, empties to an outline when it couldn't check, rises on no problems found. Under 1.2 s; final pose only with reduced motion. |
+| `src/lib/shift.ts` | The theme choice (light, dark or system), saved in `chrome.storage.local` under `theme`. |
 | `build.mjs` | Vite IIFE builds for each entry, copies `static/`, `popup.html` and `manifest.json`, and writes the zip. |
 | `src/lib/network.ts`, `resolve.ts` | Auto network: reads the page address and short account-name / "Testnet" badge texts on this device, then decides which network to check on (see below). |
 | `src/lib/place.ts` | Where the card goes: under the field, or above it when a phone keyboard leaves no room; never wider than the screen. |
@@ -250,9 +250,9 @@ Fixes from the pre-release audit. Every fix also applies to the website, the CLI
 
 ## What changed in 0.2.0
 
-- New look shared with the website: Archivo and JetBrains Mono, the four shifts plus AUTO, the Arrow G.
-- The Arrow G plays the real verdict in the popup result and the in-page warning card.
-- A shift picker in the popup (default AUTO).
+- Look shared with the website: Bricolage Grotesque, Newsreader and JetBrains Mono, light and dark themes, the Gate G.
+- The Gate G plays the real verdict in the popup result and the in-page warning card.
+- A Light / Dark / Auto control in the popup (Auto follows the device setting).
 - NEAR logo in the popup footer.
 - No functional changes and no new permissions.
 

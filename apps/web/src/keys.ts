@@ -40,7 +40,7 @@ let removedKey = params.get("removed");
 initChrome("Account health", () => { const a = acct(); if (a) void run(a); });
 $("heading").textContent = HEALTH_TEXT.heading;
 $("footnote").textContent = HEALTH_TEXT.footer;
-$("foot").innerHTML = footer("GIDEON · account health");
+$("foot").innerHTML = footer("Gideon · account health");
 
 const acct = () => ($("acct") as HTMLInputElement).value.trim().toLowerCase();
 /** .near is mainnet and .testnet is testnet; other names (implicit accounts) follow the site's network switch. */
@@ -60,7 +60,7 @@ if (q) { ($("acct") as HTMLInputElement).value = q; void run(q.trim().toLowerCas
 
 function idle() {
   out.className = "verdict";
-  out.innerHTML = `<div class="l"><div class="tagline"><span class="chip idle">READY</span></div><h2 class="h2">${esc(HEALTH_TEXT.heading)}</h2></div><div class="vstage">${stopper("idle")}<span class="cap">GIDEON · WAITING</span></div>`;
+  out.innerHTML = `<div class="l"><div class="tagline"><span class="chip idle">READY</span></div><h2 class="h2">${esc(HEALTH_TEXT.heading)}</h2></div><div class="vstage">${stopper("idle")}<span class="cap">Gideon · waiting</span></div>`;
 }
 
 async function run(account: string) {
@@ -72,7 +72,7 @@ async function run(account: string) {
   if (back) wmsg = { cls: "safe", text: KEYS_TEXT.sent };
   ($("go") as HTMLButtonElement).disabled = true;
   out.className = "verdict";
-  out.innerHTML = `<div class="l"><div class="tagline"><span class="chip idle">CHECKING</span></div><h2 class="h2">Asking the chain…</h2><p class="small mono">${esc(account)}</p></div><div class="vstage">${stopper("idle")}<span class="cap">GIDEON · CHECKING</span></div>`;
+  out.innerHTML = `<div class="l"><div class="tagline"><span class="chip idle">CHECKING</span></div><h2 class="h2">Asking the chain…</h2><p class="small mono">${esc(account)}</p></div><div class="vstage">${stopper("idle")}<span class="cap">Gideon · checking</span></div>`;
   try {
     const network = netFor(account);
     last = await accountHealth({ account, network }, sources(false), { callbackUrl: backUrl(account, network) });
@@ -87,7 +87,7 @@ async function run(account: string) {
     render(true);
   } catch (e) {
     out.className = "verdict warn";
-    out.innerHTML = `<div class="l"><div class="tagline"><span class="chip warn big">COULDN’T CHECK</span></div><h2 class="h2">${esc(e instanceof Error ? e.message : String(e))}</h2></div><div class="vstage">${stopper("warn")}<span class="cap">GIDEON · <b>NOT VERIFIED</b></span></div>`;
+    out.innerHTML = `<div class="l"><div class="tagline"><span class="chip warn big">COULDN’T CHECK</span></div><h2 class="h2">${esc(e instanceof Error ? e.message : String(e))}</h2></div><div class="vstage">${stopper("warn", "cnc")}<span class="cap">Gideon · <b>NOT VERIFIED</b></span></div>`;
   } finally { ($("go") as HTMLButtonElement).disabled = false; }
 }
 
@@ -176,7 +176,7 @@ function render(play = false) {
     <div class="meta"><span>NEAR ${esc(r.network)}</span><span>${r.ms} ms</span><span>${r.counts.full} full · ${r.counts.app} app</span>${r.counts.tidy ? `<span>${r.counts.tidy} to tidy</span>` : ""}</div>
     ${r.notes.map((n) => `<p class="vnote" style="margin-top:8px">${esc(n)}</p>`).join("")}
     <p class="vnote" style="margin-top:12px"><a href="${esc(r.explorerUrl)}" target="_blank" rel="noopener">NearBlocks ↗</a></p></div>
-    <div class="vstage">${stopper(play ? "idle" : v)}<span class="cap">GIDEON · <b>${esc(r.account)}</b></span></div>`;
+    <div class="vstage">${stopper(play ? "idle" : v, r.status === "could-not-check" ? "cnc" : "")}<span class="cap">Gideon · <b>${esc(r.account)}</b></span></div>`;
   if (play) void playVerdict(out.querySelector(".vstage .gs"), v);
   if (!r.keys.length) { keysEl.innerHTML = ""; return; }
   const main = r.keys.filter((k) => !k.tidy), tidy = r.keys.filter((k) => k.tidy);

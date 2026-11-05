@@ -12,9 +12,11 @@ describe("fix 8: notices and privacy ship with the website", () => {
   });
   it("the notices hold the real font licences and the library licences", () => {
     const n = at("../../../THIRD_PARTY_NOTICES.txt");
-    expect(n).toMatch(/Copyright 2020 The Archivo Project Authors/);
+    expect(n).toMatch(/Copyright 2022 The Bricolage Grotesque Project Authors/);
+    expect(n).toMatch(/Copyright 2020 The Newsreader Project Authors/);
     expect(n).toMatch(/Copyright 2020 The JetBrains Mono Project Authors/);
-    expect(n.match(/SIL OPEN FONT LICENSE Version 1\.1/g)?.length).toBe(2);
+    expect(n).not.toMatch(/Archivo Project Authors/);
+    expect(n.match(/SIL OPEN FONT LICENSE Version 1\.1/g)?.length).toBe(3);
     expect(n).toMatch(/noble-hashes/); expect(n).toMatch(/noble-ed25519/);
     expect(n).toMatch(/near-connect/); expect(n).toMatch(/Apache License/);
   });

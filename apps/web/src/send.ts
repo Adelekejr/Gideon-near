@@ -28,7 +28,7 @@ initChrome("Send", () => note(`The site’s network switch doesn’t change send
 $("netbadge").className = `netbadge ${NET}`;
 $("netbadge").textContent = NET === "mainnet" ? "NEAR mainnet · real funds" : "NEAR testnet";
 $("to").setAttribute("placeholder", `someone${NETWORKS[NET].accountSuffix}`);
-$("foot").innerHTML = footer(`GIDEON · check, then send · NEAR ${NET}`);
+$("foot").innerHTML = footer(`Gideon · check, then send · NEAR ${NET}`);
 
 const nc = connector(NET, (c) => { who = c; reset(); });
 
@@ -174,7 +174,7 @@ function update() {
   const playKey = r && ["safe", "attention", "blocked"].includes(g.kind) ? `${checked!.key}|${r.checkedAt}|${r.verdict}` : null;
   const fresh = playKey !== null && playKey !== lastPlayed;
   el.innerHTML = `<div class="l"><div class="tagline">${chip}</div><h2 class="h2">${esc(title)}</h2><p class="why">${why}</p>${body}${go}</div>
-   <div class="vstage">${stopper(fresh ? "idle" : vk)}<span class="cap">GIDEON · ${tag}</span></div>`;
+   <div class="vstage">${stopper(fresh ? "idle" : vk, cnc && (vk === "warn" || fresh) ? "cnc" : "")}<span class="cap">Gideon · ${tag}</span></div>`;
   if (fresh) { lastPlayed = playKey; void playVerdict(el.querySelector(".vstage .gs"), vk); }
   $("ok")?.addEventListener("change", (e) => { confirmed = (e.target as HTMLInputElement).checked; update(); });
   $("send")?.addEventListener("click", () => void doSend());

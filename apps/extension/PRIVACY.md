@@ -124,7 +124,7 @@ All in `chrome.storage.local` (never synced, never uploaded):
 | Key | Content |
 | --- | --- |
 | `settings` | Your toggles and network choice. |
-| `shift` | The colour theme. |
+| `theme` | Light, dark, or the system setting. |
 | `contacts` | Your address book (accounts and labels you added). |
 | `myAccounts` | "Your accounts" (only ones you added: in the popup, or with "Add to Your accounts" on a card). |
 | `sends` | Sends made on wallet pages after Gideon checked them (only after a real click on the page's Send button, and never for a STOPPED check): recipient, your account if known, network, time. Up to 100. |

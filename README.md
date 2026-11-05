@@ -211,8 +211,8 @@ What it does:
 
 - **On a send or withdrawal page**, when you paste (or type) into a field that
   looks like a recipient address, it checks the value and shows a warning card
-  under the field, in the same shift as the popup, with the Arrow G playing the
-  result: vermilion only for STOPPED, amber for "look again"
+  under the field, in the same light or dark theme as the popup, with the Gate G playing the
+  result: red only for STOPPED, amber for "look again"
   and "couldn't check", green for "no problems found". On STOPPED it holds the page's
   Send / Withdraw button until you clear the field or choose **Send anyway**.
 - **On a wallet's approval screen** (0.2.8), it reads the NEAR request and shows
@@ -252,8 +252,8 @@ card [no problems found](shots/extension-warning-safe-night.png) /
 [clipboard swapped on copy](shots/extension-clipboard-tamper-copy.png) and
 [on paste](shots/extension-clipboard-tamper-night.png). They were taken in
 Playwright's Chromium on the local test page `apps/extension/test-page/withdraw.html`
-(`node apps/extension/scripts/screenshots.mjs all shots night`; the last
-argument is the shift).
+(`node apps/extension/scripts/screenshots.mjs all shots`). The pictures in
+`shots/` were taken on the previous four-shift look.
 
 
 ## Phones (Android)
@@ -494,47 +494,34 @@ variables) to turn one on.
 
 ## Brand
 
-The mark is the **Arrow G**: the G's crossbar is the send arrow, and its
-vermilion spur is the wall. On the site and in the extension it plays every
-real check result, in under 1.2 seconds:
+The mark is the **Gate G**. The bar turns on a pivot at the right of the G.
+On the site and in the extension it plays every real check result, in under
+1.2 seconds:
 
-- **BLOCKED:** the arrow hits the wall and bounces back.
-- **ATTENTION** (including "couldn't check"): the arrow stops at an amber wall and waits. It never passes.
-- **SAFE:** the wall drops into the G and the arrow goes through.
+- **BLOCKED:** the bar slams shut, in red. Red is for this state only.
+- **ATTENTION:** the bar lifts to 45° in amber and blinks once.
+- **Couldn't check:** the same lift, then the bar becomes an amber outline. It is never green.
+- **No problems found:** the bar rises straight up, in green. No tick.
 
 With "reduce motion" turned on in the OS, only the final pose is shown.
+Checking keeps a still, part-lifted bar.
 
-![The Arrow G on real results: bounced, held for review, passed](shots/verdict-motion-frames.png)
+The pictures in `shots/` were taken on the previous Arrow G and four-shift
+look. Site screenshots come from `node apps/web/scripts/site-shots.mjs shots`
+after `npm run build:web`.
 
-The whole look on one page: [contact sheet](shots/contact-sheet.png). Home in
-each shift: [day](shots/home-day-desktop.png) / [mobile](shots/home-day-mobile.png),
-[night](shots/home-night-desktop.png) / [mobile](shots/home-night-mobile.png),
-[blueprint](shots/home-plan-desktop.png) / [mobile](shots/home-plan-mobile.png),
-[signal](shots/home-signal-desktop.png) / [mobile](shots/home-signal-mobile.png).
-Site screenshots come from `node apps/web/scripts/site-shots.mjs shots` after
-`npm run build:web`.
+The type is Bricolage Grotesque (display and UI), Newsreader (body) and
+JetBrains Mono (addresses, labels, code). The site and the extension use the
+same font files, colours, mark and motion. `font-display: swap`.
 
-The type is Archivo (wordmark 800 at 125% width, headings up to 112%) and
-JetBrains Mono. The site and the extension use the same font files, colours,
-mark and motion.
+**Status colours.** Red means BLOCKED and nothing else: `#D42A10` on the light
+theme, `#FF5A36` on the dark theme. Amber `#E8A400` (light) / `#F2B01E` (dark)
+means look again or couldn't check. Green `#4FB57A` means no problems found.
 
-**Status colours never change.** Vermilion `#FF4D1A` means BLOCKED and
-nothing else. Amber `#F4B400` means look again or couldn't check. Green
-`#2DB36F` means safe.
-
-**Shifts.** The site and the extension popup each have a shift picker, and
-both default to **AUTO**:
-
-| Shift | When | Look |
-| --- | --- | --- |
-| AUTO | Follows the device clock | Day Shift from 06:00, Night Watch from 18:30 |
-| Day Shift | Manual or AUTO | Warm paper, ink, ochre accent |
-| Night Watch | Manual or AUTO | Near-black, cream, amber accent |
-| Blueprint | Manual only | Blueprint navy with a grid, sky accent |
-| Signal Box | Manual only | Pure black and white, highest contrast |
-
-The choice is saved: on the site in `localStorage` (applied before first
-paint, so there's no flash), and in the extension in `chrome.storage.local`.
+**Themes.** The site and the extension popup each have Light, Dark and Auto.
+Auto follows the device setting. The choice is saved: on the site in
+`localStorage` (applied before first paint, so there's no flash), and in the
+extension in `chrome.storage.local` under `theme`.
 
 The lockup SVGs are in [`apps/web/public/brand/`](apps/web/public/brand/), and
 the favicon is [`apps/web/public/favicon.svg`](apps/web/public/favicon.svg).
@@ -549,9 +536,9 @@ NEAR logo are trademarks of NEAR Foundation. Gideon shows the logo unaltered,
 only to say it is built on NEAR. Gideon is an independent project, not made or
 endorsed by NEAR Foundation.
 
-**Fonts.** Archivo and JetBrains Mono are licensed under the SIL Open Font
-License 1.1 and bundled in `apps/web/public/fonts/` and
-`apps/extension/static/fonts/`.
+**Fonts.** Bricolage Grotesque, Newsreader and JetBrains Mono are licensed
+under the SIL Open Font License 1.1. WOFF2 files and each family's OFL.txt
+are in `apps/web/public/fonts/` and `apps/extension/static/fonts/`.
 
 ## Privacy: what leaves your device
 
@@ -704,8 +691,8 @@ The website deploys as a static site; `vercel.json` builds it with
   (agent tools), `web-ext` (Firefox build lint).
 - **NEAR:** NEAR Connect (`@hot-labs/near-connect`, wallet selector on the
   Send page). The flag registry uses Rust, `near-sdk`, `cargo-near`, and
-  `near-sandbox` + `near-api` for its sandbox test. Fonts: Archivo and JetBrains Mono (SIL Open
-  Font License), bundled in the site and the extension. NEAR and the NEAR logo are trademarks of NEAR Foundation. Gideon shows the logo unaltered, only to say it is built on NEAR. Gideon is an independent project, not made or endorsed by NEAR Foundation.
+  `near-sandbox` + `near-api` for its sandbox test. Fonts: Bricolage Grotesque, Newsreader and JetBrains Mono (SIL Open
+  Font License), self-hosted as WOFF2 in the site and the extension. NEAR and the NEAR logo are trademarks of NEAR Foundation. Gideon shows the logo unaltered, only to say it is built on NEAR. Gideon is an independent project, not made or endorsed by NEAR Foundation.
 - **Free, no-key APIs:** FastNEAR RPC (testnet and mainnet), NearBlocks API,
   NEAR Intents 1Click API, TronGrid, PublicNode Ethereum RPC and
   mempool.space. NEAR AI Cloud is an optional adapter, off by default.

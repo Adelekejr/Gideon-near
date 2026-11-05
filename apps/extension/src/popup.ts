@@ -10,7 +10,7 @@ import type { NetworkMode } from "./lib/network.js";
 import { card, checking, esc, failed, healthCard, LOGO, short, type HealthUi } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
 import { POPUP_STYLE } from "./lib/popup-style.js";
-import { asShift, loadShift, saveShift, SHIFTS, SHIFT_NAMES, themeOf, type Shift } from "./lib/shift.js";
+import { asMode, loadTheme, MODES, saveTheme, themeOf, type Mode } from "./lib/shift.js";
 import { playAll } from "./lib/motion.js";
 
 const css = document.createElement("style");
@@ -26,38 +26,41 @@ let contacts: Contact[] = [];
 
 $("logo").innerHTML = LOGO;
 
-/* ---------- colour shift (same four as the website, plus AUTO) ---------- */
+/* ---------- light / dark, or the system setting ---------- */
 const app = $("app");
-const rail = $("shiftrail");
-rail.innerHTML = SHIFTS.map(([s, t]) => `<button type="button" role="radio" data-s="${s}" aria-checked="false" title="${s === "auto" ? "Follows this device's clock: Day from 06:00, Night Watch from 18:30" : SHIFT_NAMES[s as Exclude<Shift, "auto">]}">${t}</button>`).join("");
-function applyShift(s: Shift): void {
-  const t = themeOf(s);
+const rail = $("themerail");
+rail.innerHTML = MODES.map(([s, t]) => `<button type="button" role="radio" data-m="${s}" aria-checked="false"${s === "system" ? ' title="Follow this device’s setting"' : ""}>${t}</button>`).join("");
+function applyTheme(m: Mode): void {
+  const t = themeOf(m);
   app.dataset.theme = t;
-  app.dataset.shift = s;
+  app.dataset.mode = m;
   document.documentElement.dataset.theme = t;
-  rail.querySelectorAll("button").forEach((b) => { b.setAttribute("aria-checked", String(b.dataset.s === s)); b.tabIndex = b.dataset.s === s ? 0 : -1; });
-  $("autonote").textContent = s === "auto" ? `Auto → ${SHIFT_NAMES[t]}\n${t === "night" ? "day from 06:00" : "night from 18:30"}` : SHIFT_NAMES[t];
-  $("autonote").style.whiteSpace = "pre";
-  try { localStorage.setItem("gideon:shift", s); } catch { /* fine */ }
+  document.documentElement.dataset.mode = m;
+  rail.querySelectorAll("button").forEach((b) => { b.setAttribute("aria-checked", String(b.dataset.m === m)); b.tabIndex = b.dataset.m === m ? 0 : -1; });
+  try { localStorage.setItem("gideon:theme", m); } catch { /* fine */ }
 }
-let cached: Shift = "auto";
-try { cached = asShift(localStorage.getItem("gideon:shift")); } catch { /* fine */ }
-applyShift(cached);
-void loadShift().then((s) => { if (s !== cached) applyShift(s); });
+let cached: Mode = "system";
+try {
+  const saved = localStorage.getItem("gideon:theme");
+  cached = saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
+} catch { /* fine */ }
+applyTheme(cached);
+void loadTheme().then((m) => { if (m !== cached) applyTheme(m); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (app.dataset.mode === "system") applyTheme("system"); });
 rail.addEventListener("click", (e) => {
   const b = (e.target as HTMLElement).closest("button");
   if (!b) return;
-  const s = asShift(b.dataset.s);
-  applyShift(s);
-  void saveShift(s);
+  const m = asMode(b.dataset.m);
+  applyTheme(m);
+  void saveTheme(m);
 });
 rail.addEventListener("keydown", (e) => {
   if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-  const list = SHIFTS.map(([s]) => s);
-  const cur = list.indexOf(asShift(app.dataset.shift ?? rail.querySelector('[aria-checked="true"]')?.getAttribute("data-s")));
+  const list = MODES.map(([s]) => s);
+  const cur = list.indexOf(asMode(app.dataset.mode ?? rail.querySelector('[aria-checked="true"]')?.getAttribute("data-m")));
   const next = list[(cur + (e.key === "ArrowRight" ? 1 : list.length - 1)) % list.length]!;
-  applyShift(next); void saveShift(next);
-  (rail.querySelector(`[data-s="${next}"]`) as HTMLElement).focus();
+  applyTheme(next); void saveTheme(next);
+  (rail.querySelector(`[data-m="${next}"]`) as HTMLElement).focus();
 });
 $("ver").textContent = `v${chrome.runtime.getManifest().version}`;
 
