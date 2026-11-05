@@ -1,0 +1,149 @@
+<!doctype html><html lang="en" data-mode="system" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gideon · docs</title>
+<meta name="description" content="What Gideon is, how the verdicts work, and how the checker, Send, account health, the extension and the agent tools fit together.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32"><link rel="icon" href="/favicon-16.png" type="image/png" sizes="16x16"><link rel="apple-touch-icon" href="/brand/apple-touch-icon.png"><meta property="og:title" content="Gideon · docs"><meta property="og:description" content="Gideon checks a NEAR send before it leaves. It never holds keys or funds. It advises."><meta property="og:image" content="/brand/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="631"><meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#F5F3EE">
+<link rel="preload" href="/fonts/Bricolage.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/Newsreader.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/JetBrainsMono.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+/* Applies the saved theme before first paint. Auto follows this device's light or dark setting. */
+(function(){var BG={light:"#F5F3EE",dark:"#0E0E0C"},m="",s="";
+try{m=localStorage.getItem("gideon:theme")||"";s=localStorage.getItem("gideon:shift")||""}catch(e){}
+if(m!=="light"&&m!=="dark"&&m!=="system"){m=s==="night"||s==="plan"?"dark":s==="day"||s==="signal"?"light":"system"}
+var dark=m==="dark"||(m==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);
+var t=dark?"dark":"light",r=document.documentElement;
+r.setAttribute("data-mode",m);r.setAttribute("data-theme",t);
+var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute("content",BG[t]);})();
+</script>
+</head><body>
+<div id="nav" data-on="Docs"></div>
+<main class="wrap">
+<section class="docs-hero">
+ <span class="eyebrow"><span class="bar"></span><span class="lbl">Docs</span></span>
+ <h1 class="h1">How Gideon works.</h1>
+ <p class="lead">Short sections, in the same words as the checker. Gideon reads public chain data and advises. It never holds keys or funds.</p>
+</section>
+<div class="docs-layout">
+<nav class="docs-toc" aria-label="On this page">
+ <a href="#what">What it is</a>
+ <a href="#verdicts">Verdicts</a>
+ <a href="#checker">Checker</a>
+ <a href="#send">Send</a>
+ <a href="#health">Account health</a>
+ <a href="#extension">Extension</a>
+ <a href="#agents">Agents</a>
+ <a href="#checks">Newer checks</a>
+ <a href="#limits">Limits</a>
+</nav>
+<div>
+<!-- New topic: add a link above and a section.doc here. -->
+<section class="doc" id="what">
+ <span class="sec-n">01</span>
+ <h2>What Gideon is</h2>
+ <p>Gideon checks a NEAR send before anyone signs it. You give it the address, the token and where the money is going. It looks that up on public chain data and answers in plain words.</p>
+ <p>Gideon is not a wallet and not a custodian. It never sees your keys and never holds funds. There is no Gideon account. Your own wallet still signs.</p>
+ <p>An agent that pays can ask Gideon first. Gideon advises. It cannot stop an agent, or a wallet, that goes ahead anyway.</p>
+</section>
+
+<section class="doc" id="verdicts">
+ <span class="sec-n">02</span>
+ <h2>The three answers</h2>
+ <p>The website, the extension and the command line use the same three words. A failed lookup is always look again. It is never “no problems found”.</p>
+ <div class="vrow">
+  <div class="docs-card"><span class="chip safe">No problems found</span><p>Every check that applies passed on live data. That is not proof of who controls the account.</p></div>
+  <div class="docs-card"><span class="chip warn">Look again</span><p>Something needs a person. This includes “couldn’t check”, when a source didn’t answer.</p></div>
+  <div class="docs-card"><span class="chip block">Blocked</span><p>Don’t send. Fix the address and check again. On Send, the button stays off.</p></div>
+ </div>
+ <h3>What an agent is told</h3>
+ <p>The MCP server returns the same verdict plus an action. Scripts still see SAFE, ATTENTION and BLOCKED. Exit codes are 0, 1 and 2.</p>
+ <ul class="docs-acts">
+  <li><code>SEND</code><span>No problems found, and you passed who is sending. Without that, the action is ASK_HUMAN.</span></li>
+  <li><code>ASK_HUMAN</code><span>Look again, or a check that could not run. Stop and ask a person.</span></li>
+  <li><code>DO_NOT_SEND</code><span>Blocked. Tell the person why. Don’t retry the same details.</span></li>
+ </ul>
+</section>
+
+<section class="doc" id="checker">
+ <span class="sec-n">03</span>
+ <h2>Checker</h2>
+ <p>The home page. Paste the recipient, pick the token and where it’s going, and optionally who is sending. The check runs in your browser against free public APIs.</p>
+ <p>Saved contacts stay in this browser. Gideon uses them to catch a lookalike. A transaction hash, a Tron address, a missing account and the wrong network are blocked here too.</p>
+ <p><a class="inl" href="index.html#check">Open the checker</a></p>
+</section>
+
+<section class="doc" id="send">
+ <span class="sec-n">04</span>
+ <h2>Send</h2>
+ <p>Connect your own NEAR wallet. Send stays off until Gideon has checked that exact recipient, amount and network.</p>
+ <p>No problems found: your wallet opens to sign. Look again: you tick that you read why. Blocked: there is no override. Edit the recipient or the amount and the check clears.</p>
+ <p>The page sends native NEAR only. Testnet is the default unless the site was built for mainnet. Nothing moves without your wallet’s own prompt.</p>
+ <p><a class="inl" href="send.html">Open Send</a></p>
+</section>
+
+<section class="doc" id="health">
+ <span class="sec-n">05</span>
+ <h2>Account health</h2>
+ <p>Type an account. Gideon lists the keys that can act for it, from public data. Red means move your funds. An app key on a new or risky contract is look again. Old unused keys are a tidy-up list, not a warning.</p>
+ <p>Gideon never signs a removal. You do, in your own wallet. An agent is given unsigned removal links and told to ask a person first.</p>
+ <p><a class="inl" href="keys.html">Open account health</a></p>
+</section>
+
+<section class="doc" id="extension">
+ <span class="sec-n">06</span>
+ <h2>Extension</h2>
+ <p>On a NEAR wallet or exchange page, Gideon checks the address you paste and can hold Send when the check is blocked. Same rules. It still never touches keys.</p>
+ <p>It is not on the Chrome Web Store or Firefox Add-ons yet. Download the zip and load it yourself. Chrome, Brave and Edge: turn on Developer mode, then Load unpacked. The Firefox build is unsigned, so release Firefox will not install it until it is signed.</p>
+ <p><a class="inl" href="/downloads/gideon-extension-0.3.1.zip">Download for Chrome, Brave, Edge</a><br><a class="inl" href="/downloads/gideon-extension-firefox-0.3.1.zip">Download for Firefox</a></p>
+ <p><a class="inl" href="extension.html">See the extension page</a></p>
+</section>
+
+<section class="doc" id="agents">
+ <span class="sec-n">07</span>
+ <h2>Agents</h2>
+ <p>These are MCP tools an agent calls: <code>gideon_check</code>, <code>gideon_check_transaction</code>, <code>gideon_account_health</code>, <code>gideon_explain</code> and <code>gideon_flags</code>. Point the host at the built server. Testnet is the default.</p>
+ <div class="code">{
+  "mcpServers": {
+    "gideon": {
+      "command": "node",
+      "args": ["/path/to/gideon/packages/mcp/dist/index.js"],
+      "env": { "GIDEON_NETWORK": "testnet" }
+    }
+  }
+}</div>
+ <p>Claude Desktop uses <code>claude_desktop_config.json</code>. Cursor uses <code>.cursor/mcp.json</code> or <code>~/.cursor/mcp.json</code>.</p>
+ <h3>Two demos</h3>
+ <p>Nothing is signed. Gideon advises: an agent that ignores <code>DO_NOT_SEND</code> can still send. Add <code>-- --offline</code> to replay recorded answers, with no network.</p>
+ <div class="code">npm run demo:attack
+npm run demo:function-call-key</div>
+ <p><code>demo:attack</code> reads a planted invoice for <code>northwind-payrol1.testnet</code>, one character off a saved contact. The invoice says to ignore the checker. The demo asks Gideon anyway and stops on BLOCKED / DO_NOT_SEND.</p>
+ <p><code>demo:function-call-key</code> holds one app key: <code>ft_transfer</code> on <code>wrap.testnet</code> only. The 0.25 NEAR allowance is gas, not a cap on the token. The key cannot sign a transfer or add a key. It can still name any receiver inside <code>ft_transfer</code>, so the demo asks Gideon and stops on that same payee.</p>
+ <p>Gideon never sees the key. A real agent that ignores the answer can still call the contract if its key allows it.</p>
+ <p><a class="inl" href="agents.html">Open the agents page</a></p>
+</section>
+
+<section class="doc" id="checks">
+ <span class="sec-n">08</span>
+ <h2>Newer checks</h2>
+ <p>Each of these is look again, not a block. A later check can be another short block here.</p>
+ <h3>Unusual amount</h3>
+ <p>If this amount is far above what you usually send from this account, Gideon says look again. It needs your sending account. If it cannot read that history, it says so and does not call the amount normal.</p>
+ <h3>Collector, and known exchanges</h3>
+ <p>If many different accounts recently sent a mix of tokens here and the funds left again within minutes, Gideon says look again. It does not block: a busy app can look the same. A wallet on the known-exchange list is named, and is not treated as a collector.</p>
+ <h3>Swap or bridge minimum</h3>
+ <p>On a transaction, if the least you would receive is about half of what you send, or less, Gideon says look again. It reads the amounts in the request. It does not fetch a live price. If it cannot read the minimum, the answer is couldn’t check.</p>
+ <h3>Send and receive preview</h3>
+ <p>When Gideon can read a transaction, it adds lines such as “You send 10 NEAR to alice.near” and “You receive at least …”. That preview is a reading of the request. It is not a verdict.</p>
+</section>
+
+<section class="doc" id="limits">
+ <span class="sec-n">09</span>
+ <h2>What Gideon can’t catch</h2>
+ <p>No problems found means these checks passed on live data. It is not a guarantee about the person, the contract, or whether an exchange will credit a token.</p>
+ <p>A source that is down or rate-limited becomes “couldn’t check”, which is look again. Gideon does not fill the gap with a guess.</p>
+ <p>It cannot stop a wallet or an agent that ignores the answer. The extension is sideloaded, not in a store, and it does not read every field on every site. The Send page sends native NEAR and was tried with a mock wallet. The community flag list is not deployed, so that check stays off.</p>
+</section>
+</div>
+</div>
+</main>
+<script type="module" src="/src/docs.ts"></script>
+</body></html>

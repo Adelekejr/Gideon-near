@@ -26,6 +26,7 @@ export default defineConfig({
         agents: resolve(root, "agents.html"),
         send: resolve(root, "send.html"),
         keys: resolve(root, "keys.html"),
+        docs: resolve(root, "docs.html"),
       },
     },
   },

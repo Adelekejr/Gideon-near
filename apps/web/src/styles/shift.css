@@ -48,6 +48,7 @@ html{background:var(--canvas);color:var(--ink);-webkit-text-size-adjust:100%}
 body{font:400 16px/1.45 var(--sans);background:var(--canvas);color:var(--ink);overflow-x:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;min-height:100vh}
 ::selection{background:var(--ink);color:var(--canvas)}
 a{color:inherit;text-decoration:none}
+a.inl{text-decoration:underline;text-underline-offset:3px}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 code{font-family:var(--mono)}
 .mono{font-family:var(--mono)}
@@ -267,7 +268,7 @@ html.static .rv{opacity:1}
   .slipwrap{padding:16px 0 12px}
   .ft-top{grid-template-columns:1fr}
   nav.links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible;gap:0}
-  nav.links a{height:40px;padding:0 8px 0 0;font-size:14px}
+  nav.links a{height:auto;min-height:40px;padding:8px 8px 8px 0;font-size:14px;line-height:1.2;white-space:normal}
   .brand b{font-size:20px}
   .tools{width:100%;justify-content:space-between;flex-wrap:wrap}
   .seg button{padding:0 10px;font-size:13px}
