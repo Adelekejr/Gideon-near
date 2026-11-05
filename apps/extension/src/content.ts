@@ -1,7 +1,7 @@
 import type { Network } from "@gideon/core";
 import { addContact, load, saveContacts, withDefaults, type Settings } from "./lib/settings.js";
 import { addressLike, ClipboardWatch, copyTampered } from "./lib/clipboard.js";
-import { findSendButtons, plainTrim, isRecipientField, isTextField, shouldCheck, type Field } from "./lib/detect.js";
+import { findSendButtons, plainTrim, isRecipientField, isTextField, shouldCheck, visibleNote, type Field } from "./lib/detect.js";
 import { card, checking, failed, MINE_TEXT, tamperCard, toneOf, txCard, updated } from "./lib/view.js";
 import { STYLE, STYLE_WARN_FIX } from "./lib/style.js";
 import { extensionAlive, sendCheck, sendDrainer, sendTx, type CheckResponse } from "./lib/messages.js";
@@ -416,8 +416,14 @@ async function run(field: Field, value: string, copied: string | null, force = f
   } catch {
     page = undefined;
   }
+  const note = visibleNote(field);
   const req = {
-    input: { to: value, ...(copied ? { clipboard: { copied } } : {}) },
+    input: {
+      to: value,
+      ...(copied ? { clipboard: { copied } } : {}),
+      ...(note.memo ? { memo: note.memo } : {}),
+      ...(note.payee ? { payee: note.payee } : {}),
+    },
     host: location.host,
     ...(page ? { page } : {}),
     ...(sender.account || sender.shown || sender.ambiguous ? { sender } : {}),

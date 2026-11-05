@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { accountHealth, check, checkDrainer, HEALTH_TEXT, healthNetwork, checkTransaction, explain, newReceiptKey, resolveNetwork, verifyReceipt, type CheckInput, type CheckResult, type Contact, type Destination, type TxCheckResult, type AccountHealthResult } from "@gideon/core";
+import { accountHealth, check, checkDrainer, HEALTH_TEXT, healthNetwork, checkTransaction, explain, keyScopeText, newReceiptKey, resolveNetwork, verifyReceipt, type CheckInput, type CheckResult, type Contact, type Destination, type TxCheckResult, type AccountHealthResult } from "@gideon/core";
 import { liveSources, nearAiExplainer, sourcesOptionsFromEnv } from "@gideon/sources";
 import { withDrainer } from "@gideon/core";
 import { notCheckedText, sendLabel, sendSafeText, txLabel, txNotCheckedText, txSafeText } from "./words.js";
@@ -19,6 +19,11 @@ const HELP = `gideon — check a NEAR send before you make it
                                 this amount is much larger than you usually send
     --book <file.json>          address book: [{"account":"x.testnet","label":"Ada"}]
     --copied <text>             what you copied (clipboard check)
+    --memo <text>               memo or note shown with the payee (instruction-like text)
+    --payee <name>              display name next to the address
+    --chain <name>              payout chain you expect from an Intents or bridge deposit
+    --daily-limit <near>        agent daily spend cap in NEAR (or GIDEON_DAILY_LIMIT)
+    --spent <near>              NEAR already counted against that cap today
     --registry <contract>       community flag registry for R10 (or GIDEON_FLAG_REGISTRY)
     --json                      print the full result JSON
     --no-drainer                skip the drained-wallet check (R18: recent senders that look
@@ -33,6 +38,9 @@ const HELP = `gideon — check a NEAR send before you make it
     --signer <account>          the account that would sign, if the request doesn't name it
     --mine <a,b>                your own accounts (never "unseen")
     --book <file.json>          address book, as above
+    --chain <name>              payout chain you expect from a deposit in the request
+    --daily-limit <near>        agent daily spend cap in NEAR (or GIDEON_DAILY_LIMIT)
+    --spent <near>              NEAR already counted against that cap today
     --json                      print the full result JSON
   gideon keys <account> [options]
                                 account health: list the account's keys and flag ones that
@@ -70,7 +78,9 @@ async function main(argv: string[]): Promise<number> {
     options: {
       network: { type: "string" }, asset: { type: "string" }, contract: { type: "string" }, amount: { type: "string" },
       dest: { type: "string" }, exchange: { type: "string" }, from: { type: "string" }, book: { type: "string" },
-      copied: { type: "string" }, registry: { type: "string" }, json: { type: "boolean" },
+      copied: { type: "string" }, memo: { type: "string" }, payee: { type: "string" }, chain: { type: "string" },
+      "daily-limit": { type: "string" }, spent: { type: "string" },
+      registry: { type: "string" }, json: { type: "boolean" },
       "no-drainer": { type: "boolean" },
     },
   });
@@ -86,6 +96,11 @@ async function main(argv: string[]): Promise<number> {
     from: values.from,
     addressBook: values.book ? (JSON.parse(readFileSync(values.book, "utf8")) as Contact[]) : undefined,
     clipboard: values.copied ? { copied: values.copied } : undefined,
+    ...(values.memo ? { memo: values.memo } : {}),
+    ...(values.payee ? { payee: values.payee } : {}),
+    ...(values.chain ? { bridgeChain: values.chain } : {}),
+    ...((values["daily-limit"] ?? process.env.GIDEON_DAILY_LIMIT) ? { dailyLimit: values["daily-limit"] ?? process.env.GIDEON_DAILY_LIMIT } : {}),
+    ...(values.spent ? { spentToday: values.spent } : {}),
   };
   const flagRegistry = values.registry ?? process.env.GIDEON_FLAG_REGISTRY;
   const sources = liveSources(sourcesOptionsFromEnv(process.env));
@@ -107,7 +122,10 @@ async function main(argv: string[]): Promise<number> {
 async function checkTx(rest: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
     args: rest, allowPositionals: true,
-    options: { network: { type: "string" }, signer: { type: "string" }, mine: { type: "string" }, book: { type: "string" }, json: { type: "boolean" } },
+    options: {
+      network: { type: "string" }, signer: { type: "string" }, mine: { type: "string" }, book: { type: "string" },
+      chain: { type: "string" }, "daily-limit": { type: "string" }, spent: { type: "string" }, json: { type: "boolean" },
+    },
   });
   const arg = positionals[0];
   if (arg === undefined) { console.error(HELP); return 64; }
@@ -119,6 +137,9 @@ async function checkTx(rest: string[]): Promise<number> {
     ...(values.signer ? { signerId: values.signer } : {}),
     ...(values.mine ? { myAccounts: values.mine.split(",").map((x) => x.trim()).filter(Boolean) } : {}),
     ...(values.book ? { addressBook: JSON.parse(readFileSync(values.book, "utf8")) as Contact[] } : {}),
+    ...(values.chain ? { bridgeChain: values.chain } : {}),
+    ...((values["daily-limit"] ?? process.env.GIDEON_DAILY_LIMIT) ? { dailyLimit: values["daily-limit"] ?? process.env.GIDEON_DAILY_LIMIT } : {}),
+    ...(values.spent ? { spentToday: values.spent } : {}),
   }, liveSources(sourcesOptionsFromEnv(process.env)));
   if (values.json) console.log(JSON.stringify(r, null, 2));
   else printTx(r);
@@ -156,6 +177,7 @@ function printKeys(r: AccountHealthResult, links: boolean) {
     const icon = k.flags.some((f) => f.level === "red") ? `${C.r}✖` : k.tidy ? `${C.d}·` : k.flags.length ? `${C.y}!` : `${C.g}✓`;
     console.log(` ${icon}${C.x} ${k.publicKey}`);
     console.log(`     ${what} ${C.d}· ${when}${k.uses != null ? ` · used ${k.uses}×` : ""}${C.x}`);
+    console.log(`     ${C.d}${keyScopeText(k)}${C.x}`);
     if (k.probableWalletKey) console.log(`     ${C.y}${HEALTH_TEXT.walletKey}${C.x}`);
     for (const f of k.flags) {
       console.log(`     ${f.level === "red" ? C.r : f.level === "tidy" ? C.d : C.y}${f.text}${C.x}`);

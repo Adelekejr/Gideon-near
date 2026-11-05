@@ -60,6 +60,8 @@ describe("Check my account card", () => {
     expect(h).toContain("CLEAN");
     expect(h).not.toContain("LOOK AGAIN");
     expect(h).toContain(`${HEALTH_TEXT.tidyHeading} · 1`);
+    expect(h).toContain("cannot move your NEAR");
+    expect(h).toContain("signs you out of that app");
     expect(h).toContain('class="s-skipped"');
     expect(h).not.toContain("s-attention");
     expect(h).toContain(HEALTH_TEXT.removeButton);

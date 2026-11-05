@@ -43,6 +43,7 @@ four things:
 
 Well-known contracts (`wrap.near`, `game.hot.tg`, `token.sweat`, `app.nearcrowd.near`) check SAFE.
 A request Gideon can't fully decode is "couldn't check", never safe. Nothing is ever signed.
+An Intents or bridge deposit on the wrong chain, for the wrong token, or past its deadline is BLOCKED (T8). If that lookup fails, or 1Click doesn't know a deposit the transaction names, the request is not called safe.
 
 **Account health: who can act for your account** (0.2.9, reworked in 0.3.0: website `keys.html`,
 extension popup "Check my account", MCP tool `gideon_account_health`, CLI `gideon keys`). Gideon
@@ -55,7 +56,9 @@ lists the account's keys from public data. Red is for danger only:
 | An app key that can call any method, has no gas-fee limit, or hasn't been used for 6 months | `illia.near`, `adelekejr.near`, `hammed-stampdue.testnet` | not flagged: listed under "You can tidy these up" |
 
 The tidy-up list is not a warning: it isn't counted as flagged and an account with only tidy-up
-keys reads CLEAN ("No warning signs found. 1 key you can tidy up."). A failed key or history read
+keys reads CLEAN ("No warning signs found. 1 key you can tidy up."). Each key says what it can do
+(the app, the methods, whether gas fees are capped). An app key cannot move your NEAR; removing
+it signs you out of that app. A failed key or history read
 is retried once, quietly, before Gideon says it couldn't read it.
 
 It marks the probable wallet key (the unflagged full control key used most recently or most
@@ -160,7 +163,7 @@ browser, straight against the public APIs) and your own code
 | R3 Account on chain | Does the account exist on the network you chose? A name that doesn't exist is BLOCKED, with close matches from your contacts and history. Shows when it was created and what it holds. | NEAR RPC `view_account`, NearBlocks (creation date, info only) |
 | R4 Ethereum-style account | A `0x` + 40 hex address used on NEAR: in use, or never used? | NEAR RPC |
 | R5 Token | Is the token real, not a lookalike, and is the receiver registered with it? | NEAR RPC, token list |
-| R6 Intents deposit | For a 1Click deposit address: does the token match what it expects, is it still open? | 1Click `/v0/status` (mainnet) |
+| R6 Intents deposit | For a 1Click deposit address: does the token match what it expects, is the payout chain the one you named, and is the quote still open? Wrong token, wrong chain, or an expired or finished quote is BLOCKED. A chain Gideon can't read, or a lookup that fails, is ATTENTION, never safe. | 1Click `/v0/status` (mainnet) |
 | R7 Lookalike | Looks almost like a saved contact or an account you've sent to before (l/1, o/0, i/l, rn/m, - vs ., an extra or missing character, extra digits at the end, or a 64-hex or `0x` address with the same first and last characters in any split, like 4+4 or 6+0, or one or two characters added, missing or changed)? BLOCKED "Looks like X, but it isn't", naming the address. Close to another account in your recent history: ATTENTION, or BLOCKED as address poisoning when it sent you dust. If your history can't be read, contacts are still compared, a Not checked line says so, and the verdict is LOOK AGAIN, never SAFE. | your contacts, sends made from this device (extension), recent history from FastNEAR and NearBlocks (needs your sending account) |
 | R8 Exchange | Will this exchange credit this token? Never BLOCKED from registry data alone. | `packages/core/data/exchanges.json` |
 | R9 Clipboard | Is what was pasted what you copied? | the extension (copies made on the same page) |
@@ -172,6 +175,9 @@ browser, straight against the public APIs) and your own code
 | R16 Other network | Is this the same name as an account on the other network (`alice.near` typed while sending on testnet, where `alice.testnet` exists, or the reverse)? When the network is certain (you set it, or the page proves it) BLOCKED "Wrong network: did you mean alice.testnet?". When the wallet only seems to be on the other network, ATTENTION "Your wallet may be on testnet", never a block. Nothing when the twin doesn't exist. | NEAR RPC `view_account` on the other network (info-only, time-limited) |
 | R17 Fake address name | Is this a NEAR name made to look like another chain's address (`0x5290…eed.near`, `TXYZ…ab.tg`, `bc1q….near`, `cosmos1….near`)? The whole first part matching a Tron, Ethereum, Bitcoin, Solana or Cosmos address format: BLOCKED "This is a NEAR name made to look like an Ethereum address". Only partly matching (for example `0x` and a long run of hex): ATTENTION "Look again". Ordinary names such as `0xbob.near` pass. | local |
 | R18 Drained wallets | Do the recent senders of plain NEAR to this account look like hacked wallets? A sender counts only when, minutes before the send, someone took control of it and it was left with under 0.1 NEAR (or deleted): either a new full-access key was added by a different key and its first use was the send here (deleting the owner's other keys first still counts), or a key the account hadn't used before removed at least 2 of the owner's other keys and then sent here. Two or more: BLOCKED "Funds from hacked wallets were swept into this address"; one: ATTENTION "Look again". Skipped for your own accounts, contacts, exchanges and busy services, and when the main check already blocked. Runs after the main verdict (time-limited to 8 s, cached, up to 5 senders at a time); if it fails the result says "couldn't check recent senders for hacked wallets" and the verdict doesn't change. | FastNEAR tx API (the last 40 transactions to the account; for senders left nearly empty, their last 20 transactions up to the send, 40 more when those are all one key's), NEAR RPC `view_account` for each sender |
+| R21 Daily spend limit | When a daily NEAR cap is set (the check's `dailyLimit`, or `GIDEON_DAILY_LIMIT` / `daily_limit` for an agent): would this send push today's total over it? Over the cap, a missing amount, a missing sender, or a token that can't be priced in NEAR is ATTENTION (an agent must ask a human). No cap set: the rule doesn't apply. The cap counts sends this process has already cleared. | the cap and the amount you passed |
+| R22 Instruction-like text | Does the payee name, memo, saved-contact label, or on-chain message tell someone to send funds or skip a check ("send all funds", "ignore previous instructions")? ATTENTION. Gideon does not follow that text. A transfer memo that can't be read is ATTENTION. Nothing to read: the rule doesn't apply. The extension reads a visible memo in the same form on the device and does not send it to an API. | the text you passed |
+| R23 Saved contact changed | Did this saved name used to point at a different account (`previous` on the address-book entry), or does this address only partly match a recent recipient (weaker than R7, which blocks a real lookalike)? ATTENTION. | your address book, sends from this device, recent history |
 
 R12 isn't a check. It's the receipt: a sha256 hash of the result, ed25519-signed when a key is set.
 

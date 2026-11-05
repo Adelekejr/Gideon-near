@@ -65,6 +65,7 @@ export function inputFromQuery(q: URLSearchParams, network: Network): { input: C
   const amount = q.get("amount"); if (amount) input.amount = amount;
   const ex = q.get("exchange"); if (ex) input.exchange = ex;
   const from = q.get("from"); if (from) input.from = from;
+  const chain = q.get("chain"); if (chain) input.bridgeChain = chain;
   const book = getContacts(); if (book.length) input.addressBook = book;
   return { input, replay };
 }

@@ -19,6 +19,9 @@ import { r16OtherNetworkTwin } from "./r16-other-network.js";
 import { r17DisguisedName } from "./r17-disguised-name.js";
 import { r19UnusualAmount } from "./r19-unusual-amount.js";
 import { r20Collector } from "./r20-collector.js";
+import { r21DailySpend } from "./r21-daily-spend.js";
+import { r22Instructions } from "./r22-instructions.js";
+import { r23Contacts } from "./r23-contacts.js";
 
 export type Rule = { id: RuleId; name: string; run: (ctx: Ctx) => RuleResult | Promise<RuleResult> };
 
@@ -41,7 +44,10 @@ export const RULES: Rule[] = [
   { id: "R17", name: "NEAR name disguised as another chain's address", run: r17DisguisedName },
   { id: "R19", name: "Amount much larger than you usually send", run: r19UnusualAmount },
   { id: "R20", name: "Collector pattern and known exchange wallets", run: r20Collector },
+  { id: "R21", name: "Daily spend limit", run: r21DailySpend },
+  { id: "R22", name: "Instruction-like text", run: r22Instructions },
+  { id: "R23", name: "Saved contact changed or partial match", run: r23Contacts },
 ];
 
 /** When several rules block (R18, the drained-wallet check, runs after the main check: see drainer.ts), the most specific explanation leads. */
-export const HEADLINE_ORDER: RuleId[] = ["T1", "T6", "T5", "T2", "T3", "T7", "T4", "R14", "R18", "R20", "R19", "R15", "R17", "R9", "R2", "R6", "R7", "R8", "R5", "R16", "R1", "R3", "R4", "R11", "R13", "R10"];
+export const HEADLINE_ORDER: RuleId[] = ["T1", "T6", "T5", "T2", "T3", "T8", "T7", "T4", "R14", "R18", "R22", "R23", "R20", "R19", "R21", "R15", "R17", "R9", "R2", "R6", "R7", "R8", "R5", "R16", "R1", "R3", "R4", "R11", "R13", "R10"];

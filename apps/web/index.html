@@ -64,6 +64,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
     <div class="field" id="exf"><label class="label" for="exchange">Exchange</label><select class="select" name="exchange" id="exchange"></select></div>
     <div class="field" id="ctf"><label class="label" for="contract">Token contract</label><input class="input" id="contract" name="contract" placeholder="token.near" spellcheck="false"></div>
    </div>
+   <div class="field hidden" id="chainf" style="margin-top:14px"><label class="label" for="chain">Payout chain (optional)</label><input class="input" id="chain" name="chain" placeholder="solana, ethereum, near" spellcheck="false"></div>
    <div class="field" style="margin-top:14px"><label class="label" for="from">Sending from (optional, compares with your past sends)</label><input class="input" id="from" name="from" placeholder="you.testnet" spellcheck="false"></div>
    <input type="hidden" name="asset" id="assetSym"><input type="hidden" name="net" id="net">
    <button class="btn go" type="submit">Check this send <span class="ar">→</span></button>

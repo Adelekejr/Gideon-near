@@ -1,4 +1,4 @@
-import type { CheckResult, Contact } from "@gideon/core";
+import { mergeContact, type CheckResult, type Contact } from "@gideon/core";
 import type { NetworkMode } from "./network.js";
 import type { DeviceSend } from "./sender.js";
 
@@ -70,13 +70,9 @@ export function withDefaults(raw: Partial<Record<keyof Stored, unknown>>): Store
   };
 }
 
-/** Normalise and de-duplicate a contact list. */
+/** Normalise and de-duplicate a contact list. A repeated label keeps the old account on `previous`. */
 export function addContact(list: Contact[], account: string, label?: string): Contact[] {
-  const a = account.trim().toLowerCase();
-  if (!a) return list;
-  const rest = list.filter((c) => c.account !== a);
-  const l = label?.trim();
-  return [...rest, l ? { account: a, label: l } : { account: a }];
+  return mergeContact(list, account, label);
 }
 
 export function removeContact(list: Contact[], account: string): Contact[] {
