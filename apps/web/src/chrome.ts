@@ -271,7 +271,7 @@ function startWatch() {
 }
 
 /* ---------------- header / footer ---------------- */
-const PAGES: [string, string][] = [["index.html", "Checker"], ["send.html", "Send"], ["keys.html", "Account health"], ["extension.html", "Extension"], ["agents.html", "Agents"]];
+const PAGES: [string, string][] = [["index.html", "Checker"], ["send.html", "Send"], ["keys.html", "Account health"], ["extension.html", "Extension"], ["agents.html", "Agents"], ["docs.html", "Docs"]];
 function header(on: string): string {
   return `<header class="top"><a class="brand" href="index.html" aria-label="Gideon home">${LOGO}<b>Gideon</b></a>
 <nav class="links" aria-label="Primary">${PAGES.map(([h, t]) => `<a href="${h}"${t === on ? ' aria-current="page"' : ""}>${t}</a>`).join("")}</nav>${themeToggle()}</header>`;
@@ -281,7 +281,7 @@ function bigFooter(): string {
   const net = getNetwork();
   return `<footer class="big"><div class="ft-top">
 <div><span class="lbl">Gideon</span>A pre-send checker for NEAR. It reads the address, token and destination before you sign and stops the mistakes wallets let through.<br><br>No keys. No custody. Read-only checks. <a class="inl" href="/PRIVACY.md">Privacy</a> · <a class="inl" href="/LICENSE.txt">MIT</a>.</div>
-<div><span class="lbl">Doors</span><a href="index.html">Checker</a><a href="send.html">Send with a check</a><a href="keys.html">Account health</a><a href="extension.html">Browser extension</a><a href="agents.html">For AI agents</a></div>
+<div><span class="lbl">Doors</span><a href="index.html">Checker</a><a href="send.html">Send with a check</a><a href="keys.html">Account health</a><a href="extension.html">Browser extension</a><a href="agents.html">For AI agents</a><a href="docs.html">Docs</a></div>
 <div><span class="lbl">Built on NEAR</span>${nearMark(22)}<span id="fbh" class="tn">block — · ${net}</span><br><span id="fclk" class="tn"></span></div>
 </div>
 <div class="giant" aria-hidden="true">${LOGO}<b>Gideon</b></div>

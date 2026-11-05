@@ -8,7 +8,7 @@ engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 ```bash
 npm install
 npm run build:extension      # → apps/extension/dist
-npm run zip:extension        # → apps/extension/gideon-extension-0.3.0.zip
+npm run zip:extension        # → apps/extension/gideon-extension-0.3.1.zip
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
@@ -266,3 +266,60 @@ Fixes from the pre-release audit. Every fix also applies to the website, the CLI
   device, the page address and short texts that are a NEAR account name or a network
   badge. None of that page text is sent anywhere.
 - Settings and contacts stay in `chrome.storage.local`.
+
+## Phones (Android)
+
+The extension isn't on the Chrome Web Store and doesn't need to be. Some
+Android browsers load extensions from a file. None of these has been tested on
+a real phone yet; the steps come from each browser's docs or user reports,
+linked below.
+
+Build the files on a computer and copy them to the phone:
+
+- `npm run zip:extension`: `gideon-extension-0.3.1.zip` (Chromium browsers)
+- `npm run zip:firefox -w @gideon/extension`: `gideon-extension-firefox-0.3.1.zip` (Firefox)
+
+**Mises Browser** (Chromium). Menu → **Extensions** → turn on
+**Developer mode** → **+ (from .zip/.crx/.user.js)** → pick
+`gideon-extension-0.3.1.zip`. Keep it zipped. Mises unpacks it into its cache,
+so clearing the browser's cache or data removes it; install again if so.
+After installing a new version, reload any wallet tab that was already open
+(otherwise its card says "Gideon was updated. Reload this page to keep checking.").
+([steps](https://github.com/lukman754/Mentari-Unpam),
+[Play listing](https://play.google.com/store/apps/details?id=site.mises.browser_stable),
+[no load-from-folder](https://github.com/mises-id/mises-browser-core/issues/332))
+
+**Quetta** (Chromium). Settings → **Extensions** → **Developer mode** →
+**from .zip/.crx/.user.js** → pick the same zip. One release dropped
+sideloaded extensions (fixed in 1.8.2).
+
+**Yandex Browser.** Officially it installs from the Chrome Web Store and
+Opera add-ons. For testing: unzip `gideon-extension-0.3.1.zip` into a phone
+folder, open `browser://extensions`, turn on **Developer mode**, tap **Load
+unpacked extension** and pick `manifest.json` in that folder. Users reported
+in 2020 that newer builds stopped loading unpacked extensions, so this may not
+work on your version.
+([Yandex help](https://yandex.com/support/browser-mobile-android-phone/en/personal-settings/extensions),
+[yandex/browser-extensions](https://github.com/yandex/browser-extensions))
+
+**Microsoft Edge.** Stable Edge for Android only offers a short curated list.
+Edge Canary: Settings → About → tap the build number 5 times → **Developer
+options** → **Extension install by id** (Edge Add-ons IDs only; Gideon has
+none) or, on newer Canary builds, install from a `.crx`. Not a practical route
+today.
+
+**Firefox for Android (142+, Android 10+).** Firefox only installs signed
+add-ons. Signing is free on [addons.mozilla.org](https://addons.mozilla.org)
+(listed, or unlisted "on your own" self-distribution) but needs a Mozilla
+account, so this repo ships the unsigned build only. Once you have the signed
+`.xpi`: Settings → **About Firefox** → tap the Firefox logo 5 times → back to
+Settings → **Install extension from file** → pick the `.xpi`. Developers can
+also load the unsigned build temporarily over USB with
+`npx web-ext run --target=firefox-android -s apps/extension/dist-firefox`.
+([self-distributed install](https://extensionworkshop.com/documentation/publish/install-self-distributed/),
+[data consent](https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/))
+
+The Firefox build uses a background script instead of a service worker, adds
+an add-on id and declares its data use (`websiteContent`,
+`financialAndPaymentInfo`: the pasted address is looked up on the public APIs
+listed above). `web-ext lint` passes with 0 errors.
