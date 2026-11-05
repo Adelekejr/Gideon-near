@@ -1,6 +1,13 @@
 import { parseHumanAmount } from "@gideon/core";
 
-/** NEAR already cleared to SEND today, per sending account. In memory for this process. */
+/**
+ * Process-local advisory tally: NEAR this process has already cleared to SEND
+ * (a SAFE result), per sending account. An in-memory Map only.
+ * The day is UTC (`YYYY-MM-DD` from `toISOString`). The map is empty again
+ * when this process restarts. Another MCP instance has its own map.
+ * Repeating a successful check adds the amount again. This is not chain spend
+ * and not an account-wide durable limit.
+ */
 export interface SpendBook {
   day: string;
   by: Map<string, number>;
@@ -50,7 +57,7 @@ export function spentOf(book: SpendBook, from: string | undefined, now: number):
   return String(n);
 }
 
-/** Count a send that was cleared (SAFE). Repeating the same check counts again: that fails closed. */
+/** Count a check that was cleared (SAFE). Repeating that check counts again: the tally can rise even when nothing was sent on chain. */
 export function noteSpend(book: SpendBook, from: string, amount: string, now: number): SpendBook {
   const b = freshBook(book, now);
   const n = asNear(amount);

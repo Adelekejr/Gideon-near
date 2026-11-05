@@ -260,12 +260,20 @@ Fixes from the pre-release audit. Every fix also applies to the website, the CLI
 
 - Read-only. It never signs, never sees keys, never moves funds.
 - If a lookup fails, it says "couldn't check". It never says safe.
+- On a web page, a blocked check can hold Send or Withdraw, and a button in that
+  form whose label starts with Transfer, Confirm, Continue, Next, Submit, Pay, or Review.
+  It does not hold Approve.
+- The content script matches `http` and `https` pages only. Wallet extension
+  pop-ups are outside it: Meteor, Sender, and Nightly sealed windows are not read.
 - Permissions: `storage`, plus host access only to the free APIs the engine
   calls. The content script runs on http(s) pages and reads the value of the
   recipient field you paste or type into; in Auto network mode it also reads, on the
   device, the page address and short texts that are a NEAR account name or a network
   badge. None of that page text is sent anywhere.
 - Settings and contacts stay in `chrome.storage.local`.
+- Product version is 0.3.1 (manifest, zips, and the receipt line `gideon-core/0.3.1`).
+  The `@gideon/core` package.json stays 0.1.0 because that package is unpublished.
+  There is no 0.3.2 release. See the repo README.
 
 ## Phones (Android)
 

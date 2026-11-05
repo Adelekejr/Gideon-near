@@ -113,7 +113,7 @@ function update() {
   // Wallet card
   $("wallet").innerHTML = who
     ? `<div class="wal"><div><span class="label">Connected · ${esc(who.wallet)}</span><div class="addr">${esc(who.accountId)}</div></div><button class="btn sm ghost" id="disc" type="button">Disconnect</button></div>`
-    : `<div class="wal"><span class="small">No wallet connected. Meteor, HOT, Intear and other NEAR wallets work.</span><button class="btn sm" id="conn" type="button">Connect wallet</button></div>`;
+    : `<div class="wal"><span class="small">No wallet connected. The selector can list NEAR wallets. This send flow was tried with a mock wallet, not live Meteor, HOT, or Intear.</span><button class="btn sm" id="conn" type="button">Connect wallet</button></div>`;
   $("conn")?.addEventListener("click", () => nc.connect().catch((e) => note(`Wallet didn’t connect: ${e?.message ?? e}`)));
   $("disc")?.addEventListener("click", () => nc.disconnect().catch(() => {}));
   ($("to") as HTMLInputElement).disabled = !conn;

@@ -1,5 +1,6 @@
 # Flag registry
 
+**Not deployed. R10 stays off by default. This is not a live community scam database.**
 
 This directory is a small NEAR contract
 (Rust, `near-sdk` 5.30, built with `cargo-near`) that holds a public list of

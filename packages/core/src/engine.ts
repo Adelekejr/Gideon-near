@@ -9,7 +9,10 @@ import type { CheckInput, CheckOptions, CheckResult, Finding, Sources, Verdict }
 /** Findings that prove, from a live lookup, that the recipient account exists. SAFE needs one. */
 const EXISTS_CODES = new Set(["ACCOUNT_EXISTS", "ETH_IMPLICIT_EXISTS"]);
 
-/** Printed on every receipt. Tracks the extension release the site ships, not the unpublished @gideon/core semver. */
+/**
+ * Printed on every receipt. This is the product release the site and extension ship (0.3.1),
+ * not the unpublished @gideon/core package semver (0.1.0). There is no 0.3.2 release.
+ */
 export const ENGINE_VERSION = "gideon-core/0.3.1";
 
 /** Any BLOCKED → BLOCKED. Otherwise anything ATTENTION or COULD_NOT_CHECK → ATTENTION. Only then SAFE. */

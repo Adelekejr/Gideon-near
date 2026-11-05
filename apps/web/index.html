@@ -106,7 +106,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
  <div class="rcpt">
   <div>
    <div class="sec-hd" style="grid-template-columns:1fr;margin-bottom:0"><div><span class="lbl">02 / Proof</span><h2 class="rv">Every check leaves a receipt.</h2></div></div>
-   <p class="lead rv" style="margin-top:20px">A sha256 over exactly what was checked and what came back. The CLI and the MCP server can also sign the receipt with ed25519 if you give them a key. Receipts made on this website are unsigned.</p>
+   <p class="lead rv" style="margin-top:20px">A sha256 over the printed result: what you entered, what Gideon recorded, and the verdict. That hash is the integrity of the printed result. It is not proof the checks were performed honestly, and it is not an attestation. The CLI and the MCP server can also sign the receipt with ed25519 if you give them a key. Receipts made on this website are unsigned.</p>
    <ul>
     <li class="rv"><span class="lbl">What</span><span>Address, network, token, destination and amount, as you entered them.</span></li>
     <li class="rv"><span class="lbl">Against</span><span>Every source asked, how long it took, and whether it answered.</span></li>
@@ -121,9 +121,9 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
  <div class="sec-hd"><div><span class="lbl">03 / Four doors</span><h2 class="rv">One engine, wherever you send.</h2></div><p class="rv">The site, the CLI, the browser extension and the agent tool all run the same rules, so the answer never depends on where you asked.</p></div>
  <div class="surfs">
   <a class="surf rv" href="#check"><span class="lbl">Website · live</span><h3>Paste &amp; check</h3><p>This page. The rule engine runs in your browser against free public NEAR, Tron, Ethereum and Bitcoin APIs.</p><span class="go">Check a send <span class="ar">→</span></span></a>
-  <a class="surf rv" href="send.html"><span class="lbl">Send · live</span><h3>Check, then send</h3><p>Connect a NEAR wallet. Send unlocks only after the check: safe goes, attention needs your tick, blocked never sends.</p><span class="go">Open Send <span class="ar">→</span></span></a>
-  <a class="surf rv" href="extension.html"><span class="lbl">Extension · load unpacked</span><h3>In your wallet</h3><p>Checks the address you paste on NEAR wallet and exchange pages and holds Send if it’s wrong.</p><span class="go">See it work <span class="ar">→</span></span></a>
-  <a class="surf rv" href="agents.html"><span class="lbl">Agents · MCP</span><h3>For AI agents</h3><p>Agents that pay can ask Gideon first. It answers with a verdict and a receipt. It can’t stop one that ignores the answer.</p><span class="go">For agents <span class="ar">→</span></span></a>
+  <a class="surf rv" href="send.html"><span class="lbl">Send · native NEAR</span><h3>Check, then send</h3><p>Connect a NEAR wallet. Send unlocks only after the check: safe goes, attention needs your tick, blocked never sends. That flow was tried with a mock wallet, not live Meteor, HOT, or Intear.</p><span class="go">Open Send <span class="ar">→</span></span></a>
+  <a class="surf rv" href="extension.html"><span class="lbl">Extension · load unpacked</span><h3>In your wallet</h3><p>Checks the address you paste on NEAR wallet and exchange web pages and holds Send when it’s blocked. It does not hold Approve, and it cannot read a wallet extension’s own pop-up.</p><span class="go">See it work <span class="ar">→</span></span></a>
+  <a class="surf rv" href="agents.html"><span class="lbl">Agents · MCP</span><h3>For AI agents</h3><p>Agents that pay can ask Gideon first. It answers with a verdict and a receipt. An agent can ignore that. The wallet, or the code that signs, is what can refuse.</p><span class="go">For agents <span class="ar">→</span></span></a>
  </div>
  <div class="onecall">
   <div><span class="sec-n">From the repo</span><h3 class="h2" style="margin-top:12px">One call before the send.</h3><p class="small" style="margin-top:12px;font-size:15px">This sample imports <span class="mono">@gideon/core</span> from this repo. The npm scope <span class="mono">@gideon</span> is already taken, so it is not an npm install. CLI exit codes: 0 safe, 1 look again, 2 blocked.</p></div>
