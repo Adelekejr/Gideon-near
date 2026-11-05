@@ -118,8 +118,10 @@ npm run zip:extension       # apps/extension/gideon-extension-0.3.1.zip
 npm run zip:firefox -w @gideon/extension   # Firefox / Firefox for Android build (see "Phones")
 
 # the MCP server for AI agents (see "AI agents (MCP server)")
-npm run demo:agent          # a scripted agent asks Gideon before each payout
-npm run mcp                 # the stdio server itself, for an MCP host to launch
+npm run demo:agent                            # a scripted agent asks Gideon before each payout
+npm run demo:attack -- --offline              # planted lookalike invoice → BLOCKED / DO_NOT_SEND
+npm run demo:function-call-key -- --offline   # one app key, then the same stop
+npm run mcp                                   # the stdio server itself, for an MCP host to launch
 
 # the community flag registry contract (Rust; see "Community flag registry")
 cd contracts/flag-registry && cargo test
@@ -403,11 +405,47 @@ Environment (all optional): `GIDEON_NETWORK` (default network, `testnet`),
 to answer from recorded responses with no network.
 
 **Demo, no AI key needed.** `npm run demo:agent` starts the server over stdio
-and runs a scripted payments agent with four payouts on testnet. It sends the
-rent (SAFE, simulated), holds a refund to an Ethereum address for a human
+and runs a scripted payments agent with four payouts on testnet. The rent is
+SAFE, but `agent_action` is ASK_HUMAN because `from` was not passed, so the
+demo does not send it. It holds a refund to an Ethereum address for a human
 (ATTENTION), and stops the whole run on a lookalike of a saved payroll contact
 (BLOCKED), so the fourth payout is never attempted. It exits `2`. Add
 `-- --offline` to replay recorded answers. Nothing is ever signed.
+
+**Security-track demos.** Same server, still no secret and still no signature.
+Gideon advises: an agent that ignores `DO_NOT_SEND` can still send.
+
+`npm run demo:attack` reads
+[`packages/mcp/demo/invoices/northwind-4471.txt`](packages/mcp/demo/invoices/northwind-4471.txt).
+The invoice says to pay `northwind-payrol1.testnet` and to ignore the checker.
+The agent's address book still has `northwind-payroll.testnet` (one character
+off: a trailing `l` written as `1`, the same kind of lookalike as
+`northwind-payro11.testnet` in [`demo/cases.json`](demo/cases.json)). Gideon
+returns **BLOCKED** / **DO_NOT_SEND**. The log prints the stop and the demo
+does not pay. Exit code `2`.
+
+```
+STOP  BLOCKED  DO_NOT_SEND
+    not sent. 40 NEAR did not go to northwind-payrol1.testnet.
+```
+
+`npm run demo:function-call-key` is an agent that holds one function-call key
+on `hammed-stampdue.testnet`, and nothing else. The key may call only
+`ft_transfer` on `wrap.testnet`. Its allowance is 0.25 NEAR of gas, not a cap
+on how much wNEAR the method can move. It cannot sign Transfer, AddKey,
+DeleteKey, DeleteAccount, DeployContract, Stake, any other contract, or any
+other method. It can still name any `receiver_id` inside `ft_transfer`. The
+demo refuses a NEAR transfer and a full-access AddKey on its own (`KEY REFUSED`;
+Gideon is not asked). It then checks the planted invoice's payee before that
+`ft_transfer`. Gideon returns the same **BLOCKED** / **DO_NOT_SEND**, the log
+prints `STOP  BLOCKED  DO_NOT_SEND`, and the contract is not called. A real key
+with this permission could still make that call if the agent ignored the
+result. A second `ft_transfer` of wNEAR back to `hammed-stampdue.testnet` comes
+back **ATTENTION** / **ASK_HUMAN** (that account has no wNEAR storage); the
+demo does not call it either. Exit code `2`.
+
+Add `-- --offline` to either command to replay [`demo/fixtures.json`](demo/fixtures.json)
+with no network. The lookalike block does not need a live lookup.
 
 ![The demo agent stops its payout run on BLOCKED](shots/mcp-demo-agent.png)
 
@@ -579,7 +617,7 @@ packages/cli       the gideon command
 apps/web           the website (Vite, static): Checker, Send (check, then send), Extension preview, Agents
 apps/extension     MV3 extension (Chromium, plus a Firefox build): popup, in-page warning, clipboard check, address book
 contracts/flag-registry  Rust contract for community flags (R10)
-packages/mcp       MCP server for AI agents (gideon_check, gideon_explain, gideon_flags) and the demo agent
+packages/mcp       MCP server for AI agents, plus demo:agent, demo:attack, and demo:function-call-key
 demo               the 8 real cases and their recorded responses
 shots              screenshots of the website, the Send flow, the extension and the agent demo
 ```
