@@ -30,6 +30,8 @@
     "build:extension": "npm run build -w @gideon/extension",
     "zip:extension": "npm run zip -w @gideon/extension",
     "demo:agent": "node packages/mcp/demo/agent.mjs",
+    "demo:attack": "node packages/mcp/demo/attack.mjs",
+    "demo:function-call-key": "node packages/mcp/demo/function-call-key.mjs",
     "mcp": "node packages/mcp/dist/index.js"
   },
   "devDependencies": {
