@@ -20,7 +20,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 <section class="shead">
  <div><span class="eyebrow">Browser extension · v0.3.1 · Chrome, Brave, Edge, Firefox</span>
   <h1 class="h1">It checks the moment you paste.</h1>
-  <p class="lead">On NEAR wallet and exchange pages, Gideon watches the recipient field. Paste a wrong, poisoned or lookalike address and a warning card appears right under it, the Send button is held, and the Gate G shows you why. Same rules as the checker, read-only, no keys.</p></div>
+  <p class="lead">On NEAR wallet and exchange web pages, Gideon watches the recipient field. Paste a wrong, poisoned or lookalike address and a warning card appears right under it, the Send button is held, and the Gate G shows you why. It holds Send when the check is blocked. It does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script, so Gideon cannot read them. Same rules as the checker, read-only, no keys.</p></div>
  <div class="xtry"><span class="label">Try a paste</span>
   <button class="btn" id="sim" type="button">A Tron tx hash <span class="ar">→</span></button>
   <button class="btn ghost" id="sim3" type="button">A poisoned lookalike</button>
@@ -52,7 +52,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 <section class="blk"><div class="sec-hd"><div><span class="lbl">01 / On the page</span><h2 class="rv">What it does on a page.</h2></div></div>
  <ol class="how">
   <li class="rv"><h3>Checks on paste</h3><p>Recipient fields on NEAR wallets and exchanges: named .near/.testnet accounts, 64-character implicit accounts and 0x addresses.</p></li>
-  <li class="rv"><h3>Holds the Send button</h3><p>While a check says BLOCKED the page’s Send or Withdraw button stays held. ATTENTION warns but lets you decide.</p></li>
+  <li class="rv"><h3>Holds the Send button</h3><p>While a check says BLOCKED, Send or Withdraw stays held, and so can Transfer, Confirm, Continue, Next, Submit, Pay, or Review in that same form. ATTENTION warns but lets you decide. Approve is not held. A wallet extension’s own pop-up (Meteor, Sender, Nightly) is not a page this script can read.</p></li>
   <li class="rv"><h3>Watches the clipboard</h3><p>If a page swaps what you copied for a lookalike, Gideon says so at the moment you paste (rule R9).</p></li>
  </ol>
 </section>
@@ -69,7 +69,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 <span class="c"># about:debugging → This Firefox → Load Temporary Add-on</span>
 <span class="c"># → the Firefox zip above (release Firefox won’t install an unsigned add-on)</span></div></div>
  </div>
- <p class="small" style="margin-top:14px">Permissions: <code>storage</code>, a content script on http and https pages (it reads the recipient field you paste or type), and calls to public NEAR, explorer and chain APIs. Details are in <a href="/PRIVACY.md">PRIVACY.md</a>. It never touches keys and can’t move funds.</p>
+ <p class="small" style="margin-top:14px">Permissions: <code>storage</code>, a content script on http and https pages (it reads the recipient field you paste or type), and calls to public NEAR, explorer and chain APIs. That script does not run inside a wallet extension pop-up. Details are in <a href="/PRIVACY.md">PRIVACY.md</a>. It never touches keys and can’t move funds. Version 0.3.1, same as the zips above. The engine line on a receipt is <code>gideon-core/0.3.1</code>.</p>
 </section>
 </main>
 <script type="module" src="/src/extension.ts"></script>

@@ -22,9 +22,12 @@ const HELP = `gideon — check a NEAR send before you make it
     --memo <text>               memo or note shown with the payee (instruction-like text)
     --payee <name>              display name next to the address
     --chain <name>              payout chain you expect from an Intents or bridge deposit
-    --daily-limit <near>        agent daily spend cap in NEAR (or GIDEON_DAILY_LIMIT)
-    --spent <near>              NEAR already counted against that cap today
-    --registry <contract>       community flag registry for R10 (or GIDEON_FLAG_REGISTRY)
+    --daily-limit <near>        NEAR cap for this check only (or GIDEON_DAILY_LIMIT).
+                                The CLI does not remember earlier runs
+    --spent <near>              NEAR already counted against that cap (you pass it;
+                                the CLI does not keep a tally)
+    --registry <contract>       community flag registry for R10 (or GIDEON_FLAG_REGISTRY).
+                                Not deployed; the check stays off unless you set one
     --json                      print the full result JSON
     --no-drainer                skip the drained-wallet check (R18: recent senders that look
                                 hacked); otherwise it runs after the main check, up to 8 s
@@ -39,8 +42,8 @@ const HELP = `gideon — check a NEAR send before you make it
     --mine <a,b>                your own accounts (never "unseen")
     --book <file.json>          address book, as above
     --chain <name>              payout chain you expect from a deposit in the request
-    --daily-limit <near>        agent daily spend cap in NEAR (or GIDEON_DAILY_LIMIT)
-    --spent <near>              NEAR already counted against that cap today
+    --daily-limit <near>        same cap as check: this run only, not a saved tally
+    --spent <near>              NEAR already counted against that cap (you pass it)
     --json                      print the full result JSON
   gideon keys <account> [options]
                                 account health: list the account's keys and flag ones that

@@ -65,9 +65,31 @@ The same rules run in the browser, the extension, the CLI and the MCP server. Th
 
 ![Docs](shots/docs-light.png)
 
+## Versions
+
+The product on the site and in the download zips is **0.3.1**. That is the extension manifest, the website copy, the receipt engine line `gideon-core/0.3.1`, and the files `gideon-extension-0.3.1.zip` and `gideon-extension-firefox-0.3.1.zip`. Those names stay so the Docs and Extension links keep working.
+
+The unpublished workspace packages (this repo, `@gideon/core`, `@gideon/sources`, `@gideon/cli`, `@gideon/mcp`, and the website) stay at **0.1.0**. They are not published: the npm scope `@gideon` is already taken. The MCP server reports `0.1.0` for that reason. It runs the same engine as the 0.3.1 site and extension.
+
+There is no 0.3.2 release. A few tests and comments say “0.3.2” for follow-ups that shipped inside 0.3.1. Those are labels, not a second version.
+
 ## Honest limits
 
-No problems found means these checks passed on live data. It is not proof of who controls the account. A lookup that fails is look again, never a pass. A deposit on the wrong chain, for the wrong token, or past its deadline is blocked. A daily spend cap, instruction-like text in a memo, and a saved contact whose address changed are look again. Account health says what each key can do before you remove it. The plain-language guide is on [Docs](https://gideon-near.vercel.app/docs).
+No problems found means these checks passed on live data. It is not proof of who controls the account. A lookup that fails is look again, never a pass. A deposit on the wrong chain, for the wrong token, or past its deadline is blocked. Instruction-like text in a memo, and a saved contact whose address changed, are look again. Account health says what each key can do before you remove it.
+
+The MCP daily spend tally (R21) is process-local and advisory. That server keeps an in-memory map of NEAR this process has already cleared to SEND. The day is UTC. The map resets when the process restarts. Each instance has its own map. Repeating a successful check counts again. It is not an account-wide limit, and it is not what the chain shows was sent. The CLI does not keep that map: a cap applies to the check you are running, plus `--spent` if you pass it. No cap set means the check does not apply.
+
+Gideon advises. An agent can ignore the answer and still send. A block holds only when the wallet, or the other code that signs, refuses the send.
+
+The extension can hold Send on a web page when the check is blocked, and other buttons in that form whose label starts with Withdraw, Transfer, Confirm, Continue, Next, Submit, Pay, or Review. It does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script, so Gideon cannot read them.
+
+The Send page sends native NEAR. That check-then-send flow was tried with a mock wallet, not with a live Meteor, HOT, or Intear wallet.
+
+The community flag registry is not deployed. That check stays off by default. There is no live community scam database.
+
+A sha256 receipt is the integrity of the printed result. It is not proof the underlying checks were performed honestly, and it is not an attestation. Receipts made on the website are unsigned.
+
+The plain-language guide is on [Docs](https://gideon-near.vercel.app/docs).
 
 ## More
 

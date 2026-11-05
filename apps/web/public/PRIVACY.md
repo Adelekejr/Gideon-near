@@ -16,6 +16,9 @@ If the code and this file ever disagree, that's a bug: please report it.
   or person it goes to, the token or NFT contract), never the request itself.
   There is no Gideon server, no analytics, no tracking, no account.
 - Everything Gideon remembers stays in your browser's extension storage on this device.
+- On a web page, a blocked check can hold Send. It does not hold Approve.
+  Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are not
+  pages this script can read.
 
 ## Permissions
 
@@ -79,9 +82,12 @@ The content script runs on web pages and reacts to four things:
      `wallet.meteorwallet.app` it reads the From / To explorer links and the wallet's own
      full-access wording; on any other site it reacts only to that full-access wording. Text in
      scripts and styles is ignored. This screen reading follows Meteor's public app code and has
-     not been checked against the live Meteor wallet (the sign-link reading has). A request read
-     only from the screen is never shown as "no problems found". Only Meteor's **web** wallet is
-     read; the Meteor browser extension's own pop-up (and other wallet extensions') is not.
+   not been checked against the live Meteor wallet (the sign-link reading has). A request read
+   only from the screen is never shown as "no problems found". Only Meteor's **web** wallet is
+   read. Wallet extension pop-ups are outside this content script: Meteor, Sender, and Nightly
+   sealed windows (and any other extension pop-up) are not read. When a paste check is blocked,
+   the card can hold Send or Withdraw, and a button in that form whose label starts with
+   Transfer, Confirm, Continue, Next, Submit, Pay, or Review. It does not hold Approve.
    The request is decoded and checked on your device; the card says "Gideon only read this request
    from the page. It never touches your keys." Nothing from it is stored, and the check is not
    counted in your stats.
