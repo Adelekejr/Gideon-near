@@ -97,4 +97,8 @@ The plain-language guide is on [Docs](https://gideon-near.vercel.app/docs).
 - Agent tools: [packages/mcp/README.md](packages/mcp/README.md)
 - Flag registry (not deployed): [contracts/flag-registry/README.md](contracts/flag-registry/README.md)
 
+## Glassbox
+
+Glassbox is a public TEE/registration auditor for NEAR AI-agent contracts by the same builder (Adelekejr): [https://github.com/Adelekejr/Glassbox](https://github.com/Adelekejr/Glassbox). Hackathon screening question Q-015 asks for that sibling to be named. Gideon is pre-send payment safety. Glassbox says what was registered and which keys can change the account. They are independent and do not share a verdict.
+
 [MIT](LICENSE)
