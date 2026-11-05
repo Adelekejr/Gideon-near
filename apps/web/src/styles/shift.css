@@ -198,7 +198,9 @@ html[data-theme=dark] .near-mark .on-dark{display:block}
 .sec-hd .lbl{display:block;margin-bottom:14px;color:var(--muted)}
 section.blk{padding:clamp(64px,8vw,112px) 0 0}
 
-.code{background:var(--inverse);color:var(--inkInv);border-radius:10px;padding:22px 24px;font:400 13px/1.7 var(--mono);white-space:pre;overflow:auto}
+.codewrap{position:relative;max-width:100%;min-width:0}
+.codewrap .codecopy{position:absolute;top:8px;right:8px;z-index:1;font:600 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;border:1px solid currentColor;background:transparent;color:inherit;padding:6px 8px;border-radius:2px;cursor:pointer}
+.code{background:var(--inverse);color:var(--inkInv);border-radius:10px;padding:22px 24px;padding-right:72px;font:400 13px/1.7 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:auto;max-width:100%}
 html[data-theme=dark] .code{background:var(--raised);color:var(--ink);border:1px solid var(--line)}
 .code .k{color:var(--a)}.code .s{color:var(--sText)}.code .c{opacity:.55}
 

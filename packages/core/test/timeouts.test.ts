@@ -37,11 +37,11 @@ describe("time limits (the in-page card must always resolve)", () => {
     expect(call?.error).toMatch(/took longer than 0.1 s/);
   });
 
-  it("a hung creation-date lookup doesn't hold the verdict: SAFE, 'Creation date unavailable'", async () => {
+  it("a hung creation-date lookup returns quickly and is LOOK AGAIN, not SAFE", async () => {
     const { r, ms } = await timed({ to: "bob.testnet" }, live({ accountCreated: hang }), { sourceTimeoutMs: 3000, optionalBudgetMs: 100 });
     expect(ms).toBeLessThan(1000);
-    expect(r.verdict).toBe("SAFE");
-    expect(find(r, "R11")[0]).toMatchObject({ status: "PASS", code: "CREATED_UNKNOWN" });
+    expect(r.verdict).toBe("ATTENTION");
+    expect(find(r, "R11")[0]).toMatchObject({ status: "ATTENTION", code: "CREATED_UNKNOWN" });
     expect(r.account).toMatchObject({ exists: true, created: "unavailable" });
     expect(r.sources.find((c) => c.source.startsWith("nearblocks"))).toMatchObject({ ok: false, optional: true });
   });

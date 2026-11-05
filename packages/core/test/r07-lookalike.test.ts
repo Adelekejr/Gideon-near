@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { lookalike, skeleton } from "../src/similarity.js";
+import { notCheckedLines, VERDICT_TEXT } from "../src/text.js";
 import { acct, empty, find, run } from "./helpers.js";
 
 describe("similarity", () => {
@@ -58,12 +59,14 @@ describe("R7 lookalike and address poisoning", () => {
     expect(find(r, "R7")[0].code).toBe("LOOKALIKE_OF_HISTORY");
     expect(find(r, "R7")[0].status).toBe("ATTENTION");
   });
-  it("history unavailable → contacts only, never blocks the verdict", async () => {
+  it("history unavailable → Not checked and LOOK AGAIN, not a block and not SAFE", async () => {
     const r = await run({ to: "bob.testnet", from: "me.testnet" }, empty({ viewAccount: async () => acct(1), recentTransfers: async () => { throw new Error("NearBlocks rate limit reached"); } }));
     const r7 = find(r, "R7")[0];
-    expect(r7.status).toBe("PASS");
+    expect(r7.status).toBe("ATTENTION");
     expect(r7.code).toBe("HISTORY_UNAVAILABLE");
     expect(r7.detail).toContain("rate limit");
+    expect(r.verdict).toBe("ATTENTION");
+    expect(notCheckedLines(r)).toContain(VERDICT_TEXT.historyUnknown);
     expect(r.sources.find((c) => c.source.includes("history:"))?.optional).toBe(true);
   });
   it("nothing to compare → SKIPPED", async () => {

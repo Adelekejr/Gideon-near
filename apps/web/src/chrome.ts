@@ -345,9 +345,36 @@ export function initChrome(on: string, onNetworkChange?: () => void) {
     el.animate([{ transform: "translateY(28px)", opacity: 0 }, { transform: "translateY(0)", opacity: 1, offset: .62, easing: OUT }, { transform: "translateY(4px)", offset: .8 }, { transform: "translateY(0)", opacity: 1 }], { duration: 820, delay: (+el.dataset.i! || 0) * 70, fill: "backwards", easing: STOP });
   }), { rootMargin: "0px 0px -8% 0px" }) : null;
   reveal();
+  addCopyButtons();
   fitGiant(); addEventListener("resize", fitGiant); document.fonts?.ready.then(fitGiant);
   // hero headline lines rise, stop, settle
   if (!STATIC) document.querySelectorAll<HTMLElement>(".mega .ln>span").forEach((s, i) => s.animate([{ transform: "translateY(105%)" }, { transform: "translateY(0)", offset: .62, easing: OUT }, { transform: "translateY(4px)", offset: .8 }, { transform: "translateY(0)" }], { duration: 900, delay: 120 + i * 90, fill: "backwards", easing: STOP }));
+}
+
+/** A Copy button on every code block, and wrapping so a long line doesn’t widen the page. */
+function addCopyButtons(root: ParentNode = document): void {
+  root.querySelectorAll<HTMLElement>(".code").forEach((el) => {
+    if (el.closest(".codewrap")) return;
+    const wrap = document.createElement("div");
+    wrap.className = "codewrap";
+    el.parentNode?.insertBefore(wrap, el);
+    wrap.appendChild(el);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "codecopy";
+    btn.textContent = "Copy";
+    btn.addEventListener("click", async () => {
+      const text = el.innerText.replace(/\u00a0/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = "Copied";
+      } catch {
+        btn.textContent = "Select to copy";
+      }
+      window.setTimeout(() => { btn.textContent = "Copy"; }, 1600);
+    });
+    wrap.appendChild(btn);
+  });
 }
 
 /** Torn receipt slip: perforated top, torn bottom, barcode drawn from the receipt hash. */

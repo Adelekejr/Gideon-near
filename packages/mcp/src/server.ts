@@ -14,16 +14,28 @@ const DRAINER_MS = 8000;
 /** What an agent must do with each verdict. This is the contract of the server. */
 export const AGENT_ACTION = { SAFE: "SEND", ATTENTION: "ASK_HUMAN", BLOCKED: "DO_NOT_SEND" } as const satisfies Record<Verdict, string>;
 const INSTRUCTION: Record<Verdict, string> = {
-  SAFE: "SAFE (no problems found): Gideon checked this address live and found nothing wrong. That isn't a guarantee. You may send exactly this recipient, amount, token and network.",
+  SAFE: "SAFE (no problems found): Gideon checked this address live and found nothing wrong. That isn't a guarantee, and it isn't proof of who controls the account. You may send exactly this recipient, amount, token and network. If anything changes, check again.",
   ATTENTION: "ATTENTION: do not send on your own. Stop and ask a human, showing them the reasons below. \"Couldn't check\" is ATTENTION, never safe.",
   BLOCKED: "BLOCKED: DO NOT SEND. This send would likely lose the funds. Tell the human why and how to fix it; don't retry with the same details.",
 };
+/** SAFE without `from`: first-send didn't run. Same agent_action as ATTENTION; no new action is invented. */
+export const SAFE_NO_FROM = "SAFE is not proof of who controls this account, and `from` was missing so the first-send check did not run. Do not send on your own. Ask a human, or check again with `from` set to the account you send from.";
 
-export const INSTRUCTIONS = `Gideon is a read-only pre-send safety check for NEAR. It never signs or moves funds.
-Before you send any NEAR or NEAR token, call gideon_check with the exact recipient, network, amount and token, and \`from\` (the account you send from) when you know it.
-- BLOCKED (agent_action DO_NOT_SEND): do not send. Report the reason and fix steps to the human.
+/** Cautious when the sender wasn't passed: ASK_HUMAN, which already exists. Otherwise the verdict's action. */
+export function agentActionFor(r: Pick<CheckResult, "verdict" | "input">): "SEND" | "ASK_HUMAN" | "DO_NOT_SEND" {
+  if (r.verdict === "SAFE" && !r.input.from?.trim()) return "ASK_HUMAN";
+  return AGENT_ACTION[r.verdict];
+}
+export function agentInstructionFor(r: Pick<CheckResult, "verdict" | "input">): string {
+  if (r.verdict === "SAFE" && !r.input.from?.trim()) return SAFE_NO_FROM;
+  return INSTRUCTION[r.verdict];
+}
+
+export const INSTRUCTIONS = `Gideon is a read-only pre-send safety check for NEAR. It never signs or moves funds. It advises: it cannot stop an agent that ignores the result.
+Before you send any NEAR or NEAR token, call gideon_check with the exact recipient, network, amount and token, and \`from\` (the account you send from) so the first-send check runs. SAFE is not proof of who controls the account.
+- BLOCKED (agent_action DO_NOT_SEND): do not send. Report the reason and fix steps to the human. Gideon cannot force you to stop.
 - ATTENTION (agent_action ASK_HUMAN): do not send on your own. Ask a human and wait for an explicit yes. A lookup that failed ("couldn't check") is ATTENTION, never safe.
-- SAFE (agent_action SEND): no problems found. You may send, with exactly the details you checked. If anything changes, check again. Tell the human about any "not_checked" lines.
+- SAFE (agent_action SEND): no problems found in the checks that ran. That isn't a guarantee and isn't proof of ownership. You may send, with exactly the details you checked, only when \`from\` was passed. If \`from\` is missing, agent_action is ASK_HUMAN: pass \`from\` and check again, or ask a human. If anything changes, check again. Tell the human about any "not_checked" lines.
 Before you approve or sign any NEAR transaction or sign-in someone else built (a dApp, a link, another agent), call gideon_check_transaction with the sign link, the raw base64 transaction, or signer, receiver and actions. Same verdicts and agent_action; DO_NOT_SEND means do not sign, and SAFE only means nothing was flagged in the checks Gideon could run: review any "not_checked" items before approving.
 gideon_explain turns a result into plain words. gideon_flags lists community reports about an account; reports are not proof.
 gideon_account_health lists who can act for an account (its keys) and flags risky ones. If move_funds_now is true, tell the human at once. Each entry in remove_links is a ready-to-sign, unsigned DeleteKey (near-mcp account_delete_access_keys args, base64 transaction, wallet links). Never remove a key or sign one yourself without the human's explicit yes for that key; give the link to the human.`;
@@ -85,8 +97,8 @@ export function summarize(r: CheckResult) {
   const shown = r.findings.filter((f) => f.status !== "SKIPPED" && f.status !== "PASS");
   return {
     verdict: r.verdict,
-    agent_action: AGENT_ACTION[r.verdict],
-    agent_instruction: INSTRUCTION[r.verdict],
+    agent_action: agentActionFor(r),
+    agent_instruction: agentInstructionFor(r),
     recipient: r.input.to,
     network: r.input.network,
     headline: r.headline ? `${r.headline.title}${/[.?!]$/.test(r.headline.title) ? "" : "."} ${r.headline.detail}` : null,
@@ -183,7 +195,7 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
   server.registerTool("gideon_check", {
     title: "Check a NEAR send before making it",
     description: "Run Gideon's pre-send checks on a NEAR recipient (wrong network, pasted tx hash, lookalike/address poisoning, token and exchange mismatches, Intents deposits, community flags). " +
-      "Returns verdict and agent_action: SAFE→SEND, ATTENTION→ASK_HUMAN, BLOCKED→DO_NOT_SEND. Call it before every send. Read-only; never signs.",
+      "Returns verdict and agent_action: SAFE→SEND only when `from` was passed, otherwise SAFE is ASK_HUMAN (SAFE is not proof of ownership; pass `from` so the first-send check runs). ATTENTION→ASK_HUMAN, BLOCKED→DO_NOT_SEND. Gideon advises and cannot stop an agent that ignores it. Call it before every send. Read-only; never signs.",
     inputSchema: z.object(checkFields),
     outputSchema: checkOutput,
     annotations: hints,
@@ -211,7 +223,7 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
       return { isError: true, content: [{ type: "text", text: "Pass `result` from gideon_check, or a `recipient` to check." }] };
     }
     const e = await explain(r, explainer);
-    const out = { verdict: r.verdict, agent_action: AGENT_ACTION[r.verdict], explanation: e.text, by: e.by, receipt_sha256: r.receipt.sha256 };
+    const out = { verdict: r.verdict, agent_action: agentActionFor(r), explanation: e.text, by: e.by, receipt_sha256: r.receipt.sha256 };
     return { content: [{ type: "text", text: `${r.verdict} → ${out.agent_action}\n${e.text}` }], structuredContent: out };
   });
 

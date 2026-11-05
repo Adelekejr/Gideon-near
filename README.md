@@ -161,12 +161,12 @@ browser, straight against the public APIs) and your own code
 | R4 Ethereum-style account | A `0x` + 40 hex address used on NEAR: in use, or never used? | NEAR RPC |
 | R5 Token | Is the token real, not a lookalike, and is the receiver registered with it? | NEAR RPC, token list |
 | R6 Intents deposit | For a 1Click deposit address: does the token match what it expects, is it still open? | 1Click `/v0/status` (mainnet) |
-| R7 Lookalike | Looks almost like a saved contact or an account you've sent to before (l/1, o/0, i/l, rn/m, - vs ., an extra or missing character, extra digits at the end, or a 64-hex or `0x` address with the same first and last characters in any split, like 4+4 or 6+0, or one or two characters added, missing or changed)? BLOCKED "Looks like X, but it isn't", naming the address. Close to another account in your recent history: ATTENTION, or BLOCKED as address poisoning when it sent you dust. If your history can't be read in time, only contacts are compared and the verdict doesn't change. | your contacts, sends made from this device (extension), recent history from FastNEAR and NearBlocks (needs your sending account) |
+| R7 Lookalike | Looks almost like a saved contact or an account you've sent to before (l/1, o/0, i/l, rn/m, - vs ., an extra or missing character, extra digits at the end, or a 64-hex or `0x` address with the same first and last characters in any split, like 4+4 or 6+0, or one or two characters added, missing or changed)? BLOCKED "Looks like X, but it isn't", naming the address. Close to another account in your recent history: ATTENTION, or BLOCKED as address poisoning when it sent you dust. If your history can't be read, contacts are still compared, a Not checked line says so, and the verdict is LOOK AGAIN, never SAFE. | your contacts, sends made from this device (extension), recent history from FastNEAR and NearBlocks (needs your sending account) |
 | R8 Exchange | Will this exchange credit this token? Never BLOCKED from registry data alone. | `packages/core/data/exchanges.json` |
 | R9 Clipboard | Is what was pasted what you copied? | the extension (copies made on the same page) |
 | R10 Community flags | Has anyone flagged this account as a scam or poisoning address? ATTENTION at most, never BLOCKED. | `get_flags` view call on the flag registry contract (off until it's deployed) |
-| R11 Account age | How new is the account? Created under 24 hours ago: ATTENTION "Brand-new account, created today. It really exists on NEAR (checked live)." Under 7 days: ATTENTION "New account (created N days ago)". Exists on chain but newer than the indexer's data: dated from archival chain state (did it exist 1 day / 7 days ago?), or, if that lookup fails, ATTENTION "Created recently (newer than our indexer's data)". Accounts from NEAR's launch (such as `illia.near`) have no creation transaction, so the indexer has no date: one archival read at the genesis block dates them to 21 Jul 2020 (mainnet). If no date can be read at all it says "Creation date unavailable" and the verdict doesn't change. Runs in every flow, the wallet flow included (answers are cached). | NearBlocks `/v1/account` (creation date and indexer height), archival NEAR RPC `view_account` at a past block |
-| R13 First send | Have you ever sent to this address from your account? Never: ATTENTION "You've never sent to this address before". Saved contacts and past recipients pass. If NearBlocks is slow or rate-limited the note is skipped and the verdict doesn't change (native NEAR sends and calls are counted, token transfers aren't). | FastNEAR / NearBlocks recent history, sends made from this device (extension), NearBlocks `/v1/account/{from}/txns-only/count?to=` (needs your sending account) |
+| R11 Account age | How new is the account? Created under 24 hours ago: ATTENTION "Brand-new account, created today. It really exists on NEAR (checked live)." Under 7 days: ATTENTION "New account (created N days ago)". Exists on chain but newer than the indexer's data: dated from archival chain state (did it exist 1 day / 7 days ago?), or, if that lookup fails, ATTENTION "Created recently (newer than our indexer's data)". Accounts from NEAR's launch (such as `illia.near`) have no creation transaction, so the indexer has no date: one archival read at the genesis block dates them to 21 Jul 2020 (mainnet). If a creation-date lookup was asked and no date comes back, a Not checked line says so and the verdict is LOOK AGAIN, never SAFE. It is not called a new account. Runs in every flow, the wallet flow included (answers are cached). | NearBlocks `/v1/account` (creation date and indexer height), archival NEAR RPC `view_account` at a past block |
+| R13 First send | Have you ever sent to this address from your account? Never: ATTENTION "You've never sent to this address before". Saved contacts and past recipients pass. If the send-history lookup fails or runs out of time, a Not checked line says so and the verdict is LOOK AGAIN, never SAFE (native NEAR sends and calls are counted, token transfers aren't). | FastNEAR / NearBlocks recent history, sends made from this device (extension), NearBlocks `/v1/account/{from}/txns-only/count?to=` (needs your sending account) |
 | R14 Reported scam | Is this account on Gideon's short list of publicly reported scam accounts? BLOCKED "Reported scam", linking the public report. Every entry was read at its source and quotes it (`packages/core/src/reported-scams.ts`); nothing is copied from an explorer's label list. Exact match on its own network only. | local list, each entry with its report link |
 | R15 Fake letters | Does the address contain a letter from another alphabet that looks like a plain one (Greek 'α', Cyrillic 'а', full-width letters), an invisible character (zero-width space, U+FEFF) or a hidden space (non-breaking, thin, a space inside)? BLOCKED, naming the character, where it is and what it imitates, and showing the plain version. Reads the address exactly as pasted. | local |
 | R16 Other network | Is this the same name as an account on the other network (`alice.near` typed while sending on testnet, where `alice.testnet` exists, or the reverse)? When the network is certain (you set it, or the page proves it) BLOCKED "Wrong network: did you mean alice.testnet?". When the wallet only seems to be on the other network, ATTENTION "Your wallet may be on testnet", never a block. Nothing when the twin doesn't exist. | NEAR RPC `view_account` on the other network (info-only, time-limited) |
@@ -375,7 +375,7 @@ The rule for agents. The server also sends this to the host as its instructions:
 | --- | --- | --- |
 | BLOCKED | `DO_NOT_SEND` | Don't send. Tell the human why and show the fix steps. Don't retry with the same details. |
 | ATTENTION | `ASK_HUMAN` | Stop and ask a human before sending. This includes "couldn't check": a failed lookup is never treated as safe. |
-| SAFE | `SEND` | OK to go ahead. A human or wallet still signs; Gideon holds no keys. |
+| SAFE | `SEND` only when `from` was passed; otherwise `ASK_HUMAN` | Nothing flagged is not proof of who controls the account. Pass `from` so the first-send check runs. Without it, ask a human or check again. A human or wallet still signs; Gideon holds no keys. |
 
 **Claude Desktop.** Run `npm install` in the repo, then add this to
 `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`,
@@ -606,8 +606,9 @@ The website deploys as a static site; `vercel.json` builds it with
   also needs host access to); the block for "1 day ago" / "7 days ago" is
   estimated from the average block time, so an account created within minutes
   of either boundary can land on the other side. If the indexer knows an
-  account but has no date, Gideon says "Creation date unavailable" and does
-  not call it new. Known dates are cached for the session, other answers for
+  account but has no date, Gideon says the date was not checked and the verdict
+  is look again. It does not call that account new, and it does not call the
+  send safe. Known dates are cached for the session, other answers for
   a minute. A new account is ATTENTION, never BLOCKED: new doesn't mean scam.
 - **Exchange data is a starter list.** Only the generic rule ("most exchanges
   credit native NEAR only") is confirmed from a public source. Per-exchange
@@ -673,7 +674,8 @@ The website deploys as a static site; `vercel.json` builds it with
   (no tokens, no Intents), with one transfer per check.
 - **A busy NearBlocks makes sends harder, not riskier.** The Send page reads
   your history to catch lookalikes. If NearBlocks is rate-limited, the check
-  says "couldn't check" and Send needs your confirm.
+  is look again with a Not checked line, never "no problems found", and Send
+  needs your confirm.
 - **Lookalike checks need something to compare against**: your saved
   contacts (website and extension: stored only in your browser) or
   `--book`/`--from` on the CLI.

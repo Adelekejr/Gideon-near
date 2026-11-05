@@ -1,4 +1,4 @@
-import { drainerFailed, drainerWanted, notCheckedCount, notCheckedLines, VERDICT_TEXT, type CheckResult } from "@gideon/core";
+import { drainerFailed, drainerWanted, notCheckedCount, notCheckedLines, skippedNotCheckedCount, VERDICT_TEXT, type CheckResult } from "@gideon/core";
 
 /*
  * The website's verdict wording (0.3.1), in one place so the checker, the send page and the home
@@ -29,8 +29,8 @@ export function notChecked(r: CheckResult): string[] {
 export function countsLine(r: CheckResult): string {
   const ran = r.findings.filter((f) => f.status !== "SKIPPED").length;
   const nc = notCheckedCount(r);
-  const skipped = r.findings.length - ran;
-  return `${ran} ran${nc ? ` · ${nc} not checked` : ""} · ${Math.max(0, skipped - nc)} not relevant`;
+  const irrelevant = r.findings.filter((f) => f.status === "SKIPPED").length - skippedNotCheckedCount(r);
+  return `${ran} ran${nc ? ` · ${nc} not checked` : ""} · ${Math.max(0, irrelevant)} not relevant`;
 }
 
 /**

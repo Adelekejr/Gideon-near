@@ -1,6 +1,7 @@
 import type { Ctx } from "../context.js";
 import { fmtDate } from "../context.js";
 import { NETWORKS } from "../networks.js";
+import { VERDICT_TEXT } from "../text.js";
 import { f, skipped, type RuleResult } from "./util.js";
 
 const DAY = 86_400_000;
@@ -63,7 +64,16 @@ export async function r11AccountAge(ctx: Ctx): Promise<RuleResult> {
       ] });
   }
 
-  return f("R11", "PASS", "CREATED_UNKNOWN", "Creation date unavailable",
-    "Gideon couldn't read when this account was created (the free indexer didn't answer or has no date). The account exists; its age isn't part of this verdict.",
+  const asked = ctx.calls.some((c) => c.source.includes(":created:") || c.source.includes(":genesis:"));
+  // No creation-date source was configured, so nothing failed. Say so, and don't invent an age.
+  if (!asked) {
+    return f("R11", "PASS", "CREATED_UNKNOWN", "Creation date unavailable",
+      "Gideon couldn't read when this account was created (no creation-date source is configured). The account exists; its age isn't part of this verdict.",
+      { evidence: [{ label: "Created", value: "date unavailable" }] });
+  }
+  // The lookup was asked and didn't produce a date (indexer down, timed out, or no date on record).
+  // That is not a new account, and it is not safe.
+  return f("R11", "ATTENTION", "CREATED_UNKNOWN", "Not checked: when this account was created",
+    VERDICT_TEXT.ageUnknown.replace(/^Not checked: when this account was created\. /, ""),
     { evidence: [{ label: "Created", value: "date unavailable" }] });
 }

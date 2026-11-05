@@ -46,7 +46,7 @@ export async function r03AccountState(ctx: Ctx): Promise<RuleResult> {
     if (c.kind === "near-named") {
       const near = await closeMatches(ctx, a);
       return f("R3", "BLOCKED", "ACCOUNT_NOT_FOUND", `This account doesn't exist on ${where}`,
-        `There is no account called ${a} on ${where}. Anything sent there will fail or be lost. This is usually a typo, or an account from a different network.`,
+        `There is no account called ${a} on ${where}. A native NEAR send to that name fails and comes back, minus the network fee. It doesn't arrive. This is usually a typo, or an account from a different network.`,
         { fix: [
             "Check the spelling letter by letter with the receiver, then paste it again.",
             ...near.map((m) => `Did you mean ${m}? It's ${(input.addressBook ?? []).some((b) => b.account === m) ? "in your address book" : "in your recent history"}.`),

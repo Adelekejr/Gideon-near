@@ -67,7 +67,7 @@ if (which === "all" || which === "attention") {
   await clip(page, "extension-warning-attention");
 }
 if (which === "all" || which === "safe") {
-  await page.goto(base + "?src=adelekejr.testnet"); // an established account (new ones get R11's ATTENTION)
+  await page.goto(base + "?src=hammed-stampdue.testnet"); // an established account (new ones get R11's ATTENTION)
   await copyFromBox(page); await pasteInto(page); await waitVerdict(page);
   await clip(page, "extension-warning-safe");
 }
@@ -94,7 +94,7 @@ if (which === "all" || which === "popup") {
   await pp.goto(`chrome-extension://${id}/popup.html`);
   await pp.evaluate(() => chrome.storage.local.set({ contacts: [{ account: "northwind-payroll.testnet", label: "Northwind payroll" }, { account: "hammed-stampdue.testnet", label: "Me" }] }));
   await pp.reload();
-  for (const [to, name] of [["northwind-payro11.testnet", "extension-popup"], ["adelekejr.testnet", "extension-popup-safe"]]) {
+  for (const [to, name] of [["northwind-payro11.testnet", "extension-popup"], ["hammed-stampdue.testnet", "extension-popup-safe"]]) {
     await pp.setViewportSize({ width: 380, height: 900 });
     await pp.fill("#to", to);
     await pp.fill("#amount", "40");

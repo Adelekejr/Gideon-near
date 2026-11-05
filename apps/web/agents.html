@@ -21,7 +21,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
  <div>
   <span class="eyebrow">Agent tool · MCP server</span>
   <h1 class="h-hero">Agents send fast. Gideon checks first.</h1>
-  <p class="lead">An AI agent that pays copies whatever address it’s given. With Gideon’s MCP server in the loop, the agent calls <code>gideon_check</code> before every send. BLOCKED means don’t send. ATTENTION means ask a human. The reason and the fix come back in plain words.</p>
+  <p class="lead">An AI agent that pays copies whatever address it’s given. Gideon’s MCP server advises before a send: BLOCKED means Gideon says don’t send, ATTENTION means ask a human. Gideon can’t stop an agent that ignores the advice. The reason and the fix come back in plain words.</p>
   <div class="actions"><a class="btn" href="#use">Plug it in <span class="ar">→</span></a><a class="btn ghost" href="index.html#check">Try the checker</a></div>
  </div>
  <div class="term" id="term">
@@ -32,8 +32,8 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 </section>
 
 <div class="facts rv">
- <div><b>1 call</b><p><code>gideon_check</code> before every transfer, over MCP (stdio), the CLI or <code>check()</code> from <code>@gideon/core</code>.</p></div>
- <div><b>3 answers</b><p>SAFE → send · ATTENTION → ask a human · BLOCKED → do not send. Every result carries an <code>agent_action</code> and a sha256 receipt.</p></div>
+ <div><b>1 call</b><p><code>gideon_check</code> before every transfer, over MCP (stdio) or the CLI. Code samples that import <code>@gideon/core</code> are from this repo: that npm scope is already taken.</p></div>
+ <div><b>3 answers</b><p>SAFE means nothing was flagged, not proof of who owns the account. ATTENTION means ask a human. BLOCKED means Gideon says don’t send. An agent that ignores <code>agent_action</code> still can.</p></div>
  <div><b>0 keys</b><p>No custody. Gideon never sees keys and can’t move funds. If a source is down the answer is “couldn’t check”, never “safe”.</p></div>
 </div>
 
@@ -41,7 +41,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
  <ol class="how">
   <li class="rv"><h3>The agent prepares a send</h3><p>From a user request, an invoice or another agent: token, amount, recipient.</p></li>
   <li class="rv"><h3>It asks Gideon</h3><p>Format and network, cross-chain hash lookups, account state and age, token contract, Intents deposit status, exchange rules and poisoned lookalikes.</p></li>
-  <li class="rv"><h3>It sends, or it asks</h3><p>On BLOCKED the agent stops and asks for exactly what’s missing. On ATTENTION it asks a human. Only SAFE goes straight through.</p></li>
+  <li class="rv"><h3>It advises</h3><p>Gideon returns the verdict, the reason and a receipt. This page’s demo follows that advice. Gideon can’t stop an agent that sends anyway, and SAFE is not a pass to skip a human when <code>from</code> wasn’t passed.</p></li>
  </ol>
 </section>
 
@@ -59,18 +59,17 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 }
 <span class="c"># Claude Desktop: claude_desktop_config.json</span>
 <span class="c"># Cursor: .cursor/mcp.json or ~/.cursor/mcp.json</span></div></div>
-  <div class="panel rv"><div class="hd"><span class="lbl">gideon_check result (trimmed)</span><span class="chip block">Blocked</span></div><div class="code" id="sample" style="border:0;border-radius:0">{
+  <div class="panel rv"><div class="hd"><span class="lbl">gideon_check result (example)</span><span class="chip block">Blocked</span></div><div class="code" id="sample" style="border:0;border-radius:0">{
   <span class="s">"verdict"</span>: <span class="k">"BLOCKED"</span>,
   <span class="s">"agent_action"</span>: <span class="k">"DO_NOT_SEND"</span>,
-  <span class="s">"headline"</span>: <span class="s">"This is a Tron transaction hash,
-               not an account. …"</span>,
-  <span class="s">"fix"</span>: [<span class="s">"Don't send. Nothing has left
-           your wallet."</span>, …],
+  <span class="s">"headline"</span>: <span class="s">"This is a Tron transaction hash, not an account."</span>,
+  <span class="s">"fix"</span>: [<span class="s">"Don't send. Nothing has left your wallet."</span>],
   <span class="s">"couldnt_check"</span>: [],
-  <span class="s">"receipt"</span>: { <span class="s">"sha256"</span>: <span class="s">"…"</span> }
-}</div></div>
+  <span class="s">"receipt"</span>: { <span class="s">"sha256"</span>: <span class="s">"0000000000000000000000000000000000000000000000000000000000000000"</span> }
+}
+<span class="c"># sha256 above is a fake placeholder, not a real receipt</span></div></div>
  </div>
- <div class="panel rv" style="margin-top:24px"><div class="hd"><span class="lbl">Try it without an AI key</span><span class="lbl">exit 2 = stopped on BLOCKED</span></div><div class="code" style="border:0;border-radius:0"><span class="c"># a scripted payments agent that asks Gideon over MCP before each payout</span>
+ <div class="panel rv" style="margin-top:24px"><div class="hd"><span class="lbl">Try it without an AI key</span><span class="lbl">exit 2 = the demo chose to stop</span></div><div class="code" style="border:0;border-radius:0"><span class="c"># a scripted payments agent that asks Gideon over MCP before each payout</span>
 npm run demo:agent              <span class="c"># live testnet lookups (free public APIs)</span>
 npm run demo:agent -- --offline <span class="c"># recorded answers, no network</span>
 <span class="c"># it never signs: "sent" means "would send"</span></div></div>
@@ -78,6 +77,8 @@ npm run demo:agent -- --offline <span class="c"># recorded answers, no network</
   <tr><td><code>gideon_check(recipient, network?, amount?, token?, token_contract?, destination?, exchange?, sender?, address_book?)</code></td><td>Runs every Gideon rule. Returns verdict, <code>agent_action</code> (SEND / ASK_HUMAN / DO_NOT_SEND), reasons, fix steps, what couldn’t be checked, and a sha256 receipt (ed25519-signed if you set a key).</td></tr>
   <tr><td><code>gideon_explain(result | same fields as check)</code></td><td>Plain-words explanation. Built-in text by default; a NEAR AI model rephrases it only if <code>NEARAI_API_KEY</code> is set. It never changes the verdict, and it refuses a result whose receipt doesn’t match.</td></tr>
   <tr><td><code>gideon_flags(account, network?, registry?)</code></td><td>Community reports from the flag registry contract. With no registry set it says COULD_NOT_CHECK, never “no flags”.</td></tr>
+  <tr><td><code>gideon_check_transaction(request, or signer, receiver, actions)</code></td><td>Before an agent approves a sign link or a transaction someone else built. Same verdicts. <code>DO_NOT_SEND</code> means don’t sign. Gideon still can’t stop an agent that signs anyway.</td></tr>
+  <tr><td><code>gideon_account_health(account, network?)</code></td><td>Who can act for an account: its keys, risky ones, and unsigned removal links for a human to sign. The agent never removes a key itself.</td></tr>
  </table>
 </section>
 </main>

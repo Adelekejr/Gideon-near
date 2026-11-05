@@ -12,7 +12,7 @@ An MCP server (stdio, official TypeScript MCP SDK v2) that lets an AI agent chec
 
 | verdict | agent_action | the agent must |
 | --- | --- | --- |
-| SAFE | `SEND` | send exactly what was checked |
+| SAFE | `SEND` when `from` was passed, otherwise `ASK_HUMAN` | SAFE is not proof of who controls the account. Pass `from` so the first-send check runs. Without it, ask a human. |
 | ATTENTION | `ASK_HUMAN` | not send on its own; ask a human |
 | BLOCKED | `DO_NOT_SEND` | not send; report the reason and fix |
 

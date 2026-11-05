@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { check } from "../src/engine.js";
+import { notCheckedLines, VERDICT_TEXT } from "../src/text.js";
 import { acct, empty, find, NOW, run } from "./helpers.js";
 
 const me = "me.testnet";
@@ -35,10 +36,11 @@ describe("R13 first send", () => {
     expect(find(await run({ to: "bob.testnet", from: me }, empty({ sentCount: async () => 0 })), "R13")[0].status).toBe("SKIPPED");
     expect(find(await run({ to: "bob.testnet", from: "me.near" }, live({ sentCount: async () => 0 })), "R13")[0].status).toBe("SKIPPED");
   });
-  it("count lookup fails → left out, verdict unchanged", async () => {
+  it("count lookup fails → Not checked, verdict LOOK AGAIN, never SAFE", async () => {
     const r = await run({ to: "bob.testnet", from: me }, live({ sentCount: async () => { throw new Error("NearBlocks rate limit reached"); } }));
-    expect(find(r, "R13")[0].status).toBe("SKIPPED");
-    expect(r.verdict).toBe("SAFE");
+    expect(find(r, "R13")[0]).toMatchObject({ status: "ATTENTION", code: "FIRST_SEND_UNKNOWN" });
+    expect(r.verdict).toBe("ATTENTION");
+    expect(notCheckedLines(r)).toContain(VERDICT_TEXT.firstSendUnknown);
     expect(r.sources.find((c) => c.source.includes("sent:"))).toMatchObject({ ok: false, optional: true });
   });
   it("a source without sentCount → left out", async () => {
@@ -49,15 +51,16 @@ describe("R13 first send", () => {
     const r = await run({ to: "bob.testnet", from: me, asset: { symbol: "USDC", contract: "usdc.fakes.testnet" } }, live({ sentCount: async () => 0, ftMetadata: async () => ({ symbol: "USDC", decimals: 6, name: "USDC" }) as never, storageRegistered: async () => true }));
     expect(find(r, "R13")[0].detail).toContain("token contract");
   });
-  it("hung history lookups hit their own limit and never hold the verdict", async () => {
+  it("hung history lookups hit their own limit and come back LOOK AGAIN, not SAFE", async () => {
     const hang = () => new Promise<never>(() => {});
     const t0 = Date.now();
     const r = await check({ to: "bob.testnet", network: "testnet", from: me }, live({ recentTransfers: hang, sentCount: hang }),
       { now: NOW, deadlineMs: 2000, sourceTimeoutMs: 1500, historyTimeoutMs: 80 });
     expect(Date.now() - t0).toBeLessThan(1000);
-    expect(r.verdict).toBe("SAFE");
-    expect(find(r, "R7")[0].code).toBe("HISTORY_UNAVAILABLE");
-    expect(find(r, "R13")[0].status).toBe("SKIPPED");
+    expect(r.verdict).toBe("ATTENTION");
+    expect(find(r, "R7")[0]).toMatchObject({ status: "ATTENTION", code: "HISTORY_UNAVAILABLE" });
+    expect(find(r, "R13")[0]).toMatchObject({ status: "ATTENTION", code: "FIRST_SEND_UNKNOWN" });
+    expect(notCheckedLines(r)).toEqual(expect.arrayContaining([VERDICT_TEXT.historyUnknown, VERDICT_TEXT.firstSendUnknown]));
     expect(r.findings.some((x) => x.status === "COULD_NOT_CHECK")).toBe(false);
   });
 });

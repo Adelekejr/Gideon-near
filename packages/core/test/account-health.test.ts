@@ -174,6 +174,8 @@ describe("account health: dates and failures", () => {
     expect(r.keys[0]!.addedAt).toBe(new Date(NOW - 30 * DAY).toISOString());
     const u = await run(src({ keys: [FA(1, "200000000000003")], over: { keyRecords: async () => { throw new Error("down"); }, blockTimeMs: async () => { throw new Error("down"); } } }));
     expect(u.keys[0]).toMatchObject({ addedAt: null, addedFrom: null });
+    expect(u.status).not.toBe("clean");
+    expect(u.notes).toContain(HEALTH_TEXT.noKeyRecords);
     expect(HEALTH_TEXT.unknownFull(null)).toBe("Full control key you may not know. Added: unknown. Whoever holds it can move all your funds.");
   });
 
@@ -184,9 +186,10 @@ describe("account health: dates and failures", () => {
     await expect(run(src({ keys: [] }), "hello world!")).rejects.toThrow(/isn't a NEAR account/);
   });
 
-  it("history down: still answers, with a note", async () => {
+  it("history down: still answers, but not green CLEAN", async () => {
     const r = await run(src({ keys: [FA(1)], over: { signedTxs: async () => { throw new Error("down"); } } }));
-    expect(r.status).toBe("clean");
+    expect(r.status).toBe("attention");
+    expect(r.summary).toBe(HEALTH_TEXT.lookupGap);
     expect(r.notes).toContain(HEALTH_TEXT.noHistory);
   });
 
