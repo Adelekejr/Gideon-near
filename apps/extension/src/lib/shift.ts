@@ -1,24 +1,37 @@
-/** Colour shifts, shared with the website. AUTO follows this device's clock: Day Shift from 06:00, Night Watch from 18:30. Plan and Signal are manual picks. */
-export type Shift = "auto" | "day" | "night" | "plan" | "signal";
-export type Theme = Exclude<Shift, "auto">;
-export const SHIFTS: [Shift, string][] = [["auto", "AUTO"], ["day", "DAY"], ["night", "NIGHT"], ["plan", "PLAN"], ["signal", "SIGNAL"]];
-export const SHIFT_NAMES: Record<Theme, string> = { day: "Day Shift", night: "Night Watch", plan: "Blueprint", signal: "Signal Box" };
+/** Light, dark, or the system setting. Replaces the old four colour shifts.
+ *  A saved Day/Night/Plan/Signal choice is read once and stored as light or dark. */
+export type Mode = "light" | "dark" | "system";
+export type Theme = "light" | "dark";
+export const MODES: [Mode, string][] = [["light", "Light"], ["dark", "Dark"], ["system", "Auto"]];
 
-export function autoTheme(d = new Date()): "day" | "night" {
-  const m = d.getHours() * 60 + d.getMinutes();
-  return m >= 18 * 60 + 30 || m < 6 * 60 ? "night" : "day";
+export function systemTheme(): Theme {
+  try { return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; } catch { return "light"; }
 }
-export function asShift(v: unknown): Shift {
-  return v === "day" || v === "night" || v === "plan" || v === "signal" ? v : "auto";
+export function asMode(v: unknown): Mode {
+  return v === "light" || v === "dark" || v === "system" ? v : "system";
 }
-export function themeOf(s: Shift, d = new Date()): Theme {
-  return s === "auto" ? autoTheme(d) : s;
+/** Map a pre-Gate-G shift value onto the two themes. */
+export function fromLegacyShift(v: unknown): Mode {
+  if (v === "night" || v === "plan") return "dark";
+  if (v === "day" || v === "signal") return "light";
+  return "system";
+}
+export function themeOf(m: Mode): Theme {
+  return m === "system" ? systemTheme() : m;
 }
 
 /** Stored on its own key so the settings object stays unchanged. */
-export async function loadShift(): Promise<Shift> {
-  try { return asShift((await chrome.storage.local.get("shift")).shift); } catch { return "auto"; }
+export async function loadTheme(): Promise<Mode> {
+  try {
+    const got = await chrome.storage.local.get(["theme", "shift"]);
+    if (got.theme === "light" || got.theme === "dark" || got.theme === "system") return got.theme;
+    const migrated = fromLegacyShift(got.shift);
+    await chrome.storage.local.set({ theme: migrated });
+    if (got.shift != null) await chrome.storage.local.remove("shift");
+    return migrated;
+  } catch { return "system"; }
 }
-export async function saveShift(s: Shift): Promise<void> {
-  await chrome.storage.local.set({ shift: s });
+export async function saveTheme(m: Mode): Promise<void> {
+  await chrome.storage.local.set({ theme: m });
+  try { await chrome.storage.local.remove("shift"); } catch { /* fine */ }
 }

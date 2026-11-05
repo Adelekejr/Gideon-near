@@ -37,7 +37,7 @@ if (!input.to.trim() && !q.get("example")) {
     const merged = await runDrainer(r, replay).catch(() => r);
     await render(merged, { prev: r });
   }, (e) => {
-    out.innerHTML = `<section class="verdict warn" style="margin-top:32px"><div class="l"><div class="tagline"><span class="chip warn big">COULDN’T CHECK</span></div><h1 class="vh">Gideon couldn’t finish this check.</h1><p class="why">${esc(e?.message ?? e)}</p><p class="why">That is not a “safe”. Don’t send until a check completes.</p></div><div class="vstage">${stopper("idle")}<span class="cap">GIDEON · <b>NOT VERIFIED</b></span></div></section>`;
+    out.innerHTML = `<section class="verdict warn" style="margin-top:32px"><div class="l"><div class="tagline"><span class="chip warn big">COULDN’T CHECK</span></div><h1 class="vh">Gideon couldn’t finish this check.</h1><p class="why">${esc(e?.message ?? e)}</p><p class="why">That is not a “safe”. Don’t send until a check completes.</p></div><div class="vstage">${stopper("idle", "cnc")}<span class="cap">Gideon · <b>NOT VERIFIED</b></span></div></section>`;
     void playVerdict(out.querySelector(".vstage .gs"), "warn");
   });
 }
@@ -96,7 +96,7 @@ ${caseInfo ? `<p class="notice" style="margin-top:28px">Example: ${esc(caseInfo.
  <div class="tagline"><span class="chip big ${v}">${chip}</span><span class="lbl">${h ? esc(h.code) : "ALL CLEAR"}</span></div>
  <h1 class="vh">${esc(title)}</h1>
  <div class="meta"><span>NEAR ${esc(r.input.network)}</span><span>${r.ms} ms</span><span>${r.sources.length} lookups${failed.length ? ` · ${failed.length} failed` : ""}</span><span>${vsum.length} rules ran</span><span>${esc(r.engine)}</span></div></div>
- <div class="vstage">${stopper(changed ? "idle" : v)}<span class="cap">GIDEON · <b>${tag}</b></span></div></section>
+ <div class="vstage">${stopper(changed ? "idle" : v, cnc ? "cnc" : "")}<span class="cap">Gideon · <b>${tag}</b></span></div></section>
 <div class="rgrid"><div>
  <div class="panel rv"><div class="hd"><span class="lbl">01 / What you pasted</span><span class="lbl">${esc(r.classification.label)}</span></div><div class="bd">${addrBlock}${anno}</div></div>
  <div class="panel rv"><div class="hd"><span class="lbl">02 / ${v === "safe" ? "What Gideon found" : v === "block" ? "Why it’s stopped" : "Why to look again"}</span></div><div class="bd"><p class="why">${esc(why)}</p>${acct}${senders}${notes}${h ? evidenceHTML(h) : ""}
@@ -110,7 +110,7 @@ ${caseInfo ? `<p class="notice" style="margin-top:28px">Example: ${esc(caseInfo.
   <details class="more"><summary>Details for every rule</summary>${r.findings.map((f) => `<p class="small" style="margin-top:10px"><b class="mono">${esc(f.rule)} ${esc(f.code)}</b> · ${esc(f.detail)}</p>${evidenceHTML(f)}`).join("")}</details></div></div>
 </div><div>
  <div class="slipwrap rv" style="padding-top:8px"><div class="slip" id="slip"><span class="stamp">${replay ? "Recorded" : "Live"}</span>
-  <h4>${LOGO}GIDEON</h4><div class="sub">Pre-send receipt · NEAR ${esc(r.input.network)}</div><hr>
+  <h4>${LOGO}Gideon</h4><div class="sub">Pre-send receipt · NEAR ${esc(r.input.network)}</div><hr>
   <div class="kv"><span>to</span><span>${esc(r.input.to.length > 44 ? r.input.to.slice(0, 20) + "…" + r.input.to.slice(-12) : r.input.to)}</span><span>token</span><span>${esc(r.input.amount ? r.input.amount + " " : "")}${esc(asset.symbol)}</span><span>checked</span><span>${esc(r.checkedAt.replace("T", " ").slice(0, 19))} UTC</span><span>rules</span><span>${shown.length} ran · ${r.sources.length} lookups</span></div><hr>
   <div class="vd"><span>VERDICT</span><span class="chip ${v}">${chip}</span></div><hr>
   <div class="hash">sha256 ${esc(r.receipt.sha256)}<br>${r.receipt.signature ? "ed25519 signed" : "unsigned (signing needs a server key; the CLI can sign)"}</div>
@@ -120,7 +120,7 @@ ${caseInfo ? `<p class="notice" style="margin-top:28px">Example: ${esc(caseInfo.
   ${failed.length ? `<p class="small" style="margin-top:10px">A failed source never counts as safe. Those rules show “couldn’t check”.</p>` : ""}</div></div>
  <div class="panel rv" style="background:transparent;border-style:dashed"><div class="bd"><span class="label">Try another real case</span><div class="cases">${CASES.map((c) => `<a class="try" href="check.html?example=${esc(c.id)}">${esc(c.id)}</a>`).join("")}</div></div></div>
 </div></div>
-${footer(`GIDEON · ${esc(r.engine)} · NEAR ${esc(r.input.network)}`)}`;
+${footer(`Gideon · ${esc(r.engine)} · NEAR ${esc(r.input.network)}`)}`;
   tearSlip(document.getElementById("slip")!, r.receipt.sha256);
   if (o.prev) out.querySelectorAll<HTMLElement>(".rv").forEach((el) => { el.dataset.rv = "1"; el.classList.add("in"); });
   else reveal(out);

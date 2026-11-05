@@ -1,15 +1,17 @@
-<!doctype html><html lang="en" data-shift="auto" data-theme="day"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gideon · check, then send</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/brand/apple-touch-icon.png"><meta property="og:title" content="Gideon · check, then send"><meta property="og:description" content="Gideon checks a NEAR send before it leaves: wrong network, wrong token, a pasted hash, a lookalike or an account that doesn't exist."><meta property="og:image" content="/brand/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#F2F0EB">
-<link rel="preload" href="/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/jbm.woff2" as="font" type="font/woff2" crossorigin>
+<!doctype html><html lang="en" data-mode="system" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gideon · check, then send</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32"><link rel="icon" href="/favicon-16.png" type="image/png" sizes="16x16"><link rel="apple-touch-icon" href="/brand/apple-touch-icon.png"><meta property="og:title" content="Gideon · check, then send"><meta property="og:description" content="Gideon checks a NEAR send before it leaves: wrong network, wrong token, a pasted hash, a lookalike or an account that doesn't exist."><meta property="og:image" content="/brand/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="631"><meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#F5F3EE">
+<link rel="preload" href="/fonts/Bricolage.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/Newsreader.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/JetBrainsMono.woff2" as="font" type="font/woff2" crossorigin>
 <script>
-/* Runs before first paint: apply the saved shift so there is no flash. AUTO = Day from 06:00, Night Watch from 18:30 (device clock). */
-(function(){var BG={day:"#F2F0EB",night:"#0C0B09",plan:"#10283F",signal:"#FFFFFF"},s="auto";
-try{s=localStorage.getItem("gideon:shift")||"auto"}catch(e){}
-if(!/^(day|night|plan|signal|auto)$/.test(s))s="auto";
-var d=new Date(),m=d.getHours()*60+d.getMinutes(),t=s==="auto"?((m>=1110||m<360)?"night":"day"):s,r=document.documentElement;
-r.setAttribute("data-shift",s);r.setAttribute("data-theme",t);
+/* Applies the saved theme before first paint. Auto follows this device's light or dark setting. */
+(function(){var BG={light:"#F5F3EE",dark:"#0E0E0C"},m="",s="";
+try{m=localStorage.getItem("gideon:theme")||"";s=localStorage.getItem("gideon:shift")||""}catch(e){}
+if(m!=="light"&&m!=="dark"&&m!=="system"){m=s==="night"||s==="plan"?"dark":s==="day"||s==="signal"?"light":"system"}
+var dark=m==="dark"||(m==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);
+var t=dark?"dark":"light",r=document.documentElement;
+r.setAttribute("data-mode",m);r.setAttribute("data-theme",t);
 var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute("content",BG[t]);})();
 </script>
 </head><body>

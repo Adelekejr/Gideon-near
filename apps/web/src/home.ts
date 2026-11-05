@@ -91,7 +91,7 @@ async function runStage(id: string) {
 }
 runBtns.forEach((b) => b.addEventListener("click", () => void runStage(b.dataset.case!)));
 stage.innerHTML = stopper("idle");
-hlog.innerHTML = `<span class="mute">Pick a send below. Gideon checks it for real and the arrow shows the verdict.</span>`;
+  hlog.innerHTML = `<span class="mute">Pick a send below. Gideon checks it for real and the Gate G shows the verdict.</span>`;
 if (!/nostage/.test(location.hash)) void runStage("lookalike");
 
 /* receipt slip: a real result, replayed from recorded data so it never changes */
@@ -101,7 +101,7 @@ async function slip() {
   const RN: Record<string, string> = { R1: "format", R2: "pasted hash", R3: "account", R5: "token", R7: "lookalike", R11: "account age" };
   const rows = r.findings.filter((f) => f.status !== "SKIPPED" && RN[f.rule]).slice(0, 6)
     .map((f) => `<div class="rule"><span>${RN[f.rule]}</span><span class="dots"></span><span>${f.status === "PASS" ? "ok" : f.status === "BLOCKED" ? "BLOCK" : f.status === "ATTENTION" ? "look" : "n/c"}</span></div>`).join("");
-  $("slipbody").innerHTML = `<h4>${LOGO}GIDEON</h4><div class="sub">Pre-send receipt · NEAR ${esc(r.input.network)}</div><hr>
+  $("slipbody").innerHTML = `<h4>${LOGO}Gideon</h4><div class="sub">Pre-send receipt · NEAR ${esc(r.input.network)}</div><hr>
 <div class="kv"><span>to</span><span>${esc(r.input.to)}</span><span>amount</span><span>${esc(r.input.amount ?? "")} ${esc(r.input.asset.symbol)}</span><span>engine</span><span>${esc(r.engine)}</span></div><hr>${rows}<hr>
 <div class="vd"><span>VERDICT</span><span class="chip ${verdictState(r.verdict)}">${CHIP[r.verdict] ?? r.verdict}</span></div><p style="margin-top:8px">${esc(r.headline?.title ?? "")}</p><hr>
 <div class="hash">sha256 ${esc(r.receipt.sha256)}</div><div class="bars"></div>`;

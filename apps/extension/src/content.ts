@@ -10,7 +10,7 @@ import { collectSignals, pageHint, recipientScope } from "./lib/network.js";
 import { pageAccounts } from "./lib/wallets.js";
 import { rememberAccount, rememberSend, senderHint, type SenderHint } from "./lib/sender.js";
 import { placement } from "./lib/place.js";
-import { asShift, loadShift, themeOf, type Shift } from "./lib/shift.js";
+import { asMode, loadTheme, themeOf, type Mode } from "./lib/shift.js";
 import { playAll } from "./lib/motion.js";
 import { drainerWanted, unfinishedRequest, unreadableRequest, type CheckResult, type Contact } from "@gideon/core";
 import { LIMITS } from "./lib/limits.js";
@@ -39,8 +39,11 @@ import { missingOptional } from "./lib/runcache.js";
 let settings: Settings = withDefaults({}).settings;
 let contacts: Contact[] = [];
 const watch = new ClipboardWatch();
-let shift: Shift = "auto";
-void loadShift().then((v) => (shift = v));
+let mode: Mode = "system";
+void loadTheme().then((v) => {
+  mode = v;
+  if (panel) content(panel).dataset.theme = themeOf(mode);
+});
 
 void load().then((s) => {
   settings = s.settings;
@@ -48,13 +51,19 @@ void load().then((s) => {
 });
 chrome.storage.onChanged.addListener((ch) => {
   if (ch.settings) settings = withDefaults({ settings: ch.settings.newValue }).settings;
-  if (ch.shift) shift = asShift(ch.shift.newValue);
+  if (ch.theme) {
+    mode = asMode(ch.theme.newValue);
+    if (panel) content(panel).dataset.theme = themeOf(mode);
+  }
   if (ch.contacts) contacts = withDefaults({ contacts: ch.contacts.newValue }).contacts;
 });
 
 /* ---------- the warning panel, in a shadow root so the page can't restyle it ---------- */
 
-const COLORS = { block: "#FF4D1A", warn: "#F4B400", safe: "#2DB36F", idle: "#8F8878" } as const;
+const COLORS = {
+  light: { block: "#D42A10", warn: "#E8A400", safe: "#4FB57A", idle: "#5E5A50" },
+  dark: { block: "#FF5A36", warn: "#F2B01E", safe: "#4FB57A", idle: "#8F8A7E" },
+} as const;
 
 interface Panel {
   host: HTMLElement;
@@ -78,8 +87,11 @@ function addFonts(): void {
   try {
     const s = document.createElement("style");
     s.id = "gideon-fonts";
-    s.textContent = `@font-face{font-family:'Gideon Archivo';src:url(${chrome.runtime.getURL("fonts/Archivo.woff2")}) format('woff2');font-weight:100 900;font-stretch:62% 125%}
-@font-face{font-family:'Gideon Mono';src:url(${chrome.runtime.getURL("fonts/JetBrainsMono.woff2")}) format('woff2');font-weight:100 800}`;
+    const u = (f: string) => chrome.runtime.getURL(f);
+    s.textContent = `@font-face{font-family:'Bricolage Grotesque';src:url(${u("fonts/Bricolage.woff2")}) format('woff2');font-weight:200 800;font-stretch:75% 100%;font-display:swap}
+@font-face{font-family:'Newsreader';src:url(${u("fonts/Newsreader.woff2")}) format('woff2');font-weight:200 800;font-display:swap}
+@font-face{font-family:'Newsreader';src:url(${u("fonts/Newsreader-Italic.woff2")}) format('woff2');font-weight:200 800;font-style:italic;font-display:swap}
+@font-face{font-family:'JetBrains Mono';src:url(${u("fonts/JetBrainsMono.woff2")}) format('woff2');font-weight:100 800;font-display:swap}`;
     (document.head ?? document.documentElement).appendChild(s);
   } catch {
     /* system fonts are fine */
@@ -139,17 +151,17 @@ window.addEventListener("resize", schedulePlace, { passive: true });
 window.visualViewport?.addEventListener("resize", schedulePlace, { passive: true });
 window.visualViewport?.addEventListener("scroll", schedulePlace, { passive: true });
 
-function show(field: Field | null, html: string, tone: keyof typeof COLORS, animate = true): void {
+function show(field: Field | null, html: string, tone: keyof (typeof COLORS)["light"], animate = true): void {
   const p = getPanel();
   if (p.field && p.field !== field) restoreOutline(p);
   if (field && p.field !== field) p.prevOutline = field.style.outline;
   p.field = field;
   const box = content(p);
-  box.dataset.theme = themeOf(shift);
+  box.dataset.theme = themeOf(mode);
   box.innerHTML = html;
   p.host.style.display = "block";
   if (field) {
-    field.style.outline = `2px solid ${COLORS[tone]}`;
+    field.style.outline = `2px solid ${COLORS[themeOf(mode)][tone]}`;
     field.style.outlineOffset = "1px";
   }
   place();

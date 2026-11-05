@@ -13,8 +13,8 @@ document.querySelectorAll(".logo-slot").forEach((s) => (s.outerHTML = LOGO));
 initChrome("Extension");
 
 // Inside the site the extension's font names resolve to the site's copies of the same files.
-const FONTS = `.g-root{--display:'Archivo',system-ui,sans-serif;--mono:'JB Mono',ui-monospace,Menlo,monospace}`;
-const theme = () => document.documentElement.dataset.theme || "night";
+const FONTS = `.g-root{--display:'Bricolage Grotesque',system-ui,sans-serif;--serif:'Newsreader',Georgia,serif;--mono:'JetBrains Mono',ui-monospace,Menlo,monospace}`;
+const theme = () => document.documentElement.dataset.theme || "light";
 function shadow(host: HTMLElement, css: string, cls: string): HTMLElement {
   const root = host.attachShadow({ mode: "open" });
   root.innerHTML = `<style>${css}${FONTS}.g-root{display:block}</style><div class="g-root ${cls}" data-theme="${theme()}"></div>`;
@@ -23,8 +23,8 @@ function shadow(host: HTMLElement, css: string, cls: string): HTMLElement {
 const gwRoot = shadow($("gw"), STYLE, "");
 const popCss = POPUP_STYLE.replace(/@font-face\{[^}]*\}/g, "").replace(/html[^{]*\{[^}]*\}/g, "");
 const pop = shadow($("pop"), STYLE + popCss + ".pp{width:100%;max-width:380px;border:1px solid var(--line);border-radius:4px;box-shadow:0 30px 60px -30px rgba(0,0,0,.5)}", "pp");
-pop.innerHTML = `<header class="top"><span class="logo">${LOGO}</span><b class="word">GIDEON</b><label class="net"><span class="dot"></span><select aria-label="Network" disabled><option>testnet</option></select></label></header>
-<div class="shifts"><div class="rail" role="radiogroup" aria-label="Colour shift" id="rail"></div><span class="autonote" id="note"></span></div>
+pop.innerHTML = `<header class="top"><span class="logo">${LOGO}</span><b class="word">Gideon</b><label class="net"><span class="dot"></span><select aria-label="Network" disabled><option>testnet</option></select></label></header>
+<div class="themes"><div class="seg" role="radiogroup" aria-label="Colour theme" id="rail"></div></div>
 <section class="sec"><div class="lab">LAST CHECK ON A PAGE</div><div class="last" id="plast">Nothing checked on a page yet. Paste an address into the form and Gideon checks it there.</div></section>
 <div class="sec res" id="pres"></div>
 <section class="stats"><div><b id="sc">0</b><span>CHECKED</span></div><div><b id="ss" class="v">0</b><span>STOPPED</span></div><div><b id="sv">0</b><span>SAVED</span></div></section>
@@ -35,25 +35,22 @@ pop.innerHTML = `<header class="top"><span class="logo">${LOGO}</span><b class="
 <footer class="foot"><span class="built">Built on <img class="near on-dark" src="/brand/near-logo-white.svg" alt="NEAR"><img class="near on-light" src="/brand/near-logo-black.svg" alt="NEAR"></span><span>read-only · no keys · 0.3.0</span></footer>`;
 const q = <T extends HTMLElement>(id: string) => pop.querySelector("#" + id) as T;
 
-// Popup shift picker: the same five choices as the real popup, wired to this site's shift.
-const SH: [string, string][] = [["auto", "AUTO"], ["day", "DAY"], ["night", "NIGHT"], ["plan", "PLAN"], ["signal", "SIGNAL"]];
-const NAMES: Record<string, string> = { day: "Day Shift", night: "Night Watch", plan: "Blueprint", signal: "Signal Box" };
+// Popup theme control: the same Light / Dark / Auto choice as the real popup, wired to this site.
+const MODES: [string, string][] = [["light", "Light"], ["dark", "Dark"], ["system", "Auto"]];
 const rail = q("rail");
-rail.innerHTML = SH.map(([s, t]) => `<button type="button" role="radio" data-s="${s}" aria-checked="false">${t}</button>`).join("");
-function syncShift() {
-  const t = theme(), s = document.documentElement.dataset.shift || "auto";
+rail.innerHTML = MODES.map(([s, t]) => `<button type="button" role="radio" data-m="${s}" aria-checked="false">${t}</button>`).join("");
+function syncTheme() {
+  const t = theme(), m = document.documentElement.dataset.mode || "system";
   gwRoot.dataset.theme = pop.dataset.theme = t;
-  rail.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.s === s)));
-  q("note").textContent = s === "auto" ? `Auto → ${NAMES[t]}\n${t === "night" ? "day from 06:00" : "night from 18:30"}` : "manual";
-  q("note").style.whiteSpace = "pre";
+  rail.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.m === m)));
 }
 rail.addEventListener("click", (e) => {
-  const s = (e.target as HTMLElement).closest("button")?.dataset.s;
-  const g = (window as unknown as { __gideon?: { setShift(s: string): void } }).__gideon;
-  if (s && g) g.setShift(s);
+  const m = (e.target as HTMLElement).closest("button")?.dataset.m;
+  const g = (window as unknown as { __gideon?: { setTheme(m: "light" | "dark" | "system"): void } }).__gideon;
+  if ((m === "light" || m === "dark" || m === "system") && g) g.setTheme(m);
 });
-new MutationObserver(syncShift).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-shift"] });
-syncShift();
+new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-mode"] });
+syncTheme();
 
 const addr = $<HTMLInputElement>("addr"), wd = $<HTMLButtonElement>("wd"), inbox = $("inbox"), ext = $("ext");
 q("sv").textContent = String(getContacts().length);

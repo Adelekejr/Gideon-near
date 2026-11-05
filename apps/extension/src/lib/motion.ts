@@ -1,9 +1,9 @@
-/** The Arrow G plays a real verdict (same motion as the website).
- *  BLOCKED: the arrow hits the wall and bounces (1.0s). ATTENTION: it stops at an amber wall and waits, no pass (0.9s).
- *  SAFE: the wall drops open and the arrow passes through (1.1s). Reduced motion: the final pose only. */
+/** The Gate G plays a real verdict (same motion as the website).
+ *  BLOCKED: the bar slams shut in red (1.0s). ATTENTION: it lifts to 45° in amber and blinks (0.9s).
+ *  Couldn't check (class cnc): the same lift, then the fill empties to an amber outline. Never green.
+ *  SAFE: the bar rises to 90° in green (1.1s). No tick. Reduced motion: the final pose only. */
 export type StopState = "block" | "safe" | "warn" | "idle";
-const STOP = "cubic-bezier(.5,0,.9,.55)", OUT = "cubic-bezier(.2,.7,.3,1)", IO = "cubic-bezier(.4,0,.2,1)";
-const BLOCKED = "#FF4D1A", ATTENTION = "#F4B400", SAFE = "#2DB36F";
+const STOP = "cubic-bezier(.5,0,.9,.55)", OUT = "cubic-bezier(.2,.7,.3,1)", SETTLE = "cubic-bezier(.2,.8,.2,1)";
 
 export function reducedMotion(): boolean {
   try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; }
@@ -15,48 +15,50 @@ export function playVerdict(svg: Element | null | undefined): Promise<void> {
   const state = (["block", "warn", "safe"] as const).find((s) => el.classList.contains(s));
   const done = () => { el.dataset.played = state ?? "idle"; };
   if (!state || reducedMotion() || typeof el.animate !== "function") { done(); return Promise.resolve(); }
-  const arw = el.querySelector(".gs-arw") as SVGElement, wall = el.querySelector(".gs-wall") as SVGElement, hit = el.querySelector(".gs-hit") as SVGElement;
-  const mute = getComputedStyle(el).getPropertyValue("--mute").trim() || "#8F8878";
+  const bar = el.querySelector(".gs-bar") as SVGElement | null;
+  const outline = el.querySelector(".gs-out") as SVGElement | null;
+  if (!bar) { done(); return Promise.resolve(); }
+  const cs = getComputedStyle(el);
+  const red = cs.getPropertyValue("--b").trim() || "#D42A10";
+  const amber = cs.getPropertyValue("--a").trim() || "#E8A400";
+  const green = cs.getPropertyValue("--s").trim() || "#4FB57A";
+  const cnc = el.classList.contains("cnc");
+  // A new card starts from shut. fill:both applies the first keyframe before the first paint of the animation.
+  const from = 0;
   let a: Animation;
   if (state === "block") {
-    a = arw.animate([
-      { transform: "translateX(0px)" },
-      { transform: "translateX(-16px)", offset: .25, easing: STOP },
-      { transform: "translateX(6px)", offset: .55, easing: OUT },
-      { transform: "translateX(-6px)", offset: .74, easing: IO },
-      { transform: "translateX(-4px)" },
-    ], { duration: 1000 });
-    wall.animate([{ transform: "translateX(0)", fill: mute }, { transform: "translateX(0)", fill: mute, offset: .54 }, { transform: "translateX(1.8px)", fill: BLOCKED, offset: .58 }, { transform: "translateX(-.7px)", offset: .7 }, { transform: "translateX(0)", fill: BLOCKED }], { duration: 1000 });
-    hit.animate([{ opacity: 0 }, { opacity: 0, offset: .55 }, { opacity: 1, offset: .6 }, { opacity: 1 }], { duration: 1000 });
+    bar.style.fill = red;
+    a = bar.animate([
+      { transform: `rotate(${from}deg)`, offset: 0, easing: STOP },
+      { transform: "rotate(0deg)", offset: .6 },
+      { transform: "rotate(3deg)", offset: .75, easing: SETTLE },
+      { transform: "rotate(0deg)", offset: 1 },
+    ], { duration: 1000, fill: "both" });
   } else if (state === "warn") {
-    a = arw.animate([
-      { transform: "translateX(0px)" },
-      { transform: "translateX(-14px)", offset: .28, easing: STOP },
-      { transform: "translateX(5px)", offset: .6, easing: OUT },
-      { transform: "translateX(3px)", offset: .78, easing: IO },
-      { transform: "translateX(4px)" },
-    ], { duration: 900 });
-    wall.animate([{ fill: mute, opacity: 1 }, { fill: ATTENTION, opacity: 1, offset: .58 }, { opacity: .45, offset: .74 }, { opacity: 1, offset: .86 }, { opacity: .55, offset: .94 }, { fill: ATTENTION, opacity: 1 }], { duration: 900 });
+    bar.style.fill = amber;
+    a = bar.animate([
+      { transform: `rotate(${from}deg)`, offset: 0, easing: OUT },
+      { transform: "rotate(50deg)", offset: .42 },
+      { transform: "rotate(45deg)", offset: .5 },
+      { transform: "rotate(45deg)", offset: 1 },
+    ], { duration: 900, fill: "both" });
+    if (cnc && outline) {
+      bar.animate([{ opacity: 1, offset: 0 }, { opacity: 1, offset: .55 }, { opacity: .35, offset: .7 }, { opacity: 0, offset: .9 }, { opacity: 0, offset: 1 }], { duration: 900, fill: "both" });
+      outline.animate([{ opacity: 0, offset: 0 }, { opacity: 0, offset: .7 }, { opacity: 1, offset: .9 }, { opacity: 1, offset: 1 }], { duration: 900, fill: "both" });
+    } else {
+      bar.animate([{ opacity: 1, offset: .5 }, { opacity: .35, offset: .72 }, { opacity: 1, offset: 1 }], { duration: 900, fill: "both" });
+    }
   } else {
-    wall.animate([
-      { transform: "translateY(0)", opacity: 1, fill: mute },
-      { transform: "translateY(0)", opacity: 1, fill: SAFE, offset: .12, easing: STOP },
-      { transform: "translateY(30px)", opacity: 0, fill: SAFE, offset: .34 },
-      { transform: "translateY(30px)", opacity: 0, fill: SAFE },
-    ], { duration: 1100 });
-    a = arw.animate([
-      { transform: "translateX(0px)", opacity: 1 },
-      { transform: "translateX(0px)", opacity: 1, offset: .2, easing: STOP },
-      { transform: "translateX(70px)", opacity: 0, offset: .52 },
-      { transform: "translateX(-30px)", opacity: 0, offset: .53, easing: OUT },
-      { transform: "translateX(2px)", opacity: 1, offset: .86, easing: IO },
-      { transform: "translateX(0px)", opacity: 1 },
-    ], { duration: 1100 });
+    bar.style.fill = green;
+    a = bar.animate([
+      { transform: `rotate(${from}deg)`, offset: 0, easing: SETTLE },
+      { transform: "rotate(90deg)", offset: 1 },
+    ], { duration: 1100, fill: "both" });
   }
   return new Promise((res) => { a.onfinish = () => { done(); res(); }; a.oncancel = () => { done(); res(); }; });
 }
 
-/** Play every Arrow G that has a verdict pose and hasn't played yet. */
+/** Play every Gate G that has a verdict pose and hasn't played yet. */
 export function playAll(root: ParentNode): void {
   root.querySelectorAll(".gs.block:not([data-played]),.gs.warn:not([data-played]),.gs.safe:not([data-played])").forEach((s) => void playVerdict(s));
 }
