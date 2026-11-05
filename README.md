@@ -67,7 +67,7 @@ The same rules run in the browser, the extension, the CLI and the MCP server. Th
 
 ## Honest limits
 
-No problems found means these checks passed on live data. It is not proof of who controls the account. A lookup that fails is look again, never a pass. The plain-language guide, including unusual amount, collector and known-exchange wallets, swap minimums, and the send/receive preview, is on [Docs](https://gideon-near.vercel.app/docs).
+No problems found means these checks passed on live data. It is not proof of who controls the account. A lookup that fails is look again, never a pass. A deposit on the wrong chain, for the wrong token, or past its deadline is blocked. A daily spend cap, instruction-like text in a memo, and a saved contact whose address changed are look again. Account health says what each key can do before you remove it. The plain-language guide is on [Docs](https://gideon-near.vercel.app/docs).
 
 ## More
 

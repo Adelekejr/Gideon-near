@@ -28,7 +28,11 @@ for (const [i, p] of queue.entries()) {
   if (halted) { console.log(c(2, `${n} ${p.memo}: not attempted (run stopped)`)); continue; }
   console.log(`${n} ${p.memo}: ${p.amount} NEAR → ${p.recipient}`);
   console.log(c(2, `    → gideon_check`));
-  const r = await client.callTool({ name: "gideon_check", arguments: { network: "testnet", token: "NEAR", ...p, memo: undefined } });
+  const cap = process.env.GIDEON_DAILY_LIMIT;
+  const r = await client.callTool({ name: "gideon_check", arguments: {
+    network: "testnet", token: "NEAR", ...p, memo: p.memo,
+    ...(cap ? { from: "hammed-stampdue.testnet", daily_limit: cap } : {}),
+  } });
   const s = r.structuredContent;
   if (r.isError || !s) { console.log(c(31, `    tool error, treating as DO_NOT_SEND: ${r.content?.[0]?.text}`)); halted = true; continue; }
   console.log(`    ${c(color[s.verdict], c(1, s.verdict))} ${c(2, `(${s.agent_action})`)}${s.headline ? ` ${s.headline}` : ""}`);

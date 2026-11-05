@@ -1,4 +1,4 @@
-import { deleteKeyLinks, drainerFailed, drainerWanted, fmtDate, HEALTH_TEXT, notCheckedCount, notCheckedLines, STOP_LABEL, txNotCheckedLines, VERDICT_TEXT, type AccountHealthResult, type CheckResult, type Finding, type KeyReport, type TxCheckResult } from "@gideon/core";
+import { deleteKeyLinks, drainerFailed, drainerWanted, fmtDate, HEALTH_TEXT, keyScopeText, notCheckedCount, notCheckedLines, STOP_LABEL, txNotCheckedLines, VERDICT_TEXT, type AccountHealthResult, type CheckResult, type Finding, type KeyReport, type TxCheckResult } from "@gideon/core";
 
 export type Tone = "block" | "warn" | "safe" | "idle";
 
@@ -254,6 +254,7 @@ export function healthCard(r: AccountHealthResult, ui: HealthUi = {}): string {
   const row = (k: KeyReport): string => {
     const what = k.kind === "full" ? "Full control key" : `App key: ${esc(k.contract)}`;
     const when = k.addedAt ? `Added ${esc(fmtDate(Date.parse(k.addedAt)))}` : esc(HEALTH_TEXT.addedUnknown);
+    const scope = `<div class="gn">${esc(keyScopeText(k))}</div>`;
     const flags = k.flags.map((f) => `<li class="s-${f.level === "red" ? "blocked" : f.level === "tidy" ? "skipped" : "attention"}"><i>${f.level === "red" ? "✕" : f.level === "tidy" ? "·" : "!"}</i><span>${esc(f.text)}${f.why ? ` ${esc(f.why)}` : ""}</span></li>`).join("");
     let act = "";
     if (k.removable && !(k.kind === "full" && full === 1) && (k.flags.length || ui.open === k.publicKey)) {
@@ -272,7 +273,7 @@ export function healthCard(r: AccountHealthResult, ui: HealthUi = {}): string {
     } else if (k.kind === "full" && full === 1 && k.flags.length) {
       act = `<div class="gn">This is the only full control key. Removing it would lock you out.</div>`;
     }
-    return `<div class="gf"><b>key →</b> ${esc(short(k.publicKey))}<br>${what} · ${when}${k.uses != null ? ` · used ${k.uses}×` : ""}${k.probableWalletKey ? `<br>${esc(HEALTH_TEXT.walletKey)}` : ""}</div>${flags ? `<ul class="fl">${flags}</ul>` : ""}${act}`;
+    return `<div class="gf"><b>key →</b> ${esc(short(k.publicKey))}<br>${what} · ${when}${k.uses != null ? ` · used ${k.uses}×` : ""}${k.probableWalletKey ? `<br>${esc(HEALTH_TEXT.walletKey)}` : ""}</div>${scope}${flags ? `<ul class="fl">${flags}</ul>` : ""}${act}`;
   };
   const flagged = r.keys.filter((k) => k.flags.length && !k.tidy);
   const tidy = r.keys.filter((k) => k.tidy);

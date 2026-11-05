@@ -1,4 +1,4 @@
-import { exchangesFor, tokensFor, type Network } from "@gideon/core";
+import { exchangesFor, mergeContact, tokensFor, type Network } from "@gideon/core";
 import { initChrome, stopper, esc, playVerdict, verdictState, tearSlip, LOGO } from "./chrome";
 import type { CheckResult } from "@gideon/core";
 import { getNetwork, getContacts, saveContacts } from "./state";
@@ -31,6 +31,9 @@ function sync() {
   ct.disabled = false;
   $("exf").classList.toggle("hidden", destSel.value !== "exchange");
   exSel.disabled = destSel.value !== "exchange";
+  const intents = destSel.value === "intents";
+  $("chainf").classList.toggle("hidden", !intents);
+  $<HTMLInputElement>("chain").disabled = !intents;
 }
 assetSel.addEventListener("change", sync);
 destSel.addEventListener("change", sync);
@@ -53,8 +56,8 @@ $("clist").addEventListener("click", (e) => {
 $("cadd").addEventListener("click", () => {
   const account = $<HTMLInputElement>("cacc").value.trim().toLowerCase(); if (!account) return;
   const label = $<HTMLInputElement>("clab").value.trim();
-  const c = getContacts().filter((x) => x.account !== account); c.push({ account, ...(label ? { label } : {}) });
-  saveContacts(c); $<HTMLInputElement>("cacc").value = ""; $<HTMLInputElement>("clab").value = ""; renderContacts();
+  saveContacts(mergeContact(getContacts(), account, label || undefined));
+  $<HTMLInputElement>("cacc").value = ""; $<HTMLInputElement>("clab").value = ""; renderContacts();
 });
 
 /* real-world examples: each runs live */

@@ -1,6 +1,6 @@
 import type { AccessKeyEntry, AccountInfo, ChainTx, KeyRecord, Network, SourceCall, Sources } from "./types.js";
 import { classify } from "./classify.js";
-import { fmtDate, makeCtx } from "./context.js";
+import { fmtDate, makeCtx, yoctoToNear } from "./context.js";
 import { DrainerCache, drainedBy, drainerCheck } from "./drainer.js";
 import { ENGINE_VERSION } from "./engine.js";
 import { explorerAccountUrl } from "./networks.js";
@@ -57,7 +57,7 @@ export const HEALTH_TEXT = {
   lookupGap: "Some checks didn't run, so this isn't a clean result.",
   // Beyond the approved text, new in 0.3.0:
   tidyHeading: "You can tidy these up",
-  tidyNote: "Not a risk. Old or broad app keys you can remove when you like.",
+  tidyNote: "Not a risk. These keys let an app act for you. They cannot move your NEAR. Removing one signs you out of that app. You can clean them up when you like.",
   cleanTidy: (n: number) => `No warning signs found. ${n === 1 ? "1 key" : `${n} keys`} you can tidy up.`,
   riskyContractWhy: "An app key can't move your NEAR, but it can act for you in that app.",
 } as const;
@@ -105,6 +105,21 @@ export interface KeyReport {
   tidy: boolean;
   /** Ready-to-sign removal (unsigned) for every removable key except the only full-access key. */
   remove?: RemoveKeyPlan;
+}
+
+/**
+ * What this key can do, in one sentence. Same words on the website and in the extension.
+ * An app key cannot move NEAR; removing it signs you out of that app.
+ */
+export function keyScopeText(k: Pick<KeyReport, "kind" | "contract" | "methods" | "allowanceYocto">): string {
+  if (k.kind === "full") return "This key can move NEAR, tokens and NFTs, add or remove other keys, and delete the account.";
+  const methods = k.methods && k.methods.length
+    ? k.methods.slice(0, 4).join(", ") + (k.methods.length > 4 ? "…" : "")
+    : "any method";
+  const gas = k.allowanceYocto == null
+    ? "Gas fees have no cap."
+    : `Gas fees are capped at about ${yoctoToNear(k.allowanceYocto)} NEAR.`;
+  return `Can call ${methods} on ${k.contract ?? "the app"}. It cannot move your NEAR by itself. Removing it signs you out of that app. ${gas}`;
 }
 
 export interface AccountHealthResult {

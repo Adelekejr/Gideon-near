@@ -1,4 +1,4 @@
-import { accountHealth, fmtDate, HEALTH_TEXT, type AccountHealthResult, type KeyReport, type Network } from "@gideon/core";
+import { accountHealth, fmtDate, HEALTH_TEXT, keyScopeText, type AccountHealthResult, type KeyReport, type Network } from "@gideon/core";
 import { initChrome, stopper, esc, footer, playVerdict } from "./chrome";
 import { getNetwork } from "./state";
 import { sources } from "./run";
@@ -98,6 +98,7 @@ function keyRow(r: AccountHealthResult, k: KeyReport): string {
   const st = red ? ["block", "RED"] : k.tidy ? ["skip", KEYS_TEXT.tidyChip] : k.flags.length ? ["warn", "LOOK"] : ["safe", "OK"];
   const what = k.kind === "full" ? "Full control key" : `App key: ${esc(k.contract)}`;
   const when = k.addedAt ? `Added ${esc(fmtDate(Date.parse(k.addedAt)))}` : esc(HEALTH_TEXT.addedUnknown);
+  const scope = `<p class="vnote" style="margin-top:6px">${esc(keyScopeText(k))}</p>`;
   const chip = (lvl: string) => (lvl === "red" ? ["block", "RED"] : lvl === "tidy" ? ["skip", KEYS_TEXT.tidyChip] : ["warn", "LOOK"]);
   const flags = k.flags.map((f) => { const [c, t] = chip(f.level); return `<li><span class="st ${c}">${t}</span><span>${esc(f.text)}${f.why ? `<br><span class="vnote">${esc(f.why)}</span>` : ""}</span></li>`; }).join("");
   let action = "";
@@ -131,6 +132,7 @@ function keyRow(r: AccountHealthResult, k: KeyReport): string {
   if (!plan && k.kind === "full" && fullKeys === 1 && k.flags.length) action = `<p class="vnote" style="margin-top:10px">This is the only full control key. Removing it would lock you out.</p>`;
   return `<tr><td style="white-space:normal;overflow-wrap:anywhere;width:100%;font-weight:400"><span class="mono" style="word-break:break-all">${esc(k.publicKey)}</span><br><span class="small">${what} · ${when}${k.uses != null ? ` · used ${k.uses}×` : ""}</span>
     ${k.probableWalletKey ? `<p class="vnote" style="margin-top:6px">${esc(HEALTH_TEXT.walletKey)}</p>` : ""}
+    ${scope}
     ${flags ? `<ul class="fl" style="margin-top:8px">${flags}</ul>` : ""}${action}</td>
     <td><span class="st ${st[0]}">${st[1]}</span></td></tr>`;
 }

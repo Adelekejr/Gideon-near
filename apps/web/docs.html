@@ -84,6 +84,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
  <span class="sec-n">05</span>
  <h2>Account health</h2>
  <p>Type an account. Gideon lists the keys that can act for it, from public data. Red means move your funds. An app key on a new or risky contract is look again. Old unused keys are a tidy-up list, not a warning.</p>
+ <p>Each key says what it can do: the app, the methods, and whether gas fees are capped. An app key cannot move your NEAR. Removing one signs you out of that app. The tidy-up list is still not a warning.</p>
  <p>Gideon never signs a removal. You do, in your own wallet. An agent is given unsigned removal links and told to ask a person first.</p>
  <p><a class="inl" href="keys.html">Open account health</a></p>
 </section>
@@ -124,7 +125,15 @@ npm run demo:function-call-key</div>
 <section class="doc" id="checks">
  <span class="sec-n">08</span>
  <h2>Newer checks</h2>
- <p>Each of these is look again, not a block. A later check can be another short block here.</p>
+ <p>Most of these are look again, not a block. A deposit on the wrong chain, for the wrong token, or past its deadline is blocked.</p>
+ <h3>Intents or bridge deposit</h3>
+ <p>On an address this is rule R6. On a transaction it is T8. The wrong chain, the wrong token, or a quote that has expired is blocked. If Gideon cannot read the quote, or the payout chain is not in it, that is look again, not a pass. On the checker, payout chain appears when the destination is a NEAR Intents deposit.</p>
+ <h3>Daily spend cap</h3>
+ <p>Set <code>GIDEON_DAILY_LIMIT</code>, or pass <code>daily_limit</code> on <code>gideon_check</code>. The lower one wins. A send that would pass today’s NEAR total is look again, so the agent must ask a human. A missing amount, or a token Gideon cannot price in NEAR, is look again too. No cap set means this check does not apply.</p>
+ <h3>Instruction-like text</h3>
+ <p>A payee name, memo, or on-chain message that says “send all funds” or “ignore previous instructions” is look again. Gideon does not follow it. An ordinary memo such as “Rent for October” is left alone. The extension reads a visible memo in the same form on the device and does not send that text to an API.</p>
+ <h3>Saved contact changed</h3>
+ <p>If a saved name now points at a different account, or this address only partly matches someone you have paid, Gideon says look again. A close lookalike is still blocked. Agents pass earlier accounts as <code>previous</code> on the address book.</p>
  <h3>Unusual amount</h3>
  <p>If this amount is far above what you usually send from this account, Gideon says look again. It needs your sending account. If it cannot read that history, it says so and does not call the amount normal.</p>
  <h3>Collector, and known exchanges</h3>

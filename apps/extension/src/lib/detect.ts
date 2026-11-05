@@ -113,6 +113,30 @@ export function plainTrim(value: string): string {
   return value.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, "");
 }
 
+const NOTE = /\b(memo|note|message|reference|comment)\b/i;
+const PAYEE_NAME = /\b(payee|recipient|beneficiary)\s*(name|label)\b/i;
+
+/**
+ * Memo and payee name in the same form as the recipient, when they're visible.
+ * Read on the device for the instruction check. Not a recipient field, and never a secret.
+ */
+export function visibleNote(field: Field): { memo?: string; payee?: string } {
+  const root = field.form ?? field.parentElement?.parentElement ?? null;
+  if (!root) return {};
+  let memo: string | undefined;
+  let payee: string | undefined;
+  for (const el of root.querySelectorAll("input, textarea")) {
+    if (el === field || !isTextField(el) || isSecretField(el)) continue;
+    const desc = describeField(el);
+    const v = plainTrim((el as Field).value).slice(0, 280);
+    if (!v) continue;
+    if (PAYEE_NAME.test(desc)) { payee ??= v; continue; }
+    if (isRecipientField(el)) continue;
+    if (NOTE.test(desc)) memo ??= v;
+  }
+  return { ...(memo ? { memo } : {}), ...(payee ? { payee } : {}) };
+}
+
 /** Should a value in this field be checked? */
 export function shouldCheck(el: Field, value: string): boolean {
   const raw = plainTrim(value);

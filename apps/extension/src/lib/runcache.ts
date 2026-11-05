@@ -2,8 +2,8 @@ import type { CheckInput, CheckResult } from "@gideon/core";
 
 /** Cache key for one finished check: every input that can change the answer. */
 export function checkKey(input: CheckInput): string {
-  const { to, network, asset, amount, destination, exchange, from, addressBook, clipboard, deviceSends, walletNetwork } = input;
-  return JSON.stringify([network, to, asset ?? null, amount ?? null, destination ?? null, exchange ?? null, from ?? null, clipboard ?? null, addressBook ?? [], deviceSends ?? [], walletNetwork ?? null]);
+  const { to, network, asset, amount, destination, exchange, from, addressBook, clipboard, deviceSends, walletNetwork, memo, payee, bridgeChain, dailyLimit, spentToday } = input;
+  return JSON.stringify([network, to, asset ?? null, amount ?? null, destination ?? null, exchange ?? null, from ?? null, clipboard ?? null, addressBook ?? [], deviceSends ?? [], walletNetwork ?? null, memo ?? null, payee ?? null, bridgeChain ?? null, dailyLimit ?? null, spentToday ?? null]);
 }
 
 /**

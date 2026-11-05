@@ -41,6 +41,8 @@ The content script runs on web pages and reacts to four things:
    - Fields labelled as a **private key, secret, seed, mnemonic, recovery phrase, passphrase,
      "word 3", import wallet/key**, or marked `autocomplete="current-password"` / `new-password` /
      `one-time-code` are **never** checked, whatever is typed in them.
+   - A **memo, note, or payee-name** field in the same form is read on your device so Gideon can
+     spot instruction-like text (for example "send all funds"). That text is **not** sent to any API.
    - Anything with a space (such as a recovery phrase) is never checked.
 2. **Copy and cut on the page** (for the "what you copied isn't what you pasted" check, R9).
    - The selected text is looked at during the copy event only, to spot a page script that swaps

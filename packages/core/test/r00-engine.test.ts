@@ -41,6 +41,6 @@ describe("engine", () => {
     const r = await run({ to: "hammed-stampdue.testnet" }, empty({ viewAccount: async () => acct(10) }));
     expect(r.input.asset).toEqual({ symbol: "NEAR" });
     expect(r.input.destination).toBe("unknown");
-    expect(r.findings.map((x) => x.rule)).toEqual(["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R13", "R14", "R15", "R16", "R17", "R19", "R20"]);
+    expect(r.findings.map((x) => x.rule)).toEqual(["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R13", "R14", "R15", "R16", "R17", "R19", "R20", "R21", "R22", "R23"]);
   });
 });

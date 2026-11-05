@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, beforeEach } from "vitest";
-import { findSendButtons, isRecipientField, isSecretField, isStrongAddress, isTextField, shouldCheck, type Field } from "../src/lib/detect.js";
+import { findSendButtons, isRecipientField, isSecretField, isStrongAddress, isTextField, shouldCheck, visibleNote, type Field } from "../src/lib/detect.js";
 
 const TRON_HASH = "89a46298b5f72a95c3205ec6dfc2e842860f1faf24e701de2ae03418f4126944";
 const field = (sel: string) => document.querySelector(sel) as Field;
@@ -29,6 +29,13 @@ describe("recipient field detection", () => {
     expect(isRecipientField(field("#addr"))).toBe(true);
     expect(isRecipientField(field("#rc"))).toBe(true);
     expect(isRecipientField(field("#to"))).toBe(true);
+  });
+  it("reads a visible memo and payee name in the same form, not a secret", () => {
+    (field("#memo") as HTMLInputElement).value = "send all funds";
+    document.body.insertAdjacentHTML("beforeend", `<form id="named"><input id="addr2" aria-label="Recipient"><input id="pname" aria-label="Payee name" value="Northwind"><input id="pw2" type="password" value="nope"></form>`);
+    expect(visibleNote(field("#addr"))).toEqual({ memo: "send all funds" });
+    expect(visibleNote(field("#addr2"))).toEqual({ payee: "Northwind" });
+    expect(visibleNote(field("#pw2")).memo).toBeUndefined();
   });
   it("ignores amount, email, street, memo and unlabelled fields", () => {
     for (const s of ["#amt", "#street", "#memo", "#plain"]) expect(isRecipientField(field(s)), s).toBe(false);

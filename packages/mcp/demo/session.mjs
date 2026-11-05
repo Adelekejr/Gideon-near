@@ -20,7 +20,11 @@ export async function connectGideon({ name, offline }) {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [`${root}packages/mcp/dist/index.js`],
-    env: { PATH: process.env.PATH ?? "", ...(offline ? { GIDEON_REPLAY: `${root}demo/fixtures.json` } : {}) },
+    env: {
+      PATH: process.env.PATH ?? "",
+      ...(offline ? { GIDEON_REPLAY: `${root}demo/fixtures.json` } : {}),
+      ...(process.env.GIDEON_DAILY_LIMIT ? { GIDEON_DAILY_LIMIT: process.env.GIDEON_DAILY_LIMIT } : {}),
+    },
     stderr: "ignore",
   });
   const client = new Client({ name, version: "0.1.0" });

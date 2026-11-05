@@ -12,6 +12,8 @@ import { r07Lookalike } from "../rules/r07-lookalike.js";
 import { r14ReportedScam } from "../rules/r14-reported-scam.js";
 import { r15FakeLetters } from "../rules/r15-fake-letters.js";
 import { r17DisguisedName } from "../rules/r17-disguised-name.js";
+import { r23Contacts } from "../rules/r23-contacts.js";
+import { judgeDailySpend, unpricedSpend } from "../rules/r21-daily-spend.js";
 import type { RuleResult } from "../rules/util.js";
 import { TX_NOT_CHECKED, VERDICT_TEXT } from "../text.js";
 import { HEADLINE_ORDER } from "../rules/index.js";
@@ -20,6 +22,9 @@ import { parseTxRequest, type ParsedRequest } from "./input.js";
 import { amountAndCollectorFindings } from "./history-checks.js";
 import { minOutFindings } from "./min-out.js";
 import { txPreview } from "./preview.js";
+import { depositTxFindings } from "./deposit.js";
+import { txInstructionFindings } from "./instructions.js";
+import { nearSpend } from "./spend.js";
 
 /*
  * Checks a transaction request before you approve it in your wallet. Read-only: nothing is signed
@@ -34,6 +39,8 @@ import { txPreview } from "./preview.js";
  *       money goes to your own account or a contact), DeployContract (blocked), Stake (attention),
  *       and a large deposit attached to a contract call.
  *   T7  a swap or bridge whose minimum received is far below the amount going in (look again).
+ *   T8  an Intents or bridge deposit on the wrong chain, for the wrong token, or past its deadline
+ *       (blocked). A lookup that fails, or a deposit 1Click doesn't know, is look again.
  *   R19 a send much larger than this account's recent sends (look again).
  *   R20 a recipient whose public history looks like a collector, unless it is a known exchange.
  * Every account the request sends to, calls, or names as a beneficiary also gets the address
@@ -112,6 +119,12 @@ export interface TxCheckInput {
   deviceSendsByNetwork?: Partial<Record<Network, string[]>>;
   /** The site asking, when known (the extension passes the page or callback host). */
   origin?: string;
+  /** Chain the sender believes a deposit in this request pays out on (T8). */
+  bridgeChain?: string;
+  /** Daily NEAR cap for the signer (R21). Absent means this request has no cap. */
+  dailyLimit?: string;
+  /** NEAR already counted against that cap today. */
+  spentToday?: string;
   /**
    * The request was read off the wallet's screen (Meteor), not decoded: Gideon knows who it's from
    * and to, not what it does. Never green.
@@ -486,7 +499,7 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
     work.push((async () => {
       const ctx = ctxFor(a);
       const rules: [string, (c: typeof ctx) => RuleResult | Promise<RuleResult>][] = [
-        ["R14", r14ReportedScam], ["R15", r15FakeLetters], ["R17", r17DisguisedName], ["R7", r07Lookalike], ["R3", r03AccountState],
+        ["R14", r14ReportedScam], ["R15", r15FakeLetters], ["R17", r17DisguisedName], ["R23", r23Contacts], ["R7", r07Lookalike], ["R3", r03AccountState],
       ];
       const out = (await Promise.all(rules.map(async ([, run]) => {
         try {
@@ -601,6 +614,21 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
   }
 
   findings.push(...minOutFindings(network, txs));
+  findings.push(...txInstructionFindings(txs));
+  if (input.dailyLimit?.trim()) {
+    const spent = nearSpend(txs);
+    if (spent.near) {
+      findings.push(judgeDailySpend({
+        limit: input.dailyLimit,
+        ...(input.spentToday != null ? { spent: input.spentToday } : {}),
+        amount: spent.near,
+        ...(signer ? { from: signer } : {}),
+      }));
+    }
+    if (spent.unpriced) findings.push(unpricedSpend());
+  }
+  work.push(depositTxFindings(network, txs, now, (addr) => ask(() => sources.oneClickStatus(addr)), input.bridgeChain)
+    .then((more) => { findings.push(...more); }));
   // History lookups must not count as the live check that turns a request green.
   work.push(amountAndCollectorFindings(network, txs, rawSources, ask).then((more) => { findings.push(...more); }, () => {
     findings.push(f("R19", "COULD_NOT_CHECK", "AMOUNT_HISTORY_FAILED",

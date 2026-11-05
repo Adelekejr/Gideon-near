@@ -10,8 +10,10 @@ export type RuleId =
   | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12" | "R13" | "R14" | "R15" | "R16" | "R17" | "R18"
   /** R19 unusual amount. R20 collector pattern (not a block) plus the exchange-wallet list. */
   | "R19" | "R20"
-  /** Transaction checks (checkTransaction): full access, new or drainer-linked contract, whole balance, NFT control, swap/bridge minimum. */
-  | "T1" | "T2" | "T3" | "T4" | "T5" | "T6" | "T7";
+  /** R21 agent daily spend cap. R22 instruction-like memo or payee text. R23 saved contact changed, or a partial match of a recent recipient. */
+  | "R21" | "R22" | "R23"
+  /** Transaction checks (checkTransaction): full access, new or drainer-linked contract, whole balance, NFT control, swap/bridge minimum, deposit mismatch. */
+  | "T1" | "T2" | "T3" | "T4" | "T5" | "T6" | "T7" | "T8";
 
 export type Destination = "wallet" | "exchange" | "intents" | "unknown";
 
@@ -25,6 +27,11 @@ export interface Asset {
 export interface Contact {
   account: string;
   label?: string;
+  /**
+   * Accounts this label used to point at. Sending to the new account, or to one of these,
+   * is LOOK AGAIN (R23): the saved contact changed.
+   */
+  previous?: string[];
 }
 
 export interface CheckInput {
@@ -55,6 +62,22 @@ export interface CheckInput {
   walletNetwork?: Network;
   /** What the user copied, if known (R9, extension). */
   clipboard?: { copied: string };
+  /** Note or memo shown with the payee (R22). Not sent to a lookup API. */
+  memo?: string;
+  /** Display name next to the address (R22). */
+  payee?: string;
+  /**
+   * Chain the sender believes an Intents or bridge deposit pays out on, e.g. "solana" or "ethereum" (R6, T8).
+   * Compared with the quote. A mismatch is BLOCKED; a chain Gideon can't read is LOOK AGAIN.
+   */
+  bridgeChain?: string;
+  /**
+   * Daily spend cap in NEAR for the sending account (R21). Absent means this check has no cap.
+   * Over the cap, or a cap Gideon can't apply, is LOOK AGAIN. Never a pass.
+   */
+  dailyLimit?: string;
+  /** NEAR already counted against `dailyLimit` today for `from`. */
+  spentToday?: string;
 }
 
 export interface CheckOptions {

@@ -47,6 +47,8 @@ describe("settings and address book", () => {
     let c = addContact([], " Alice.Near ", "Alice");
     c = addContact(c, "alice.near", "Alice 2");
     expect(c).toEqual([{ account: "alice.near", label: "Alice 2" }]);
+    const changed = addContact([{ account: "old.testnet", label: "Payroll" }], "new.testnet", "Payroll");
+    expect(changed).toEqual([{ account: "new.testnet", label: "Payroll", previous: ["old.testnet"] }]);
     expect(removeContact(c, "alice.near")).toEqual([]);
   });
 });

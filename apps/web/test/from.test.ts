@@ -14,6 +14,13 @@ describe("website: Sending from", () => {
     expect(html).toMatch(/<label class="label" for="from">Sending from \(optional[^<]*<\/label><input class="input" id="from" name="from"/);
     expect(html).not.toMatch(/id="from"[^>]*required/);
   });
+  it("an optional payout chain reaches an Intents check", () => {
+    const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+    expect(html).toMatch(/id="chain" name="chain"/);
+    expect(html).toMatch(/id="chainf"/);
+    const { input } = run.inputFromQuery(new URLSearchParams("to=bob.testnet&chain=solana"), "testnet");
+    expect(input.bridgeChain).toBe("solana");
+  });
   it("?from= reaches the check input", () => {
     const { input } = run.inputFromQuery(new URLSearchParams("to=bob.testnet&from=me.testnet"), "testnet");
     expect(input.from).toBe("me.testnet");
