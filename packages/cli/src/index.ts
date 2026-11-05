@@ -15,7 +15,8 @@ const HELP = `gideon — check a NEAR send before you make it
     --amount <n>                human amount, e.g. 25
     --dest wallet|exchange|intents|unknown
     --exchange <id>             generic, binance, coinbase, kraken, okx
-    --from <account>            your account: first-send note + lookalikes of your past sends
+    --from <account>            your account: first-send note, lookalikes, and whether
+                                this amount is much larger than you usually send
     --book <file.json>          address book: [{"account":"x.testnet","label":"Ada"}]
     --copied <text>             what you copied (clipboard check)
     --registry <contract>       community flag registry for R10 (or GIDEON_FLAG_REGISTRY)
@@ -25,7 +26,9 @@ const HELP = `gideon — check a NEAR send before you make it
   gideon check-tx <link|base64|json|-> [options]
                                 check a transaction or sign-in BEFORE you approve it in your
                                 wallet: a MyNearWallet or Meteor sign/login link, base64
-                                transaction(s), or wallet-selector JSON ("-" reads stdin)
+                                transaction(s), or wallet-selector JSON ("-" reads stdin).
+                                Also flags a swap/bridge minimum far below the amount in,
+                                and a send much larger than the signer's recent history
     --network testnet|mainnet   when the request doesn't say
     --signer <account>          the account that would sign, if the request doesn't name it
     --mine <a,b>                your own accounts (never "unseen")
@@ -178,6 +181,8 @@ function printTx(r: TxCheckResult) {
   const col = r.verdict === "BLOCKED" ? C.r : r.verdict === "ATTENTION" ? C.y : C.g;
   console.log(`\n${C.b}${col}${txLabel(r.verdict)}${C.x}  ${C.d}(${r.network}${r.signer ? `, signer ${r.signer}` : ""}${r.origin ? `, from ${r.origin}` : ""})${C.x}`);
   if (r.headline) console.log(`${C.b}${r.headline.title}${C.x}${r.headline.detail ? `\n${r.headline.detail}` : ""}`);
+  for (const p of r.preview ?? []) console.log(p);
+  for (const n of r.findings.filter((f) => f.code === "KNOWN_EXCHANGE")) console.log(`${n.title}. ${n.detail}`);
   const [st, sb] = txSafeText(r);
   if (st) console.log(`${C.b}${st}${C.x}\n${sb}`);
   for (const [i, s] of (r.headline?.fix ?? []).entries()) console.log(`  ${i + 1}. ${s}`);

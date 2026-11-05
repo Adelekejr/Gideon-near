@@ -31,6 +31,8 @@ export interface Ctx {
   registry: string | null;
   /** The recipient account's live facts (memoized; shares the view_account call with R3/R4). */
   accountFacts(): Promise<AccountFacts | null>;
+  /** True when this build's sources implement the method. A missing method is not a failed lookup. */
+  can(method: keyof Sources): boolean;
   limits: CtxLimits;
 }
 
@@ -53,6 +55,9 @@ export function makeCtx(input: Ctx["input"], c: Classification, sources: Sources
     now,
     registry,
     limits,
+    can(method) {
+      return typeof sources[method] === "function";
+    },
     accountFacts() {
       return (facts ??= readFacts(ctx, sources));
     },

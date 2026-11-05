@@ -152,6 +152,7 @@ ${fix ? `<div class="gf"><b>fix →</b> ${esc(fix)}</div>` : ""}
 ${o.net ? netLine(o.net) : ""}
 ${o.sender ? senderLine(o.sender) : ""}
 ${drainerLine(r, o.drainerPending, o.drainerFailed)}
+${r.findings.filter((f) => f.code === "KNOWN_EXCHANGE").map((f) => `<div class="gn">${esc(f.title)}. ${esc(f.detail)}</div>`).join("\n")}
 ${notCheckedHtml(r)}
 <details class="more"><summary>Details · ${r.findings.filter((f) => f.status !== "SKIPPED").length} checks${notCheckedCount(r) ? ` · ${notCheckedCount(r)} not checked` : ""} · ${esc(r.input.network)} · ${r.ms} ms</summary>${findingsList(r)}</details>
 ${o.actions ? `<div class="gacts">${o.actions}</div>` : ""}
@@ -202,6 +203,8 @@ export function txCard(r: TxCheckResult, o: { net?: { network: string; why: stri
   return `<div class="gw t-${tone}" role="alert">
 ${head(tone, chip, h?.title ?? "", h?.status === "COULD_NOT_CHECK" ? "cnc" : "")}
 <div class="gb">
+${(r.preview ?? []).map((p) => `<div class="gr">${esc(p)}</div>`).join("\n")}
+${r.findings.filter((f) => f.code === "KNOWN_EXCHANGE").map((f) => `<div class="gn">${esc(f.title)}. ${esc(f.detail)}</div>`).join("\n")}
 ${h?.detail ? `<div class="gr">${esc(h.detail)}</div>` : ""}
 ${h ? findingLine(h) : ""}
 ${fix ? `<div class="gf"><b>fix →</b> ${esc(fix)}</div>` : ""}

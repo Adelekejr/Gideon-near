@@ -3,8 +3,8 @@ import { classify, networkOfName } from "../classify.js";
 import { makeCtx } from "../context.js";
 import { drainerCheck, type DrainerCache } from "../drainer.js";
 import { verdictOf, headlineOf, ENGINE_VERSION } from "../engine.js";
-import { tokensFor, exchangesFor } from "../data.js";
 import { explorerAccountUrl } from "../networks.js";
+import { wellKnown } from "../known.js";
 import { withTimeout } from "../time.js";
 import { f, short } from "../rules/util.js";
 import { r03AccountState } from "../rules/r03-account-state.js";
@@ -17,6 +17,9 @@ import { TX_NOT_CHECKED, VERDICT_TEXT } from "../text.js";
 import { HEADLINE_ORDER } from "../rules/index.js";
 import type { TxAction, TxRequest } from "./decode.js";
 import { parseTxRequest, type ParsedRequest } from "./input.js";
+import { amountAndCollectorFindings } from "./history-checks.js";
+import { minOutFindings } from "./min-out.js";
+import { txPreview } from "./preview.js";
 
 /*
  * Checks a transaction request before you approve it in your wallet. Read-only: nothing is signed
@@ -30,6 +33,9 @@ import { parseTxRequest, type ParsedRequest } from "./input.js";
  *   T6  other actions that can cost you the account or its funds: DeleteAccount (blocked unless the
  *       money goes to your own account or a contact), DeployContract (blocked), Stake (attention),
  *       and a large deposit attached to a contract call.
+ *   T7  a swap or bridge whose minimum received is far below the amount going in (look again).
+ *   R19 a send much larger than this account's recent sends (look again).
+ *   R20 a recipient whose public history looks like a collector, unless it is a known exchange.
  * Every account the request sends to, calls, or names as a beneficiary also gets the address
  * checks (R3 exists, R7 lookalike, R14 reported scam, R15 fake letters, R17 disguised name).
  * False positives stay low: well-known contracts, your contacts and accounts you've sent to are
@@ -89,26 +95,7 @@ export const TX_TEXT = {
   selfAppKeyDetail: "If your account runs a contract (a multisig or lockup, for example), this key may be able to move funds. Approve only if you meant to.",
 } as const;
 
-/** Big, long-running contracts and services. Never "new", never "unseen". */
-const WELL_KNOWN: Record<Network, string[]> = {
-  mainnet: [
-    "near", "wrap.near", "usdt.tether-token.near", "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
-    "v2.ref-finance.near", "intents.near", "meta-pool.near", "lst.rhealab.near", "linear-protocol.near",
-    "social.near", "x.paras.near", "marketplace.paras.near", "marketplace.mintbase1.near", "mintbase1.near",
-    "contract.main.burrow.near", "aurora", "token.v2.ref-finance.near", "poolv1.near", "lockup.near",
-  ],
-  testnet: [
-    "testnet", "wrap.testnet", "v1.social08.testnet", "intents.testnet", "ref-finance-101.testnet",
-    "meta-v2.pool.testnet", "market.mintspace2.testnet", "usdc.fakes.testnet", "usdt.fakes.testnet",
-  ],
-};
-
-export function wellKnown(network: Network, account: string): boolean {
-  const a = account.toLowerCase();
-  return WELL_KNOWN[network].includes(a)
-    || tokensFor(network).some((t) => t.contract === a)
-    || exchangesFor(network).some((e) => e.id === a);
-}
+export { wellKnown };
 
 export interface TxCheckInput {
   /** A wallet sign or sign-in link, raw base64 transactions (comma-separated), or JSON transactions. */
@@ -153,6 +140,11 @@ export interface TxCheckResult {
   signer?: string;
   origin?: string;
   source: ParsedRequest["source"];
+  /**
+   * Plain "you send / you receive / you approve" lines when the args can be read.
+   * Empty when they can't. Not a verdict.
+   */
+  preview?: string[];
   checkedAt: string;
   ms: number;
 }
@@ -608,6 +600,14 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
     })());
   }
 
+  findings.push(...minOutFindings(network, txs));
+  // History lookups must not count as the live check that turns a request green.
+  work.push(amountAndCollectorFindings(network, txs, rawSources, ask).then((more) => { findings.push(...more); }, () => {
+    findings.push(f("R19", "COULD_NOT_CHECK", "AMOUNT_HISTORY_FAILED",
+      "Couldn't check: whether this is more than you usually send",
+      "The send-history lookup failed. This amount isn't called normal."));
+  }));
+
   await Promise.all(work);
 
   if (txs.some((t) => t.partial)) {
@@ -646,7 +646,7 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
   return {
     engine: ENGINE_VERSION, kind: "transaction", network, verdict, headline, findings,
     transactions: txs, ...(parsed.signIn ? { signIn: parsed.signIn } : {}), ...(signer ? { signer } : {}), ...(origin ? { origin } : {}),
-    source: parsed.source, checkedAt: new Date(now).toISOString(), ms: Date.now() - t0,
+    source: parsed.source, preview: txPreview(network, txs), checkedAt: new Date(now).toISOString(), ms: Date.now() - t0,
   };
 }
 

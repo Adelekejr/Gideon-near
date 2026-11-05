@@ -36,7 +36,7 @@ Before you send any NEAR or NEAR token, call gideon_check with the exact recipie
 - BLOCKED (agent_action DO_NOT_SEND): do not send. Report the reason and fix steps to the human. Gideon cannot force you to stop.
 - ATTENTION (agent_action ASK_HUMAN): do not send on your own. Ask a human and wait for an explicit yes. A lookup that failed ("couldn't check") is ATTENTION, never safe.
 - SAFE (agent_action SEND): no problems found in the checks that ran. That isn't a guarantee and isn't proof of ownership. You may send, with exactly the details you checked, only when \`from\` was passed. If \`from\` is missing, agent_action is ASK_HUMAN: pass \`from\` and check again, or ask a human. If anything changes, check again. Tell the human about any "not_checked" lines.
-Before you approve or sign any NEAR transaction or sign-in someone else built (a dApp, a link, another agent), call gideon_check_transaction with the sign link, the raw base64 transaction, or signer, receiver and actions. Same verdicts and agent_action; DO_NOT_SEND means do not sign, and SAFE only means nothing was flagged in the checks Gideon could run: review any "not_checked" items before approving.
+Before you approve or sign any NEAR transaction or sign-in someone else built (a dApp, a link, another agent), call gideon_check_transaction with the sign link, the raw base64 transaction, or signer, receiver and actions. Same verdicts and agent_action; DO_NOT_SEND means do not sign, and SAFE only means nothing was flagged in the checks Gideon could run: review any "not_checked" items before approving. A send much larger than that account's recent sends is ATTENTION. A recipient that takes in many tokens from many accounts and forwards them quickly is ATTENTION unless it is a known exchange wallet. A swap or bridge whose minimum received is far below the amount going in is ATTENTION. A failed lookup on those checks is not safe.
 gideon_explain turns a result into plain words. gideon_flags lists community reports about an account; reports are not proof.
 gideon_account_health lists who can act for an account (its keys) and flags risky ones. If move_funds_now is true, tell the human at once. Each entry in remove_links is a ready-to-sign, unsigned DeleteKey (near-mcp account_delete_access_keys args, base64 transaction, wallet links). Never remove a key or sign one yourself without the human's explicit yes for that key; give the link to the human.`;
 
@@ -143,6 +143,8 @@ export function summarizeTx(r: TxCheckResult) {
     /** Checks Gideon couldn't run that don't change the verdict (e.g. an intents or lockup balance). */
     not_checked: txNotCheckedLines(r),
     transactions: r.transactions.map((t) => ({ signer: t.signerId ?? null, receiver: t.receiverId, actions: t.actions.map((a) => a.type === "FunctionCall" ? `FunctionCall ${a.methodName}` : a.type === "AddKey" ? `AddKey ${a.fullAccess ? "FullAccess" : "FunctionCall"}` : a.type), ...(t.partial ? { partial: true } : {}) })),
+    preview: r.preview ?? [],
+    notes: r.findings.filter((f) => f.code === "KNOWN_EXCHANGE").map((f) => `${f.title}. ${f.detail}`),
     result: r as unknown as Record<string, unknown>,
   };
 }
@@ -291,6 +293,8 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
       couldnt_check: z.array(z.string()),
       not_checked: z.array(z.string()),
       transactions: z.array(z.object({ signer: z.string().nullable(), receiver: z.string(), actions: z.array(z.string()), partial: z.boolean().optional() })),
+      preview: z.array(z.string()).describe("Plain lines: you send X, you receive at least Y, you approve Z. Empty when the args aren't readable."),
+      notes: z.array(z.string()).describe("Extra lines that are not warnings, such as a known exchange wallet."),
       result: z.record(z.string(), z.unknown()),
     }),
     annotations: hints,
@@ -314,6 +318,8 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
     const s = summarizeTx(r);
     const lines = [`${s.verdict} → ${s.agent_action}${s.verdict === "SAFE" ? " (Nothing flagged)" : ""}`, s.agent_instruction, `Network: ${s.network}${s.signer ? `, signer ${s.signer}` : ""}`];
     for (const t of s.transactions) lines.push(`Tx → ${t.receiver}: ${t.actions.join(", ") || "no actions"}${t.partial ? " (not fully readable)" : ""}`);
+    for (const p of s.preview) lines.push(p);
+    for (const n of s.notes) lines.push(n);
     if (s.headline) lines.push(`Why: ${s.headline}`);
     for (const x of s.reasons) lines.push(`- ${x.rule} ${x.status}: ${x.title}${x.link ? ` (${x.link})` : ""}`);
     s.fix.forEach((f, i) => lines.push(`Fix ${i + 1}: ${f}`));

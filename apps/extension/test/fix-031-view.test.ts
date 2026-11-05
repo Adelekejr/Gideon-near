@@ -28,6 +28,10 @@ describe("fix 5: wording on the extension cards", () => {
     expect(txCard(r)).not.toContain("LOOKS RIGHT");
     expect(txCard(r)).not.toContain("NO PROBLEMS FOUND");
   });
+  it("a readable send is previewed in plain words", async () => {
+    const r = await checkTransaction({ request: { signerId: "me.near", receiverId: "bob.near", actions: [{ type: "Transfer", params: { deposit: (2n * 10n ** 24n).toString() } }] }, network: "mainnet" }, live);
+    expect(txCard(r)).toContain("You send 2 NEAR to bob.near.");
+  });
 });
 
 describe("fix 4: 'Is {account} yours?' instead of saving it", () => {
