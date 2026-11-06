@@ -96,14 +96,14 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
  <h2>Extension</h2>
  <p>On a NEAR wallet or exchange web page, Gideon checks the address you paste. When the check is blocked it can hold that page’s Send or Withdraw button, and other buttons in the same form whose label starts with Transfer, Confirm, Continue, Next, Submit, Pay, or Review. It does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script, so Gideon cannot read them. Same rules otherwise. It still never touches keys.</p>
  <p>It is not on the Chrome Web Store or Firefox Add-ons yet. Download the zip and load it yourself. Chrome, Brave and Edge: turn on Developer mode, then Load unpacked. The Firefox build is unsigned, so release Firefox will not install it until it is signed.</p>
- <p><a class="inl" href="/downloads/gideon-extension-0.3.1.zip">Download for Chrome, Brave, Edge</a><br><a class="inl" href="/downloads/gideon-extension-firefox-0.3.1.zip">Download for Firefox</a></p>
+ <p><a class="inl" href="/downloads/gideon-extension-0.3.2.zip">Download for Chrome, Brave, Edge</a><br><a class="inl" href="/downloads/gideon-extension-firefox-0.3.2.zip">Download for Firefox</a></p>
  <p><a class="inl" href="extension.html">See the extension page</a></p>
 </section>
 
 <section class="doc" id="agents">
  <span class="sec-n">07</span>
  <h2>Agents</h2>
- <p>These are MCP tools an agent calls: <code>gideon_check</code>, <code>gideon_check_transaction</code>, <code>gideon_account_health</code>, <code>gideon_explain</code> and <code>gideon_flags</code>. Point the host at the built server. Testnet is the default. The server reports package version 0.1.0. The product, this site, and the extension are 0.3.1.</p>
+ <p>These are MCP tools an agent calls: <code>gideon_check</code>, <code>gideon_check_transaction</code>, <code>gideon_account_health</code>, <code>gideon_explain</code> and <code>gideon_flags</code>. Point the host at the built server. Testnet is the default. The server reports package version 0.1.0. The product, this site, and the extension are 0.3.2.</p>
  <p>An agent can ignore the answer and still send. Gideon cannot stop it. Enforcement has to be in the wallet or in the other code that signs.</p>
  <p><b>The community flag registry is not deployed.</b> There is no live community scam database. Rule R10 on a normal check is skipped unless you set a contract. <code>gideon_flags</code> with none set says couldn’t check, never “no flags”.</p>
  <div class="code">{

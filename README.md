@@ -18,8 +18,8 @@ The website is [gideon-near.vercel.app](https://gideon-near.vercel.app). Docs ar
 
 The extension is not on the Chrome Web Store or Firefox Add-ons. Sideload it:
 
-- [Chrome, Brave, Edge](apps/web/public/downloads/gideon-extension-0.3.1.zip)
-- [Firefox](apps/web/public/downloads/gideon-extension-firefox-0.3.1.zip) (unsigned; release Firefox will not install it until it is signed)
+- [Chrome, Brave, Edge](apps/web/public/downloads/gideon-extension-0.3.2.zip)
+- [Firefox](apps/web/public/downloads/gideon-extension-firefox-0.3.2.zip) (unsigned; release Firefox will not install it until it is signed)
 
 Needs Node.js 20.10 or newer. No accounts or API keys.
 
@@ -67,11 +67,11 @@ The same rules run in the browser, the extension, the CLI and the MCP server. Th
 
 ## Versions
 
-The product on the site and in the download zips is **0.3.1**. That is the extension manifest, the website copy, the receipt engine line `gideon-core/0.3.1`, and the files `gideon-extension-0.3.1.zip` and `gideon-extension-firefox-0.3.1.zip`. Those names stay so the Docs and Extension links keep working.
+The product on the site and in the download zips is **0.3.2**. That is the extension manifest, the website copy, the receipt engine line `gideon-core/0.3.2`, and the files `gideon-extension-0.3.2.zip` and `gideon-extension-firefox-0.3.2.zip`.
 
-The unpublished workspace packages (this repo, `@gideon/core`, `@gideon/sources`, `@gideon/cli`, `@gideon/mcp`, and the website) stay at **0.1.0**. They are not published: the npm scope `@gideon` is already taken. The MCP server reports `0.1.0` for that reason. It runs the same engine as the 0.3.1 site and extension.
+The unpublished workspace packages (this repo, `@gideon/core`, `@gideon/sources`, `@gideon/cli`, `@gideon/mcp`, and the website) stay at **0.1.0**. They are not published: the npm scope `@gideon` is already taken. The MCP server reports `0.1.0` for that reason. It runs the same engine as the 0.3.2 site and extension.
 
-There is no 0.3.2 release. A few tests and comments say “0.3.2” for follow-ups that shipped inside 0.3.1. Those are labels, not a second version.
+A few tests and comments say “0.3.2” for follow-ups that shipped inside 0.3.1. Those labels name those fixes. The 0.3.2 release moves the popup’s saved-theme script into its own file, so the extension page no longer trips the Manifest V3 content-security policy.
 
 ## Honest limits
 

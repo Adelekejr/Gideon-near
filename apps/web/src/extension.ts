@@ -36,7 +36,7 @@ pop.innerHTML = `<header class="top"><span class="logo">${LOGO}</span><b class="
 <label class="tg"><input type="checkbox" checked disabled><i></i><span>Check recipient fields on paste and typing</span></label>
 <label class="tg"><input type="checkbox" checked disabled><i></i><span>Hold the Send button while a check says <b class="v">STOPPED</b></span></label>
 <label class="tg"><input type="checkbox" checked disabled><i></i><span>Compare what I copied with what I paste (R9)</span></label></section>
-<footer class="foot"><span class="built">Built on <img class="near on-dark" src="/brand/near-logo-white.svg" alt="NEAR"><img class="near on-light" src="/brand/near-logo-black.svg" alt="NEAR"></span><span>read-only · no keys · 0.3.1</span></footer>`;
+<footer class="foot"><span class="built">Built on <img class="near on-dark" src="/brand/near-logo-white.svg" alt="NEAR"><img class="near on-light" src="/brand/near-logo-black.svg" alt="NEAR"></span><span>read-only · no keys · 0.3.2</span></footer>`;
 const q = <T extends HTMLElement>(id: string) => pop.querySelector("#" + id) as T;
 
 // Popup theme control: the same Light / Dark / Auto choice as the real popup, wired to this site.
