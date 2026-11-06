@@ -8,7 +8,7 @@ import {
 import { liveSources, nearAiExplainer, replaySources, sourcesOptionsFromEnv } from "@gideon/sources";
 import { noteSpend, resolveDailyLimit, spentOf, type SpendBook } from "./spend.js";
 
-/** Unpublished package version. The product, site, extension, and ENGINE line are 0.3.1. */
+/** Unpublished package version. The product, site, extension, and ENGINE line are 0.3.2. */
 export const VERSION = "0.1.0";
 /** Time limit for the drained-wallet check (R18) after the main check. */
 const DRAINER_MS = 8000;

@@ -8,7 +8,7 @@ engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 ```bash
 npm install
 npm run build:extension      # → apps/extension/dist
-npm run zip:extension        # → apps/extension/gideon-extension-0.3.1.zip
+npm run zip:extension        # → apps/extension/gideon-extension-0.3.2.zip
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
@@ -20,7 +20,7 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 | --- | --- |
 | `src/background.ts` | Service worker. Runs `check()` with the free live sources, adds your network and address book, keeps the stats and the last page check. |
 | `src/content.ts` | Watches paste and typing in recipient-looking fields, asks the worker to check, shows the warning in a closed shadow root under the field, and holds the page's Send button on STOPPED. Also the in-page clipboard check (R9). |
-| `src/popup.ts`, `popup.html` | The popup: Light / Dark / Auto (Auto follows the device setting), manual check, last page check, guards, network switch, address book. Footer shows the NEAR logo. NEAR and the NEAR logo are trademarks of NEAR Foundation. Gideon shows the logo unaltered, only to say it is built on NEAR. Gideon is an independent project, not made or endorsed by NEAR Foundation. |
+| `src/popup.ts`, `popup.html`, `static/theme.js` | The popup: Light / Dark / Auto (Auto follows the device setting), manual check, last page check, guards, network switch, address book. `theme.js` applies the saved theme before first paint, as its own file so the extension page content-security policy allows it. Footer shows the NEAR logo. NEAR and the NEAR logo are trademarks of NEAR Foundation. Gideon shows the logo unaltered, only to say it is built on NEAR. Gideon is an independent project, not made or endorsed by NEAR Foundation. |
 | `src/lib/approval.ts` | Finds a wallet's request to approve a NEAR transaction: in the page address (MyNearWallet and Meteor sign links, any decodable `transactions=`), or on Meteor's approval screen (heading, From / To links, full-access wording). Read only. |
 | `src/lib/detect.ts` | Which fields are recipients, which values are worth checking, which buttons to hold. |
 | `src/lib/clipboard.ts` | What you copied on this page (forgotten after 2 minutes, on blur or tab switch), and whether a page swapped it. |
@@ -38,6 +38,11 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 Tests are in `test/` and run with the root `npm test`.
 
 What the extension reads, keeps and sends: [PRIVACY.md](PRIVACY.md).
+
+## What changed in 0.3.2
+
+- The saved theme runs from `static/theme.js` before the popup paints. It is no longer an inline script, so Chromium (including Mises) and Firefox stop reporting a content-security-policy error on the popup.
+- No new permissions or hosts. The checks are unchanged.
 
 ## What changed in 0.3.1
 
@@ -271,9 +276,9 @@ Fixes from the pre-release audit. Every fix also applies to the website, the CLI
   device, the page address and short texts that are a NEAR account name or a network
   badge. None of that page text is sent anywhere.
 - Settings and contacts stay in `chrome.storage.local`.
-- Product version is 0.3.1 (manifest, zips, and the receipt line `gideon-core/0.3.1`).
+- Product version is 0.3.2 (manifest, zips, and the receipt line `gideon-core/0.3.2`).
   The `@gideon/core` package.json stays 0.1.0 because that package is unpublished.
-  There is no 0.3.2 release. See the repo README.
+  See the repo README.
 
 ## Phones (Android)
 
@@ -284,12 +289,12 @@ linked below.
 
 Build the files on a computer and copy them to the phone:
 
-- `npm run zip:extension`: `gideon-extension-0.3.1.zip` (Chromium browsers)
-- `npm run zip:firefox -w @gideon/extension`: `gideon-extension-firefox-0.3.1.zip` (Firefox)
+- `npm run zip:extension`: `gideon-extension-0.3.2.zip` (Chromium browsers)
+- `npm run zip:firefox -w @gideon/extension`: `gideon-extension-firefox-0.3.2.zip` (Firefox)
 
 **Mises Browser** (Chromium). Menu → **Extensions** → turn on
 **Developer mode** → **+ (from .zip/.crx/.user.js)** → pick
-`gideon-extension-0.3.1.zip`. Keep it zipped. Mises unpacks it into its cache,
+`gideon-extension-0.3.2.zip`. Keep it zipped. Mises unpacks it into its cache,
 so clearing the browser's cache or data removes it; install again if so.
 After installing a new version, reload any wallet tab that was already open
 (otherwise its card says "Gideon was updated. Reload this page to keep checking.").
@@ -302,7 +307,7 @@ After installing a new version, reload any wallet tab that was already open
 sideloaded extensions (fixed in 1.8.2).
 
 **Yandex Browser.** Officially it installs from the Chrome Web Store and
-Opera add-ons. For testing: unzip `gideon-extension-0.3.1.zip` into a phone
+Opera add-ons. For testing: unzip `gideon-extension-0.3.2.zip` into a phone
 folder, open `browser://extensions`, turn on **Developer mode**, tap **Load
 unpacked extension** and pick `manifest.json` in that folder. Users reported
 in 2020 that newer builds stopped loading unpacked extensions, so this may not

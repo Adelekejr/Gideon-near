@@ -1,7 +1,7 @@
 {
   "name": "@gideon/extension",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "description": "Gideon for Chrome: checks a NEAR address the moment you paste it.",
   "scripts": {
