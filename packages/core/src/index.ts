@@ -6,7 +6,7 @@ export { editDistance, skeleton, lookalike, sharedEnds } from "./similarity.js";
 export { senderOf } from "./history.js";
 export { exchangeAccount, exchangeAccountsFor, isExchangeAccount, EXCHANGE_ACCOUNTS_CHECKED, EXCHANGE_ACCOUNTS_LIMIT, type ExchangeAccount } from "./exchange-accounts.js";
 export { movesFromFastNear, movesFromNearBlocks, mergeMoves, parseCallArgs } from "./activity.js";
-export { judgeUnusual, parseHumanAmount, formatHuman, formatUnits, UNUSUAL_TIMES } from "./amounts.js";
+export { judgeUnusual, parseHumanAmount, isInvalidSuppliedAmount, formatHuman, formatUnits, UNUSUAL_TIMES } from "./amounts.js";
 export { NETWORKS, DEFAULT_NETWORK, ONECLICK_API, resolveNetwork, explorerAccountUrl, explorerTxUrl, type NetworkConfig } from "./networks.js";
 export { exchangesFor, findExchange, tokensFor, tokenByContract, tokenBySymbol, EXCHANGES_CHECKED, type ExchangeEntry, type TokenEntry } from "./data.js";
 export { canonicalJson, resultDigest, makeReceipt, verifyReceipt, newReceiptKey, type ReceiptCheck } from "./receipt.js";

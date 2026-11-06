@@ -314,7 +314,8 @@ export function reveal(root: ParentNode = document) {
   }
 }
 
-function paintNet(net: Network) {
+/** Press the network control that matches `net`. Used when an example runs on a fixed network. */
+export function paintNetwork(net: Network): void {
   document.querySelectorAll<HTMLButtonElement>("#netseg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.net === net)));
 }
 
@@ -326,7 +327,7 @@ export function initChrome(on: string, onNetworkChange?: () => void) {
   const top = header(on) + watchStrip();
   if (n) n.outerHTML = top; else document.body.insertAdjacentHTML("afterbegin", top);
   initTheme();
-  paintNet(net);
+  paintNetwork(net);
   const restart = startWatch();
   document.getElementById("netseg")?.addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest("button");
@@ -335,7 +336,7 @@ export function initChrome(on: string, onNetworkChange?: () => void) {
     setNetwork(value);
     // ?net= wins over the saved choice, so drop it from the URL once the user picks
     const u = new URL(location.href); if (u.searchParams.has("net")) { u.searchParams.delete("net"); history.replaceState(null, "", u); }
-    paintNet(value);
+    paintNetwork(value);
     restart();
     onNetworkChange?.();
   });

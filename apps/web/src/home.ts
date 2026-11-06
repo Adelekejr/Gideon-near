@@ -1,8 +1,8 @@
 import { exchangesFor, mergeContact, tokensFor, type Network } from "@gideon/core";
-import { initChrome, stopper, esc, playVerdict, verdictState, tearSlip, LOGO } from "./chrome";
+import { initChrome, paintNetwork, stopper, esc, playVerdict, verdictState, tearSlip, LOGO } from "./chrome";
 import type { CheckResult } from "@gideon/core";
-import { getNetwork, getContacts, saveContacts } from "./state";
-import { CASES, CASE_LABELS, runCheck } from "./run";
+import { getNetwork, getContacts, saveContacts, setNetwork } from "./state";
+import { CASES, CASE_LABELS, exampleCheckNetwork, runCheck } from "./run";
 import { HOME_CHIP } from "./verdict-text";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -74,9 +74,28 @@ const CHIP: Record<string, string> = HOME_CHIP;
 const stage = $("hs"), hlog = $("hlog");
 const runBtns = Array.from(document.querySelectorAll<HTMLButtonElement>("#motif [data-case]"));
 let stageBusy = false;
+let stageExample: string | null = null;
+
+/** The example is checked on its own network. Move the selector (and the form) to that network. */
+function applyExampleNetwork(id: string): void {
+  const net = exampleCheckNetwork(id);
+  if (!net) return;
+  const u = new URL(location.href);
+  if (u.searchParams.get("net") && u.searchParams.get("net") !== net) {
+    u.searchParams.delete("net");
+    history.replaceState(null, "", u);
+  }
+  if (getNetwork() !== net) setNetwork(net);
+  paintNetwork(net);
+}
+
+const OPEN = "lookalike";
 async function runStage(id: string) {
   const c = CASES.find((x) => x.id === id); if (!c || stageBusy) return;
   stageBusy = true;
+  stageExample = id;
+  applyExampleNetwork(id);
+  fillForNetwork();
   runBtns.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.case === id)));
   stage.innerHTML = stopper("idle");
   hlog.innerHTML = `<span class="mute">Checking on NEAR ${esc(c.input.network)}…</span><br><span class="who">${esc(c.input.to)}</span>`;
@@ -88,14 +107,14 @@ async function runStage(id: string) {
     r = await runCheck(structuredClone(c.input), true); recorded = true;
   }
   const st = verdictState(r.verdict);
-  hlog.innerHTML = `<span class="who">${esc(r.input.amount ?? "")} ${esc(r.input.asset.symbol)} → ${esc(r.input.to)}</span><br><span class="chip ${st}">${CHIP[r.verdict] ?? r.verdict}</span><br>${esc(r.headline?.title ?? (r.account?.summary || "Account exists. Every check passed."))}<br><span class="mute">${recorded ? "recorded answer (network unreachable)" : `live · ${r.ms} ms`} · <a href="check.html?example=${esc(id)}" style="text-decoration:underline">full report</a></span>`;
+  hlog.innerHTML = `<span class="who">${esc(r.input.amount ?? "")} ${esc(r.input.asset.symbol)} → ${esc(r.input.to)}</span><br><span class="chip ${st}">${CHIP[r.verdict] ?? r.verdict}</span><br>${esc(r.headline?.title ?? (r.account?.summary || "Account exists. Every check passed."))}<br><span class="mute">NEAR ${esc(r.input.network)} · ${recorded ? "recorded answer (network unreachable)" : `live · ${r.ms} ms`} · <a href="check.html?example=${esc(id)}" style="text-decoration:underline">full report</a></span>`;
   await playVerdict(stage.querySelector(".gs"), st);
   stageBusy = false;
 }
 runBtns.forEach((b) => b.addEventListener("click", () => void runStage(b.dataset.case!)));
 stage.innerHTML = stopper("idle");
   hlog.innerHTML = `<span class="mute">Pick a send below. Gideon checks it for real and the Gate G shows the verdict.</span>`;
-if (!/nostage/.test(location.hash)) void runStage("lookalike");
+if (!/nostage/.test(location.hash)) applyExampleNetwork(OPEN);
 
 /* receipt slip: a real result, replayed from recorded data so it never changes */
 async function slip() {
@@ -112,6 +131,16 @@ async function slip() {
 }
 void slip();
 
-initChrome("Checker", fillForNetwork);
+initChrome("Checker", () => {
+  fillForNetwork();
+  // The example result was for the previous network. Clear it so the selector and the result agree.
+  if (stageExample && exampleCheckNetwork(stageExample) !== getNetwork()) {
+    stageExample = null;
+    stage.innerHTML = stopper("idle");
+    hlog.innerHTML = `<span class="mute">Pick a send below. Gideon checks it for real and the Gate G shows the verdict.</span>`;
+    runBtns.forEach((b) => b.setAttribute("aria-pressed", "false"));
+  }
+});
 fillForNetwork();
 renderContacts();
+if (!/nostage/.test(location.hash)) void runStage(OPEN);

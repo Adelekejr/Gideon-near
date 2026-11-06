@@ -21,7 +21,11 @@ export const LIMITS = {
   pageWaitMs: 8000,
   /** Typing pause before a typed (not pasted) address is checked. */
   debounceMs: 700,
-  /** Finished checks and account lookups are reused for this long. */
+  /**
+   * Finished address checks and account lookups are reused for this long.
+   * Full results for deposit / Intents checks are not reused (see cacheable in runcache.ts):
+   * quote expiry and swap completion can change inside this window.
+   */
   cacheMs: 3 * 60_000,
   /** One follow-up to fill in a creation date that missed the first answer. */
   refillAfterMs: 2500,

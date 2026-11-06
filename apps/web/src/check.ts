@@ -1,9 +1,9 @@
 import { explain, explorerAccountUrl, type CheckResult, type Finding, type Status } from "@gideon/core";
 import { initChrome, stopper, esc, footer, playVerdict, recordWatch, tearSlip, reveal, LOGO } from "./chrome";
-import { getNetwork } from "./state";
-import { inputFromQuery, runCheck, runDrainer, CASES } from "./run";
+import { getNetwork, setNetwork } from "./state";
+import { exampleCheckNetwork, inputFromQuery, runCheck, runDrainer, CASES } from "./run";
 import { drainerWanted } from "@gideon/core";
-import { chipOf, countsLine, notChecked, safeTitle, safeWhy, sendersLine } from "./verdict-text";
+import { countsLine, notChecked, sendersLine, verdictChrome } from "./verdict-text";
 
 const RULE_NAMES: Record<string, string> = {
   R1: "Format & network", R2: "Pasted hash", R3: "Account on chain", R4: "Ethereum-style account", R5: "Token",
@@ -26,15 +26,34 @@ const ST: Record<Status, [string, string]> = {
 
 const out = document.getElementById("out")!;
 const q = new URLSearchParams(location.search);
-const { input, replay } = inputFromQuery(q, getNetwork());
+// An example is checked on the network stored with the case. Point the selector at that network
+// so the control, the footer and the result name the same chain.
+const exampleNet = exampleCheckNetwork(q.get("example"));
+if (exampleNet) {
+  const u = new URL(location.href);
+  if (u.searchParams.get("net") && u.searchParams.get("net") !== exampleNet) {
+    u.searchParams.delete("net");
+    history.replaceState(null, "", u);
+  }
+  if (getNetwork() !== exampleNet) setNetwork(exampleNet);
+}
+const { input, replay } = inputFromQuery(new URLSearchParams(location.search), getNetwork());
 
-initChrome("Checker", () => location.reload());
+initChrome("Checker", () => {
+  // Switching network leaves the example, which is pinned to its own network.
+  if (new URLSearchParams(location.search).has("example")) {
+    location.href = "index.html";
+    return;
+  }
+  location.reload();
+});
 document.getElementById("loading")!.innerHTML = `${stopper("idle")}<div><span class="label">Checking on NEAR ${esc(input.network)}${replay ? " · recorded answers" : " · live"}</span><div class="h2" style="margin-top:6px">Asking the chains…</div><p class="small mono" style="margin-top:6px">${esc(input.to || "(empty)")}</p></div>`;
 
 if (!input.to.trim() && !q.get("example")) {
   location.replace("index.html");
 } else {
-  // The verdict shows first; the drained-wallet check (R18) then updates the report when it answers.
+  // The verdict shows first. While the drained-wallet check (R18) is still running, a clear result
+  // stays provisional. The final report replaces it when that check answers.
   runCheck(input, replay).then(async (r) => {
     const pending = drainerWanted(r) && !replay;
     await render(r, { pending });
@@ -66,13 +85,14 @@ async function render(r: CheckResult, o: { pending?: boolean; prev?: CheckResult
   const sl = sendersLine(r, { pending: !!o.pending });
   const senders = sl ? `<p class="small acct">${sl.startsWith("Senders: ") ? `<b>Senders:</b> ${esc(sl.slice(9))}` : esc(sl)}</p>` : "";
   const notes = notChecked(r).map((l) => `<p class="small acct">${esc(l)}</p>`).join("");
-  const v = r.verdict === "BLOCKED" ? "block" : r.verdict === "SAFE" ? "safe" : "warn";
-  const h = r.headline;
-  const cnc = h?.status === "COULD_NOT_CHECK";
-  const chip = chipOf(r);
-  const tag = { block: "BOUNCED", warn: cnc ? "NOT VERIFIED" : "HELD FOR REVIEW", safe: "PASSED" }[v];
-  const title = h ? h.title : safeTitle(r);
-  const why = h ? h.detail : safeWhy();
+  const view = verdictChrome(r, !!o.pending);
+  const v = view.tone;
+  const h = view.provisional ? null : r.headline;
+  const cnc = view.cnc;
+  const chip = view.chip;
+  const tag = view.tag;
+  const title = view.title;
+  const why = view.why;
   const a = r.account;
   const acct = !a ? "" : `<p class="small acct"><b>Account:</b> ${a.exists === true ? `exists on NEAR ${esc(a.network)}${a.createdAt ? ` · created ${esc(a.createdAt.slice(0, 10))}` : ""} · ${esc(a.balanceNear ?? "?")} NEAR${a.contract ? " · runs a contract" : ""}` : a.exists === false ? `not found on NEAR ${esc(a.network)}` : "couldn’t check whether it exists"}</p>`;
   const fix = h?.fix ?? [];
@@ -96,12 +116,12 @@ async function render(r: CheckResult, o: { pending?: boolean; prev?: CheckResult
 
   const vsum = r.findings.filter((f) => f.status !== "SKIPPED");
   out.innerHTML = `
-${caseInfo ? `<p class="notice" style="margin-top:28px">Example: ${esc(caseInfo.title)}. ${replay ? "Answered from recorded data (demo/fixtures.json)." : "Checked live just now."}</p>` : ""}
-<section class="verdict ${v}" style="margin-top:${caseInfo ? 16 : 32}px"><div class="l">
- <div class="tagline"><span class="chip big ${v}">${chip}</span><span class="lbl">${h ? esc(h.code) : "ALL CLEAR"}</span></div>
+${caseInfo ? `<p class="notice" style="margin-top:28px">Example: ${esc(caseInfo.title)}. Checked on NEAR ${esc(r.input.network)}. ${replay ? "Answered from recorded data (demo/fixtures.json)." : "Checked live just now."}</p>` : ""}
+<section class="verdict ${v}" style="margin-top:${caseInfo ? 16 : 32}px"${view.provisional ? ` aria-busy="true"` : ""}><div class="l">
+ <div class="tagline"><span class="chip big ${v}">${chip}</span><span class="lbl">${esc(view.label)}</span></div>
  <h1 class="vh">${esc(title)}</h1>
  <div class="meta"><span>NEAR ${esc(r.input.network)}</span><span>${r.ms} ms</span><span>${r.sources.length} lookups${failed.length ? ` · ${failed.length} failed` : ""}</span><span>${vsum.length} rules ran</span><span>${esc(r.engine)}</span></div></div>
- <div class="vstage">${stopper(changed ? "idle" : v, cnc ? "cnc" : "")}<span class="cap">Gideon · <b>${tag}</b></span></div></section>
+ <div class="vstage">${stopper(changed ? "idle" : view.pose, cnc ? "cnc" : "")}<span class="cap">Gideon · <b>${tag}</b></span></div></section>
 <div class="rgrid"><div>
  <div class="panel rv"><div class="hd"><span class="lbl">01 / What you pasted</span><span class="lbl">${esc(r.classification.label)}</span></div><div class="bd">${addrBlock}${anno}</div></div>
  <div class="panel rv"><div class="hd"><span class="lbl">02 / ${v === "safe" ? "What Gideon found" : v === "block" ? "Why it’s stopped" : "Why to look again"}</span></div><div class="bd"><p class="why">${esc(why)}</p>${acct}${senders}${notes}${h ? evidenceHTML(h) : ""}
@@ -129,9 +149,12 @@ ${footer(`Gideon · ${esc(r.engine)} · NEAR ${esc(r.input.network)}`)}`;
   tearSlip(document.getElementById("slip")!, r.receipt.sha256);
   if (o.prev) out.querySelectorAll<HTMLElement>(".rv").forEach((el) => { el.dataset.rv = "1"; el.classList.add("in"); });
   else reveal(out);
-  if (changed) {
-    recordWatch(r.input.to, r.verdict, r.input.network, !!o.prev);
-    void playVerdict(out.querySelector(".vstage .gs"), v);
+  if (changed) void playVerdict(out.querySelector(".vstage .gs"), view.pose);
+  // Don't write a final "Safe" watch line while the drained-wallet check is still running.
+  // A clear result that was withheld is recorded once the check settles, even if the verdict word didn't change.
+  const settledClear = !!o.prev && o.prev.verdict === "SAFE" && r.verdict === "SAFE";
+  if (!view.provisional && (changed || settledClear)) {
+    recordWatch(r.input.to, r.verdict, r.input.network, !!o.prev && o.prev.verdict !== "SAFE");
   }
 
   document.getElementById("copyfix")?.addEventListener("click", (e) => {

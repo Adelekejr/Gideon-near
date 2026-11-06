@@ -67,3 +67,8 @@ export function gate(g: GateInput): Gate {
   if (fresh === "ATTENTION") return { kind: "attention", canSend: g.confirmed, showConfirm: true, canCheck: true };
   return { kind: "safe", canSend: true, showConfirm: false, canCheck: true };
 }
+
+/** Send stays locked while the drained-wallet check has not finished, even after a SAFE verdict. */
+export function sendEnabled(canSend: boolean, drainerPending: boolean): boolean {
+  return canSend && !drainerPending;
+}

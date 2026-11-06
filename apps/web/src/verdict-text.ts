@@ -12,6 +12,56 @@ export function chipOf(r: CheckResult): string {
   return r.headline?.status === "COULD_NOT_CHECK" ? VERDICT_TEXT.cantCheckChip : "LOOK AGAIN";
 }
 
+export interface VerdictChrome {
+  tone: "block" | "warn" | "safe";
+  /** Gate G pose. Same as tone, except a not-yet-final clear result stays in the checking pose's warn colour. */
+  pose: "block" | "warn" | "safe";
+  chip: string;
+  /** Small label beside the chip. "ALL CLEAR" only when the result is final and nothing was flagged. */
+  label: string;
+  title: string;
+  why: string;
+  tag: string;
+  cnc: boolean;
+  /** True while a SAFE result is still waiting on the drained-wallet check. */
+  provisional: boolean;
+}
+
+/**
+ * What the checker and Send page show. A SAFE result is not presented as final while the
+ * drained-wallet check is still running.
+ */
+export function verdictChrome(r: CheckResult, pending = false): VerdictChrome {
+  if (pending && r.verdict === "SAFE") {
+    return {
+      tone: "warn",
+      pose: "warn",
+      chip: VERDICT_TEXT.stillCheckingChip,
+      label: "NOT FINAL",
+      title: VERDICT_TEXT.stillCheckingTitle,
+      why: VERDICT_TEXT.stillCheckingBody,
+      tag: "STILL CHECKING",
+      cnc: false,
+      provisional: true,
+    };
+  }
+  const tone = r.verdict === "BLOCKED" ? "block" : r.verdict === "SAFE" ? "safe" : "warn";
+  const h = r.headline;
+  const cnc = h?.status === "COULD_NOT_CHECK";
+  const tag = tone === "block" ? "BOUNCED" : tone === "warn" ? (cnc ? "NOT VERIFIED" : "HELD FOR REVIEW") : "PASSED";
+  return {
+    tone,
+    pose: tone,
+    chip: chipOf(r),
+    label: h ? h.code : "ALL CLEAR",
+    title: h ? h.title : safeTitle(r),
+    why: h ? h.detail : safeWhy(),
+    tag,
+    cnc,
+    provisional: false,
+  };
+}
+
 /** The title when nothing was flagged (there is no headline). */
 export function safeTitle(r: CheckResult): string {
   return r.account?.exists ? "Account exists. Nothing wrong found." : "Every check that applies passed on live data.";

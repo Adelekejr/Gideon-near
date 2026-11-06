@@ -139,13 +139,18 @@ export function netLine(n: { network: string; why: string }): string {
 
 /** One verdict card. Used inline on pages and in the popup. */
 export function card(r: CheckResult, o: CardOptions = {}): string {
-  const tone = toneOf(r);
+  // A clear result is not final while the drained-wallet check is still running.
+  const pendingSafe = !!o.drainerPending && r.verdict === "SAFE";
+  const tone = pendingSafe ? "warn" : toneOf(r);
   const h = r.headline;
   const fix = h?.fix?.[0];
-  return `<div class="gw t-${tone}" role="alert">
-${head(tone, statusLabel(r, o.held), titleOf(r), couldNotCheck(r) ? "cnc" : "")}
+  const chip = pendingSafe ? VERDICT_TEXT.stillCheckingChip : statusLabel(r, o.held);
+  const title = pendingSafe ? VERDICT_TEXT.stillCheckingTitle : titleOf(r);
+  const detail = pendingSafe ? VERDICT_TEXT.stillCheckingBody : detailOf(r);
+  return `<div class="gw t-${tone}" role="alert"${pendingSafe ? ` aria-busy="true"` : ""}>
+${head(tone, chip, title, !pendingSafe && couldNotCheck(r) ? "cnc" : "")}
 <div class="gb">
-<div class="gr">${esc(detailOf(r))}</div>
+<div class="gr">${esc(detail)}</div>
 ${h ? findingLine(h) : ""}
 ${accountLine(r)}
 ${fix ? `<div class="gf"><b>fix →</b> ${esc(fix)}</div>` : ""}

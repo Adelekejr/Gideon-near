@@ -3,9 +3,9 @@ import { NETWORKS, explorerTxUrl } from "@gideon/core";
 import { initChrome, stopper, esc, footer, playVerdict, recordWatch } from "./chrome";
 import { runCheck, runDrainer } from "./run";
 import { drainerWanted, VERDICT_TEXT } from "@gideon/core";
-import { notChecked, safeTitle, safeWhy, sendersLine } from "./verdict-text";
+import { notChecked, safeTitle, safeWhy, sendersLine, verdictChrome } from "./verdict-text";
 import { getContacts } from "./state";
-import { gate, nearToYocto, sendKey, sendNetwork, type GateKind } from "./sendgate";
+import { gate, nearToYocto, sendEnabled, sendKey, sendNetwork, type GateKind } from "./sendgate";
 import { connector, sendNear, type Connected } from "./wallet";
 
 /** Signing network: config only (VITE_GIDEON_SEND_NETWORK), testnet by default. */
@@ -21,7 +21,7 @@ let sending = false;
 let sent: { key: string; hash?: string } | null = null;
 let sendError: string | null = null;
 let lastPlayed: string | null = null;
-/** The drained-wallet check (R18) is still looking; Send waits for it (the verdict is already showing). */
+/** The drained-wallet check (R18) is still looking. Send stays locked, and a clear result is not shown as final. */
 let drainerPending = false;
 
 initChrome("Send", () => note(`The site’s network switch doesn’t change sending. This page signs on NEAR ${NET} (set by VITE_GIDEON_SEND_NETWORK).`));
@@ -55,7 +55,7 @@ async function doCheck() {
     const book = getContacts();
     const result = await runCheck({ to: to(), network: NET, amount: amount(), asset: { symbol: "NEAR" }, destination: "wallet", from: who.accountId, ...(book.length ? { addressBook: book } : {}) });
     checked = { key: k, result };
-    recordWatch(result.input.to, result.verdict, NET);
+    if (!drainerWanted(result)) recordWatch(result.input.to, result.verdict, NET);
   } catch (e) {
     checked = null;
     checkError = e instanceof Error ? e.message : String(e);
@@ -68,14 +68,15 @@ async function doCheck() {
   if (checked !== first) return; // a newer check replaced this one
   drainerPending = false;
   checked = { key: first.key, result: merged };
-  if (merged.verdict !== first.result.verdict) { confirmed = false; recordWatch(merged.input.to, merged.verdict, NET, true); }
+  if (merged.verdict !== first.result.verdict) confirmed = false;
+  recordWatch(merged.input.to, merged.verdict, NET, false);
   update();
 }
 
 async function doSend() {
   const g = current();
   const y = yocto();
-  if (!g.canSend || drainerPending || !who || !y || !checked) return;
+  if (!sendEnabled(g.canSend, drainerPending) || !who || !y || !checked) return;
   const k = key();
   // Send exactly the account that was checked.
   const receiver = checked.result.classification.normalized;
@@ -133,8 +134,11 @@ function update() {
   const v: Record<GateKind, "idle" | "safe" | "warn" | "block"> = { connect: "idle", fill: "idle", check: "idle", checking: "idle", safe: "safe", attention: "warn", blocked: "block", sending: "safe", sent: "safe" };
   let vk = v[g.kind];
   if (g.kind === "sending" && r) vk = r.verdict === "SAFE" ? "safe" : "warn";
-  const h = r?.headline ?? null;
+  const pendingSafe = drainerPending && g.kind === "safe" && !!r;
+  if (pendingSafe) vk = "warn";
+  const h = pendingSafe ? null : r?.headline ?? null;
   const cnc = h?.status === "COULD_NOT_CHECK";
+  const shown = r ? verdictChrome(r, pendingSafe) : null;
   const sum = `${esc(amt)} NEAR → ${esc(target)}`;
   let chip = "", title = "", why = "", body = "", tag = "WAITING";
   switch (g.kind) {
@@ -142,7 +146,19 @@ function update() {
     case "fill": chip = `<span class="chip idle">READY</span>`; title = "Who are you paying, and how much?"; why = "Paste the receiver’s NEAR account and an amount. Then run the check."; break;
     case "check": chip = `<span class="chip idle">NOT CHECKED</span>`; title = "Check before you send."; why = checkError ? `The last check didn’t finish (${esc(checkError)}). That isn’t a pass. Try again.` : `${sum}. The Send button stays locked until Gideon has checked exactly this.`; break;
     case "checking": chip = `<span class="chip idle">CHECKING</span>`; title = "Asking the chain…"; why = sum; tag = "CHECKING"; break;
-    case "safe": chip = `<span class="chip safe">${esc(VERDICT_TEXT.safeChip)}</span>`; title = r ? safeTitle(r) : ""; why = `${sum}. ${esc(safeWhy())}`; tag = "<b>PASSED</b>"; break;
+    case "safe":
+      if (pendingSafe && shown) {
+        chip = `<span class="chip warn">${esc(shown.chip)}</span>`;
+        title = shown.title;
+        why = `${sum}. ${esc(shown.why)}`;
+        tag = "<b>STILL CHECKING</b>";
+      } else {
+        chip = `<span class="chip safe">${esc(VERDICT_TEXT.safeChip)}</span>`;
+        title = r ? safeTitle(r) : "";
+        why = `${sum}. ${esc(safeWhy())}`;
+        tag = "<b>PASSED</b>";
+      }
+      break;
     case "attention": chip = `<span class="chip warn">${cnc ? "COULDN’T CHECK" : "LOOK AGAIN"}</span>`; title = h?.title ?? "Look again before you send."; why = esc(h?.detail ?? ""); tag = `<b>${cnc ? "NOT VERIFIED" : "HELD FOR REVIEW"}</b>`; break;
     case "blocked": chip = `<span class="chip block">BLOCKED</span>`; title = h?.title ?? "Don’t send this."; why = esc(h?.detail ?? ""); tag = "<b>BOUNCED</b>"; break;
     case "sending": chip = `<span class="chip idle">IN YOUR WALLET</span>`; title = "Approve the transfer in your wallet."; why = `${sum}. Gideon is waiting for your wallet.`; tag = "SIGNING"; break;
@@ -150,7 +166,7 @@ function update() {
   }
   if (r && ["safe", "attention", "blocked"].includes(g.kind)) {
     const report = new URLSearchParams({ to: target, amount: amt, from: who?.accountId ?? "", net: NET, dest: "wallet" });
-    body = `<div class="meta"><span>NEAR ${esc(NET)}</span><span>${r.ms} ms</span><span>${r.sources.length} lookups</span><span>verdict ${esc(r.verdict)}</span></div>${findingsList(r)}
+    body = `<div class="meta"><span>NEAR ${esc(NET)}</span><span>${r.ms} ms</span><span>${r.sources.length} lookups</span><span>${pendingSafe ? "not final" : `verdict ${esc(r.verdict)}`}</span></div>${findingsList(r)}
      ${((l) => (l ? `<p class="vnote" style="margin-top:12px">${esc(l)}</p>` : ""))(sendersLine(r, { pending: drainerPending }))}
      ${notChecked(r).map((l) => `<p class="vnote" style="margin-top:12px">${esc(l)}</p>`).join("")}
      <p class="vnote" style="margin-top:12px"><a href="check.html?${esc(report.toString())}" target="_blank" rel="noopener">Full report ↗</a></p>`;
@@ -159,10 +175,10 @@ function update() {
 
   const sendLabel = { safe: "Send", attention: "Send anyway", blocked: "Send blocked", sending: "Waiting for wallet…", sent: "Sent" } as Record<string, string>;
   const btnCls = g.kind === "blocked" ? "block" : g.kind === "attention" ? "warn" : g.kind === "safe" || g.kind === "sent" || g.kind === "sending" ? "safe" : "";
-  const label = sendLabel[g.kind] ? `${sendLabel[g.kind]}${["safe", "attention"].includes(g.kind) ? ` ${esc(amt)} NEAR` : ""}` : "Send (check first)";
+  const label = pendingSafe ? "Still checking" : sendLabel[g.kind] ? `${sendLabel[g.kind]}${["safe", "attention"].includes(g.kind) ? ` ${esc(amt)} NEAR` : ""}` : "Send (check first)";
   const go = `<div class="go">
    ${g.showConfirm ? `<label class="confirm"><input type="checkbox" id="ok"${confirmed ? " checked" : ""}><span>I read why Gideon flagged this and I still want to send ${esc(amt)} NEAR to <b class="mono">${esc(target)}</b>.</span></label>` : ""}
-   <button class="btn sendbtn ${btnCls}" id="send" type="button"${g.canSend && !drainerPending ? "" : " disabled"}>${label}</button>
+   <button class="btn sendbtn ${pendingSafe ? "warn" : btnCls}" id="send" type="button"${sendEnabled(g.canSend, drainerPending) ? "" : " disabled"}>${label}</button>
    ${g.kind === "blocked" ? `<p class="vnote">Blocked sends can’t be overridden here. Fix the address and check again.</p>` : ""}
    ${sendError ? `<p class="vnote" style="color:var(--ink)"><b>Not sent:</b> ${esc(sendError)}</p>` : ""}
    ${noteText ? `<p class="vnote">${esc(noteText)}</p>` : ""}
@@ -171,10 +187,11 @@ function update() {
   const el = $("gate");
   el.className = `verdict ${vk === "idle" ? "" : vk}`;
   // The Arrow G plays once per new check result; later re-renders (ticking the box, sending) show the final pose.
-  const playKey = r && ["safe", "attention", "blocked"].includes(g.kind) ? `${checked!.key}|${r.checkedAt}|${r.verdict}` : null;
+  const playKey = r && !pendingSafe && ["safe", "attention", "blocked"].includes(g.kind) ? `${checked!.key}|${r.checkedAt}|${r.verdict}` : null;
   const fresh = playKey !== null && playKey !== lastPlayed;
   el.innerHTML = `<div class="l"><div class="tagline">${chip}</div><h2 class="h2">${esc(title)}</h2><p class="why">${why}</p>${body}${go}</div>
    <div class="vstage">${stopper(fresh ? "idle" : vk, cnc && (vk === "warn" || fresh) ? "cnc" : "")}<span class="cap">Gideon · ${tag}</span></div>`;
+  el.setAttribute("aria-busy", pendingSafe ? "true" : "false");
   if (fresh) { lastPlayed = playKey; void playVerdict(el.querySelector(".vstage .gs"), vk); }
   $("ok")?.addEventListener("change", (e) => { confirmed = (e.target as HTMLInputElement).checked; update(); });
   $("send")?.addEventListener("click", () => void doSend());

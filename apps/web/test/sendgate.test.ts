@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gate, nearToYocto, sendKey, sendNetwork, type GateInput } from "../src/sendgate";
+import { gate, nearToYocto, sendEnabled, sendKey, sendNetwork, type GateInput } from "../src/sendgate";
 
 const key = sendKey("testnet", "me.testnet", "bob.testnet", "1");
 const base: GateInput = { account: "me.testnet", key, amountOk: true, to: "bob.testnet", checking: false, checked: null, confirmed: false, sending: false, sentKey: null };
@@ -15,6 +15,13 @@ describe("send gate", () => {
   });
   it("SAFE enables send", () => {
     expect(g({ checked: { key, verdict: "SAFE" } })).toMatchObject({ kind: "safe", canSend: true, showConfirm: false });
+  });
+  it("signing stays locked while the drained-wallet check is pending", () => {
+    const canSend = g({ checked: { key, verdict: "SAFE" } }).canSend;
+    expect(canSend).toBe(true);
+    expect(sendEnabled(canSend, true)).toBe(false);
+    expect(sendEnabled(canSend, false)).toBe(true);
+    expect(sendEnabled(false, false)).toBe(false);
   });
   it("ATTENTION needs an explicit confirm", () => {
     expect(g({ checked: { key, verdict: "ATTENTION" } })).toMatchObject({ kind: "attention", canSend: false, showConfirm: true });

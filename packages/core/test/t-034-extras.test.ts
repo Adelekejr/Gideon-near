@@ -73,7 +73,7 @@ describe("T8 / R6 deposit mismatch", () => {
         actions: [{ type: "FunctionCall", params: { methodName: "ft_transfer", args: { receiver_id: D, amount: "1000000" }, gas: "1", deposit: "1" } }],
       },
       network: "mainnet",
-    }, src(status({ origin: "nep141:wrap.near" })));
+    }, src(status({ origin: "nep141:wrap.near" })), { now: NOW });
     expect(r.findings.find((f) => f.code === "WRONG_ASSET_FOR_DEPOSIT")?.status).toBe("BLOCKED");
   });
 

@@ -11,7 +11,11 @@ const up = () => true;
 describe("drained-wallet line on the card (R18)", () => {
   it("pending while it looks, the all-clear after, couldn't check when it failed, nothing when it doesn't apply", async () => {
     const r = await check({ to: "bob.testnet", network: "testnet", destination: "wallet" }, live);
-    expect(card(r, { drainerPending: true })).toContain("checking recent senders for hacked wallets…");
+    expect(r.verdict).toBe("SAFE");
+    const pending = card(r, { drainerPending: true });
+    expect(pending).toContain("checking recent senders for hacked wallets…");
+    expect(pending).toContain("STILL CHECKING");
+    expect(pending).not.toContain("NO PROBLEMS FOUND");
     expect(card(r)).not.toContain("senders →");
     const pass = await withDrainer(r, verdictFinding([], 5, "testnet"));
     expect(pass.verdict).toBe("SAFE");
