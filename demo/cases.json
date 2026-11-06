@@ -15,9 +15,9 @@
     },
     {
       "id": "intents-wrong-token",
-      "title": "USDC sent to a NEAR Intents deposit address made for wNEAR",
+      "title": "Finished NEAR Intents deposit (do not fund it)",
       "input": { "to": "6560ef42e12a16195010ca95b194cd1385fa241a39ff6a9016cdea278c18afee", "network": "mainnet", "destination": "intents", "asset": { "symbol": "USDC", "contract": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1" }, "amount": "20" },
-      "expect": { "verdict": "BLOCKED", "headline": "WRONG_ASSET_FOR_DEPOSIT" }
+      "expect": { "verdict": "BLOCKED", "headline": "DEPOSIT_ADDRESS_USED" }
     },
     {
       "id": "wnear-to-exchange",

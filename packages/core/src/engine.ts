@@ -1,3 +1,4 @@
+import { isInvalidSuppliedAmount } from "./amounts.js";
 import { classify } from "./classify.js";
 import { makeCtx } from "./context.js";
 import { NETWORKS } from "./networks.js";
@@ -71,6 +72,9 @@ export async function check(rawInput: CheckInput, sources: Sources, opts: CheckO
     }
   }));
   const findings = settled.flat();
+  // A supplied amount that isn't a positive decimal must not be skipped as "no amount" (that can still be SAFE).
+  const invalidAmount = invalidAmountFinding(input.amount);
+  if (invalidAmount) findings.push(invalidAmount);
   const facts = await inTime(ctx.accountFacts().catch(() => null));
   clearTimeout(timer);
   const account = facts === TIMED_OUT ? null : facts;
@@ -93,6 +97,21 @@ export async function check(rawInput: CheckInput, sources: Sources, opts: CheckO
     ms: Date.now() - t0,
   };
   return { ...base, receipt: await makeReceipt(base, opts.receiptKey) };
+}
+
+/** ATTENTION so a bad amount cannot be ignored into SAFE. Omitted and blank amounts return null. */
+export function invalidAmountFinding(amount: string | undefined): Finding | null {
+  if (!isInvalidSuppliedAmount(amount)) return null;
+  const raw = (amount ?? "").trim();
+  const shown = raw.length > 48 ? `${raw.slice(0, 48)}…` : raw;
+  return {
+    rule: "R19",
+    code: "INVALID_AMOUNT",
+    status: "ATTENTION",
+    title: "This amount isn't valid",
+    detail: `"${shown}" isn't a positive decimal amount. Gideon won't ignore it and treat this as a check with no amount. Enter a number like 1 or 0.25, or leave the amount out to check the address only.`,
+    fix: ["Enter the amount as a positive decimal, such as 1 or 0.25.", "Leave the amount out only for an address-only check."],
+  };
 }
 
 /**

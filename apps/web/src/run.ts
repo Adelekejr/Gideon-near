@@ -11,7 +11,7 @@ export const CASES: DemoCase[] = (casesJson as { cases: DemoCase[] }).cases;
 export const CASE_LABELS: Record<string, string> = {
   "tron-hash": "Tron tx hash pasted",
   "evm-address": "Ethereum address",
-  "intents-wrong-token": "Wrong token to Intents",
+  "intents-wrong-token": "Finished Intents deposit",
   "wnear-to-exchange": "wNEAR to an exchange",
   lookalike: "Lookalike of a contact",
   "wrong-network-name": ".near on testnet",
@@ -46,6 +46,16 @@ export function runDrainer(r: CheckResult, replay = false, o: { trustFrom?: bool
   // you connected on the send page). A `from` in a checker link is just a name anyone can type.
   return checkDrainer(r, sources(replay), { cache: drainers, trustFrom: o.trustFrom ?? false }, { timeoutMs: DRAINER_MS })
     .catch(() => withDrainer(r, { rule: "R18", status: "SKIPPED", code: "FAILED", title: "Drained-wallet check didn't run", detail: "The check failed." }));
+}
+
+/**
+ * Network stored on an example case, or null when this isn't a known example.
+ * The checker runs the example on that network, so the visible selector has to follow it.
+ */
+export function exampleCheckNetwork(exampleId: string | null): Network | null {
+  if (!exampleId) return null;
+  const c = CASES.find((x) => x.id === exampleId);
+  return c?.input.network ?? null;
 }
 
 /** Build a CheckInput from check.html query params. */

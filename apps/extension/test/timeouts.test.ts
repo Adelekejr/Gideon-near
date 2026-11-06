@@ -3,7 +3,7 @@ import type { CheckResult, Sources } from "@gideon/core";
 import { sendCheck } from "../src/lib/messages.js";
 import { resolveNetwork } from "../src/lib/resolve.js";
 import { cachedSources, TtlCache } from "../src/lib/cache.js";
-import { cacheable, checkKey, missingOptional } from "../src/lib/runcache.js";
+import { cacheable, checkKey, missingOptional, timeSensitiveResult } from "../src/lib/runcache.js";
 import { LIMITS } from "../src/lib/limits.js";
 
 const hang = (): Promise<never> => new Promise(() => {});
@@ -135,6 +135,24 @@ describe("which finished checks are reused", () => {
     expect(cacheable(base)).toBe(true);
     expect(cacheable({ ...base, sources: [...base.sources, { source: "nearblocks", ok: false, ms: 1, optional: true }] })).toBe(false);
     expect(cacheable({ ...base, findings: [{ status: "COULD_NOT_CHECK" }] } as unknown as CheckResult)).toBe(false);
+  });
+  it("does not reuse a full result for a deposit or Intents check", () => {
+    const plain = {
+      ...base,
+      input: { to: "bob.testnet", network: "testnet", destination: "wallet" },
+      findings: [{ rule: "R3", status: "PASS", code: "ACCOUNT_EXISTS" }, { rule: "R6", status: "SKIPPED", code: "NOT_A_DEPOSIT_ADDRESS" }],
+    } as unknown as CheckResult;
+    expect(timeSensitiveResult(plain)).toBe(false);
+    expect(cacheable(plain)).toBe(true);
+    expect(cacheable({ ...plain, input: { ...plain.input, destination: "intents" } } as unknown as CheckResult)).toBe(false);
+    expect(cacheable({ ...plain, input: { ...plain.input, bridgeChain: "solana" } } as unknown as CheckResult)).toBe(false);
+    const deposit = {
+      ...plain,
+      findings: [...plain.findings, { rule: "R6", status: "PASS", code: "DEPOSIT_ADDRESS_OK" }],
+    } as unknown as CheckResult;
+    expect(cacheable(deposit)).toBe(false);
+    expect(cacheable({ ...plain, findings: [{ rule: "R6", status: "BLOCKED", code: "QUOTE_EXPIRED" }] } as unknown as CheckResult)).toBe(false);
+    expect(cacheable({ ...plain, findings: [{ rule: "R6", status: "BLOCKED", code: "DEPOSIT_ADDRESS_USED" }] } as unknown as CheckResult)).toBe(false);
   });
   it("a missing creation date (only) triggers one quiet refill", () => {
     expect(missingOptional(base)).toBe(false);

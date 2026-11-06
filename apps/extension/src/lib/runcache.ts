@@ -7,10 +7,22 @@ export function checkKey(input: CheckInput): string {
 }
 
 /**
+ * Deposit and Intents answers go stale inside the full-result cache: a quote can expire or a
+ * swap can finish. Don't reuse those. An address-only check that isn't a deposit may still be kept.
+ */
+export function timeSensitiveResult(r: CheckResult): boolean {
+  if (r.input?.destination === "intents") return true;
+  if (r.input?.bridgeChain?.trim()) return true;
+  return r.findings.some((f) => f.rule === "R6" && f.status !== "SKIPPED");
+}
+
+/**
  * Keep only complete answers. Anything a source didn't answer (including an info-only creation
  * date) is asked again next time, so a slow first answer fills in on the next look.
+ * Time-sensitive deposit / Intents results are not kept at all.
  */
 export function cacheable(r: CheckResult): boolean {
+  if (timeSensitiveResult(r)) return false;
   return r.sources.every((c) => c.ok) && !r.findings.some((f) => f.status === "COULD_NOT_CHECK");
 }
 

@@ -98,6 +98,12 @@ describe("1Click (read-only status)", () => {
   it("5xx throws", async () => {
     await expect(new OneClick({ fetch: fetchOf(() => J({}, 503)) }).status("x")).rejects.toThrow(/503/);
   });
+  it("malformed JSON is not a usable status", async () => {
+    await expect(new OneClick({ fetch: fetchOf(() => J({})) }).status("bbbb")).rejects.toThrow(/couldn't read/);
+    await expect(new OneClick({ fetch: fetchOf(() => J({ quoteResponse: { quote: { depositAddress: "bbbb" } } })) }).status("bbbb")).rejects.toThrow(/couldn't read/);
+    await expect(new OneClick({ fetch: fetchOf(() => J({ status: 1 })) }).status("bbbb")).rejects.toThrow(/couldn't read/);
+    await expect(new OneClick({ fetch: fetchOf(() => J(null)) }).status("bbbb")).rejects.toThrow(/couldn't read/);
+  });
 });
 
 describe("NearBlocks", () => {

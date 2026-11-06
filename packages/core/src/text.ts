@@ -32,6 +32,13 @@ export const VERDICT_TEXT = {
   amountNoSender: "Not checked: whether this is more than you usually send. Gideon couldn't tell which account you're sending from, so it didn't compare the amount.",
   /** The drained-wallet check (R18) failed or timed out. */
   drainerFailed: "couldn't check recent senders for hacked wallets",
+  /**
+   * Shown while the drained-wallet check is still running after an otherwise clear result.
+   * Not a final pass: the page must not say "no problems found" yet.
+   */
+  stillCheckingChip: "STILL CHECKING",
+  stillCheckingTitle: "Still checking recent senders.",
+  stillCheckingBody: "The other checks found nothing wrong, but the look at recent senders has not finished. This is not a final \"no problems found\". Wait for it before you send.",
 } as const;
 
 /** The Arrow G's spoken label, in the verdict's own words (never more than the chip says). */

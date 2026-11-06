@@ -6,11 +6,26 @@ export const MIN_USUAL_SAMPLES = 2;
 export const DUST_HUMAN = 0.01;
 
 export function parseHumanAmount(amount: string | undefined): number | null {
+  if (isInvalidSuppliedAmount(amount)) return null;
   if (!amount) return null;
   const s = amount.trim();
-  if (!/^\d+(\.\d+)?$/.test(s)) return null;
+  if (!s) return null;
   const n = Number(s);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * A supplied amount that is not a positive decimal (0, negative, text, exponential, absurd).
+ * Blank and omitted are not invalid: address-only checks may leave the amount out.
+ * Same spirit as the Send page: digits with an optional fraction, and it has to be more than 0.
+ */
+export function isInvalidSuppliedAmount(amount: string | null | undefined): boolean {
+  if (amount == null) return false;
+  const s = amount.trim();
+  if (!s) return false;
+  if (!/^\d+(\.\d+)?$/.test(s)) return true;
+  const n = Number(s);
+  return !(Number.isFinite(n) && n > 0);
 }
 
 export function formatUnits(raw: bigint, decimals: number): string {

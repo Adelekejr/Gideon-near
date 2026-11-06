@@ -49,6 +49,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
  <span class="sec-n">02</span>
  <h2>The three answers</h2>
  <p>The website, the extension and the command line use the same three words. A failed lookup is always look again. It is never “no problems found”.</p>
+ <p>While a second check of recent senders is still running, the page says still checking. That is not a final “no problems found”.</p>
  <p>A sha256 receipt is the integrity of the printed result. It is not proof the underlying checks were performed honestly, and it is not an attestation. Receipts on this website are unsigned. The CLI and the MCP server can sign one if you give them a key. The signature still covers that printed result.</p>
  <div class="vrow">
   <div class="docs-card"><span class="chip safe">No problems found</span><p>Every check that applies passed on live data. That is not proof of who controls the account.</p></div>
@@ -130,7 +131,7 @@ npm run demo:function-call-key</div>
  <h2>Newer checks</h2>
  <p>Most of these are look again, not a block. A deposit on the wrong chain, for the wrong token, or past its deadline is blocked.</p>
  <h3>Intents or bridge deposit</h3>
- <p>On an address this is rule R6. On a transaction it is T8. The wrong chain, the wrong token, or a quote that has expired is blocked. If Gideon cannot read the quote, or the payout chain is not in it, that is look again, not a pass. On the checker, payout chain appears when the destination is a NEAR Intents deposit.</p>
+ <p>On an address this is rule R6. On a transaction it is T8. The wrong chain, the wrong token, or a quote that has expired is blocked. If Gideon cannot read the quote, or the payout chain is not in it, that is look again, not a pass. A finished or expired swap is not told to fund the deposit or to send a different token. On the checker, payout chain appears when the destination is a NEAR Intents deposit.</p>
  <h3>Daily spend cap</h3>
  <p>Set <code>GIDEON_DAILY_LIMIT</code>, or pass <code>daily_limit</code> on <code>gideon_check</code>. The lower one wins. This tally is <b>process-local and advisory</b>. The MCP server keeps an in-memory map of NEAR that process has already cleared to SEND. The day is UTC. The map resets when the process restarts. Each instance has its own map. Repeating a successful check counts again, even if nothing moved on chain. It is not an account-wide limit, and it is not chain spend. The CLI does not keep the map: the cap applies to that one check, plus <code>--spent</code> if you pass a figure. A send that would pass the figure Gideon was given is look again, and the action is ask a human. A missing amount, or a token Gideon cannot price in NEAR, is look again too. No cap set means this check does not apply.</p>
  <h3>Instruction-like text</h3>
@@ -139,6 +140,7 @@ npm run demo:function-call-key</div>
  <p>If a saved name now points at a different account, or this address only partly matches someone you have paid, Gideon says look again. A close lookalike is still blocked. Agents pass earlier accounts as <code>previous</code> on the address book.</p>
  <h3>Unusual amount</h3>
  <p>If this amount is far above what you usually send from this account, Gideon says look again. It needs your sending account. If it cannot read that history, it says so and does not call the amount normal.</p>
+ <p>If you supply an amount that isn’t a positive decimal, such as zero, a negative number, or text, Gideon flags it. It does not ignore that amount and call the check fine. Leaving the amount out still checks the address only.</p>
  <h3>Collector, and known exchanges</h3>
  <p>If many different accounts recently sent a mix of tokens here and the funds left again within minutes, Gideon says look again. It does not block: a busy app can look the same. A wallet on the known-exchange list is named, and is not treated as a collector.</p>
  <h3>Swap or bridge minimum</h3>
