@@ -2,6 +2,8 @@
 
 # Gideon
 
+Crypto transfers can be hard to reverse; on NEAR and other networks, a wrong recipient, token, or network can put your funds at risk.
+
 **A pre-send check for NEAR.** Paste the address, token and destination you are about to send to. Gideon checks them against live public chain data and says **BLOCKED**, **LOOK AGAIN** or **NO PROBLEMS FOUND**, in plain words.
 
 Gideon never sees keys and never holds funds. It advises. Your wallet signs. An agent that ignores the advice can still send.
