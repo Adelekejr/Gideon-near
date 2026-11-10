@@ -26,6 +26,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 <div class="docs-layout">
 <nav class="docs-toc" aria-label="On this page">
  <a href="#what">What it is</a>
+ <a href="#two-kinds-of-check">Two kinds of check</a>
  <a href="#verdicts">Verdicts</a>
  <a href="#checker">Checker</a>
  <a href="#send">Send</a>
@@ -45,8 +46,19 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
  <p>An agent that pays can ask Gideon first. Gideon advises. It cannot stop an agent, or a wallet, that goes ahead anyway.</p>
 </section>
 
-<section class="doc" id="verdicts">
+<section class="doc" id="two-kinds-of-check">
  <span class="sec-n">02</span>
+ <h2>Two kinds of check</h2>
+ <h3>Before you send</h3>
+ <p>Paste the address, token and destination. Gideon looks for a lookalike or poisoned address, a pasted transaction hash, the wrong network, a missing account, a token an exchange will not credit, an Intents or bridge deposit on the wrong chain or past its deadline, and an address linked to drained wallets.</p>
+ <h3>Before you approve a transaction</h3>
+ <p>In the CLI (<code>check-tx</code>), the MCP server (<code>gideon_check_transaction</code>), and the extension on a readable wallet approval page, Gideon also reads the request itself. It flags a full-access key grant, a function-call key to an unfamiliar contract, a deploy or delete-account, a whole-balance send to someone you have not paid, a contract linked to drained wallets, and a swap or bridge minimum far below what you send.</p>
+ <p>The website checks addresses (and Intents deposits) only. It does not run a transaction check.</p>
+ <p>Gideon advises; your wallet still signs. The extension can hold Send on a web page when the check is blocked; it does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script. Gideon does not detect honeypot tokens.</p>
+</section>
+
+<section class="doc" id="verdicts">
+ <span class="sec-n">03</span>
  <h2>The three answers</h2>
  <p>The website, the extension and the command line use the same three words. A failed lookup is always look again. It is never “no problems found”.</p>
  <p>While a second check of recent senders is still running, the page says still checking. That is not a final “no problems found”.</p>
@@ -66,7 +78,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 </section>
 
 <section class="doc" id="checker">
- <span class="sec-n">03</span>
+ <span class="sec-n">04</span>
  <h2>Checker</h2>
  <p>The home page. Paste the recipient, pick the token and where it’s going, and optionally who is sending. The check runs in your browser against free public APIs.</p>
  <p>Saved contacts stay in this browser. Gideon uses them to catch a lookalike. A transaction hash, a Tron address, a missing account and the wrong network are blocked here too.</p>
@@ -74,7 +86,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 </section>
 
 <section class="doc" id="send">
- <span class="sec-n">04</span>
+ <span class="sec-n">05</span>
  <h2>Send</h2>
  <p>Connect your own NEAR wallet. Send stays off until Gideon has checked that exact recipient, amount and network.</p>
  <p>No problems found: your wallet opens to sign. Look again: you tick that you read why. Blocked: there is no override. Edit the recipient or the amount and the check clears.</p>
@@ -83,7 +95,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 </section>
 
 <section class="doc" id="health">
- <span class="sec-n">05</span>
+ <span class="sec-n">06</span>
  <h2>Account health</h2>
  <p>Type an account. Gideon lists the keys that can act for it, from public data. Red means move your funds. An app key on a new or risky contract is look again. Old unused keys are a tidy-up list, not a warning.</p>
  <p>Each key says what it can do: the app, the methods, and whether gas fees are capped. An app key cannot move your NEAR. Removing one signs you out of that app. The tidy-up list is still not a warning.</p>
@@ -92,7 +104,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 </section>
 
 <section class="doc" id="extension">
- <span class="sec-n">06</span>
+ <span class="sec-n">07</span>
  <h2>Extension</h2>
  <p>On a NEAR wallet or exchange web page, Gideon checks the address you paste. When the check is blocked it can hold that page’s Send or Withdraw button, and other buttons in the same form whose label starts with Transfer, Confirm, Continue, Next, Submit, Pay, or Review. It does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script, so Gideon cannot read them. On a readable wallet approval page it also checks the transaction, including a function-call key granted to an unfamiliar contract. Same rules otherwise. It still never touches keys.</p>
  <p>It is not on the Chrome Web Store or Firefox Add-ons yet. Download the zip and load it yourself. Chrome, Brave and Edge: turn on Developer mode, then Load unpacked. The Firefox build is unsigned, so release Firefox will not install it until it is signed.</p>
@@ -101,7 +113,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 </section>
 
 <section class="doc" id="agents">
- <span class="sec-n">07</span>
+ <span class="sec-n">08</span>
  <h2>Agents</h2>
  <p>These are MCP tools an agent calls: <code>gideon_check</code>, <code>gideon_check_transaction</code>, <code>gideon_account_health</code>, <code>gideon_explain</code> and <code>gideon_flags</code>. Point the host at the built server. Testnet is the default. The server reports package version 0.1.0. The product, this site, and the extension are 0.3.4.</p>
  <p>An agent can ignore the answer and still send. Gideon cannot stop it. Enforcement has to be in the wallet or in the other code that signs.</p>
@@ -127,7 +139,7 @@ npm run demo:function-call-key</div>
 </section>
 
 <section class="doc" id="checks">
- <span class="sec-n">08</span>
+ <span class="sec-n">09</span>
  <h2>Newer checks</h2>
  <p>Most of these are look again, not a block. A deposit on the wrong chain, for the wrong token, or past its deadline is blocked.</p>
  <h3>Intents or bridge deposit</h3>
@@ -152,7 +164,7 @@ npm run demo:function-call-key</div>
 </section>
 
 <section class="doc" id="limits">
- <span class="sec-n">09</span>
+ <span class="sec-n">10</span>
  <h2>What Gideon can’t catch</h2>
  <p>No problems found means these checks passed on live data. It is not a guarantee about the person, the contract, or whether an exchange will credit a token.</p>
  <p>A source that is down or rate-limited becomes “couldn’t check”, which is look again. Gideon does not fill the gap with a guess. The CLI flag <code>--no-drainer</code> is an explicit skip: the result records that the drained-wallet check was not run. It does not turn a failed lookup into a pass.</p>
