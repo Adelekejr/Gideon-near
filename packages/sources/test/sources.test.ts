@@ -107,24 +107,47 @@ describe("1Click (read-only status)", () => {
 });
 
 describe("NearBlocks", () => {
-  it("maps txns-only into transfers", async () => {
-    const nb = new NearBlocks({ fetch: fetchOf(() => J({ txns: [{ transaction_hash: "h", signer_account_id: "a", receiver_account_id: "b", actions_agg: { deposit: 1e21 } }] })) });
-    expect(await nb.recentTransfers("testnet", "a")).toEqual([{ hash: "h", signer: "a", receiver: "b", depositYocto: 1e21, blockTimestampNs: undefined }]);
+  it("maps v3 account txns into transfers", async () => {
+    const nb = new NearBlocks({ fetch: fetchOf((u) => {
+      expect(u).toBe("https://api-testnet.nearblocks.io/v3/accounts/a/txns?limit=25");
+      return J({ data: [{ transaction_hash: "h", signer_account_id: "a", receiver_account_id: "b", actions_agg: { deposit: "1e21" }, block_timestamp: "1700000000000000000" }] });
+    }) });
+    expect(await nb.recentTransfers("testnet", "a")).toEqual([{ hash: "h", signer: "a", receiver: "b", depositYocto: 1e21, blockTimestampNs: "1700000000000000000" }]);
   });
   it("429 → throws rate limit", async () => {
     await expect(new NearBlocks({ fetch: fetchOf(() => new Response("", { status: 429 })) }).recentTransfers("testnet", "a")).rejects.toThrow(/rate limit/);
   });
-  it("accountCreated: indexed account with a date (real response shape)", async () => {
-    const nb = new NearBlocks({ fetch: fetchOf(() => J({ account: [{ account_id: "adelekejr.testnet", created: { transaction_hash: "59b3", block_timestamp: 1651301529639405800 }, block_height: "270420307" }] })) });
-    expect(await nb.accountCreated("testnet", "adelekejr.testnet")).toEqual({ createdMs: 1651301529639, indexed: true, indexedHeight: 270420307 });
+  it("HTTP 5xx and a v3 error envelope throw (never a missing account)", async () => {
+    await expect(new NearBlocks({ fetch: fetchOf(() => J({}, 503)) }).accountCreated("testnet", "a")).rejects.toThrow(/HTTP 503/);
+    await expect(new NearBlocks({ fetch: fetchOf(() => J({ data: null, errors: [{ message: "API v1 was retired" }] }, 410)) }).accountCreated("testnet", "a")).rejects.toThrow(/HTTP 410/);
   });
-  it("accountCreated: not yet indexed → indexed:false with the indexer's last block (real response shape)", async () => {
-    const nb = new NearBlocks({ fetch: fetchOf(() => J({ account: [{ block_height: "270420307", block_hash: "6fvF" }] })) });
-    expect(await nb.accountCreated("testnet", "lifeguard-mvtx9n46.testnet")).toEqual({ createdMs: null, indexed: false, indexedHeight: 270420307 });
+  it("accountCreated: indexed account with a date (v3 response shape)", async () => {
+    const nb = new NearBlocks({ fetch: fetchOf((u) => {
+      expect(u).toBe("https://api-testnet.nearblocks.io/v3/accounts/adelekejr.testnet");
+      return J({ data: { account_id: "adelekejr.testnet", created: { transaction_hash: "59b3", block_timestamp: "1651301529639405800" }, deleted: {}, locked: false } });
+    }) });
+    expect(await nb.accountCreated("testnet", "adelekejr.testnet")).toEqual({ createdMs: 1651301529639, indexed: true, indexedHeight: null });
+  });
+  it("accountCreated: not indexed → data:null (v3 response shape)", async () => {
+    const nb = new NearBlocks({ fetch: fetchOf(() => J({ data: null })) });
+    expect(await nb.accountCreated("testnet", "lifeguard-mvtx9n46.testnet")).toEqual({ createdMs: null, indexed: false, indexedHeight: null });
+  });
+  it("accountCreated: empty created object falls back to stats first_day", async () => {
+    const urls: string[] = [];
+    const nb = new NearBlocks({ fetch: fetchOf((u) => {
+      urls.push(u);
+      if (u.endsWith("/stats")) return J({ data: { first_day: "2021-04-03", txns: "12333" } });
+      return J({ data: { account_id: "guest-book.testnet", created: {}, deleted: {}, locked: false } });
+    }) });
+    expect(await nb.accountCreated("testnet", "guest-book.testnet")).toEqual({ createdMs: Date.parse("2021-04-03T00:00:00Z"), indexed: true, indexedHeight: null });
+    expect(urls).toEqual([
+      "https://api-testnet.nearblocks.io/v3/accounts/guest-book.testnet",
+      "https://api-testnet.nearblocks.io/v3/accounts/guest-book.testnet/stats",
+    ]);
   });
   it("accountCreated: caches known dates, never caches failures", async () => {
     let n = 0;
-    const ok = new NearBlocks({ fetch: fetchOf(() => { n++; return J({ account: [{ account_id: "a", created: { block_timestamp: 1e18 }, block_height: "5" }] }); }) });
+    const ok = new NearBlocks({ fetch: fetchOf(() => { n++; return J({ data: { account_id: "a", created: { block_timestamp: "1000000000000000000" } } }); }) });
     await ok.accountCreated("testnet", "a"); await ok.accountCreated("testnet", "a");
     expect(n).toBe(1);
     let m = 0;
@@ -144,16 +167,24 @@ describe("liveSources", () => {
 });
 
 describe("NearBlocks send count (first send)", () => {
-  it("asks the count endpoint for from → to and reads the number", async () => {
+  it("asks the filtered tx list for from → to and counts the rows (v3 has no public count)", async () => {
     let url = "";
-    const nb = new NearBlocks({ fetch: fetchOf((u) => { url = u; return J({ txns: [{ count: "4" }] }); }) });
+    const nb = new NearBlocks({ fetch: fetchOf((u) => {
+      url = u;
+      return J({ data: [
+        { transaction_hash: "a", signer_account_id: "adelekejr.near", receiver_account_id: "betalife.near" },
+        { transaction_hash: "b", signer_account_id: "adelekejr.near", receiver_account_id: "betalife.near" },
+        { transaction_hash: "c", signer_account_id: "adelekejr.near", receiver_account_id: "betalife.near" },
+        { transaction_hash: "d", signer_account_id: "adelekejr.near", receiver_account_id: "betalife.near" },
+      ] });
+    }) });
     expect(await nb.sentCount("mainnet", "adelekejr.near", "betalife.near")).toBe(4);
-    expect(url).toBe("https://api.nearblocks.io/v1/account/adelekejr.near/txns-only/count?to=betalife.near");
+    expect(url).toBe("https://api.nearblocks.io/v3/accounts/adelekejr.near/txns?receiver=betalife.near&limit=100");
   });
   it("zero is zero; rate limit and odd answers throw (never read as 'never sent')", async () => {
-    expect(await new NearBlocks({ fetch: fetchOf(() => J({ txns: [{ count: 0 }] })) }).sentCount("testnet", "a.testnet", "b.testnet")).toBe(0);
+    expect(await new NearBlocks({ fetch: fetchOf(() => J({ data: [] })) }).sentCount("testnet", "a.testnet", "b.testnet")).toBe(0);
     await expect(new NearBlocks({ fetch: fetchOf(() => J({}, 429)) }).sentCount("testnet", "a.testnet", "b.testnet")).rejects.toThrow(/rate limit/);
-    await expect(new NearBlocks({ fetch: fetchOf(() => J({ txns: [] })) }).sentCount("testnet", "a.testnet", "b.testnet")).rejects.toThrow();
+    await expect(new NearBlocks({ fetch: fetchOf(() => J({ data: null })) }).sentCount("testnet", "a.testnet", "b.testnet")).rejects.toThrow();
     await expect(new NearBlocks({ fetch: fetchOf(() => J(null, 404)) }).sentCount("testnet", "a.testnet", "b.testnet")).rejects.toThrow();
   });
   it("live sources expose it", () => expect(typeof liveSources().sentCount).toBe("function"));
@@ -182,17 +213,25 @@ describe("Account health sources", () => {
     const skip = new NearRpc({ fetch: fetchOf(() => J({ error: { cause: { name: "UNKNOWN_BLOCK" } } })) });
     expect(await skip.blockTimeMs("mainnet", 6)).toBeNull();
   });
-  it("NearBlocks keys: created and deleted dates (real response shape)", async () => {
+  it("NearBlocks keys: created and deleted dates (v3 response shape)", async () => {
     const nb = new NearBlocks({ fetch: fetchOf((u) => {
-      expect(u).toContain("/v1/account/a.near/keys?page=1&per_page=50&order=desc");
-      return J({ keys: [
-        { public_key: "ed25519:F", permission_kind: "FULL_ACCESS", created: { transaction_hash: "c1", block_timestamp: 1638958193286473000 }, deleted: { transaction_hash: null, block_timestamp: null } },
-        { public_key: "ed25519:A", permission_kind: "FUNCTION_CALL", created: { transaction_hash: null, block_timestamp: null }, deleted: { transaction_hash: "d1", block_timestamp: 1652180000000000000 } },
+      expect(u).toBe("https://api.nearblocks.io/v3/accounts/a.near/keys?limit=50");
+      return J({ data: [
+        { public_key: "ed25519:F", permission_kind: "FULL_ACCESS", action_timestamp: "1638958193286473000", created: { transaction_hash: "c1", block: { block_timestamp: "1638958193286473000" } }, deleted: {} },
+        { public_key: "ed25519:A", permission_kind: "FUNCTION_CALL", created: {}, deleted: { transaction_hash: "d1", block: { block_timestamp: "1652180000000000000" } } },
       ] });
     }) });
     expect(await nb.accountKeys("mainnet", "a.near")).toEqual([
       { publicKey: "ed25519:F", fullAccess: true, createdTx: "c1", createdMs: 1638958193286, deletedTx: null, deletedMs: null },
       { publicKey: "ed25519:A", fullAccess: false, createdTx: null, createdMs: null, deletedTx: "d1", deletedMs: 1652180000000 },
     ]);
+  });
+  it("nearTx: v3 single object, or data:null when missing", async () => {
+    const found = new NearBlocks({ fetch: fetchOf((u) => {
+      expect(u).toBe("https://api.nearblocks.io/v3/txns/abc");
+      return J({ data: { transaction_hash: "abc", signer_account_id: "a.near", receiver_account_id: "b.near", block_timestamp: "1704092142721467993" } });
+    }) });
+    expect(await found.nearTx("mainnet", "abc")).toEqual({ hash: "abc", signer: "a.near", receiver: "b.near", blockTimestampNs: "1704092142721467993" });
+    expect(await new NearBlocks({ fetch: fetchOf(() => J({ data: null })) }).nearTx("mainnet", "nope")).toBeNull();
   });
 });

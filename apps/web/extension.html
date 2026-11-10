@@ -18,7 +18,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 <div id="nav" data-on="Extension"></div>
 <main class="wrap">
 <section class="shead">
- <div><span class="eyebrow">Browser extension · v0.3.3 · Chrome, Brave, Edge, Firefox</span>
+ <div><span class="eyebrow">Browser extension · v0.3.4 · Chrome, Brave, Edge, Firefox</span>
   <h1 class="h1">It checks the moment you paste.</h1>
   <p class="lead">On NEAR wallet and exchange web pages, Gideon watches the recipient field. Paste a wrong, poisoned or lookalike address and a warning card appears right under it, the Send button is held, and the Gate G shows you why. It holds Send when the check is blocked. It does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script, so Gideon cannot read them. Same rules as the checker, read-only, no keys.</p></div>
  <div class="xtry"><span class="label">Try a paste</span>
@@ -58,8 +58,8 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 </section>
 <section class="blk"><div class="sec-hd"><div><span class="lbl">02 / Install</span><h2 class="rv">Install it.</h2></div></div>
  <div class="actions" style="margin-bottom:18px">
-  <a class="btn" href="/downloads/gideon-extension-0.3.3.zip">Download for Chrome, Brave, Edge <span class="ar">→</span></a>
-  <a class="btn ghost" href="/downloads/gideon-extension-firefox-0.3.3.zip">Download for Firefox</a>
+  <a class="btn" href="/downloads/gideon-extension-0.3.4.zip">Download for Chrome, Brave, Edge <span class="ar">→</span></a>
+  <a class="btn ghost" href="/downloads/gideon-extension-firefox-0.3.4.zip">Download for Firefox</a>
  </div>
  <div class="two">
   <div class="panel rv"><div class="hd"><span class="lbl">Chrome · Brave · Edge</span><span class="lbl">MV3</span></div><div class="code" style="border:0;border-radius:0">npm run zip:extension
@@ -69,7 +69,7 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 <span class="c"># about:debugging → This Firefox → Load Temporary Add-on</span>
 <span class="c"># → the Firefox zip above (release Firefox won’t install an unsigned add-on)</span></div></div>
  </div>
- <p class="small" style="margin-top:14px">Permissions: <code>storage</code>, a content script on http and https pages (it reads the recipient field you paste or type), and calls to public NEAR, explorer and chain APIs. That script does not run inside a wallet extension pop-up. Details are in <a href="/PRIVACY.md">PRIVACY.md</a>. It never touches keys and can’t move funds. Version 0.3.3, same as the zips above. The engine line on a receipt is <code>gideon-core/0.3.3</code>.</p>
+ <p class="small" style="margin-top:14px">Permissions: <code>storage</code>, a content script on http and https pages (it reads the recipient field you paste or type), and calls to public NEAR, explorer and chain APIs. That script does not run inside a wallet extension pop-up. Details are in <a href="/PRIVACY.md">PRIVACY.md</a>. It never touches keys and can’t move funds. Version 0.3.4, same as the zips above. The engine line on a receipt is <code>gideon-core/0.3.4</code>.</p>
 </section>
 </main>
 <script type="module" src="/src/extension.ts"></script>

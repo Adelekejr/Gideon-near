@@ -8,7 +8,7 @@ engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 ```bash
 npm install
 npm run build:extension      # → apps/extension/dist
-npm run zip:extension        # → apps/extension/gideon-extension-0.3.3.zip
+npm run zip:extension        # → apps/extension/gideon-extension-0.3.4.zip
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
@@ -38,6 +38,11 @@ and choose `apps/extension/dist` (or an unzipped copy of the zip).
 Tests are in `test/` and run with the root `npm test`.
 
 What the extension reads, keeps and sends: [PRIVACY.md](PRIVACY.md).
+
+## What changed in 0.3.4
+
+- NearBlocks reads use API v3 (testnet retired v1). Account age, first-send history, pasted-hash lookups, and key dates come from the current endpoints. A failed lookup is still look again, never a pass.
+- No new permissions or hosts.
 
 ## What changed in 0.3.3
 
@@ -282,7 +287,7 @@ Fixes from the pre-release audit. Every fix also applies to the website, the CLI
   device, the page address and short texts that are a NEAR account name or a network
   badge. None of that page text is sent anywhere.
 - Settings and contacts stay in `chrome.storage.local`.
-- Product version is 0.3.3 (manifest, zips, and the receipt line `gideon-core/0.3.3`).
+- Product version is 0.3.4 (manifest, zips, and the receipt line `gideon-core/0.3.4`).
   The `@gideon/core` package.json stays 0.1.0 because that package is unpublished.
   See the repo README.
 
@@ -295,12 +300,12 @@ linked below.
 
 Build the files on a computer and copy them to the phone:
 
-- `npm run zip:extension`: `gideon-extension-0.3.3.zip` (Chromium browsers)
-- `npm run zip:firefox -w @gideon/extension`: `gideon-extension-firefox-0.3.3.zip` (Firefox)
+- `npm run zip:extension`: `gideon-extension-0.3.4.zip` (Chromium browsers)
+- `npm run zip:firefox -w @gideon/extension`: `gideon-extension-firefox-0.3.4.zip` (Firefox)
 
 **Mises Browser** (Chromium). Menu → **Extensions** → turn on
 **Developer mode** → **+ (from .zip/.crx/.user.js)** → pick
-`gideon-extension-0.3.3.zip`. Keep it zipped. Mises unpacks it into its cache,
+`gideon-extension-0.3.4.zip`. Keep it zipped. Mises unpacks it into its cache,
 so clearing the browser's cache or data removes it; install again if so.
 After installing a new version, reload any wallet tab that was already open
 (otherwise its card says "Gideon was updated. Reload this page to keep checking.").
@@ -313,7 +318,7 @@ After installing a new version, reload any wallet tab that was already open
 sideloaded extensions (fixed in 1.8.2).
 
 **Yandex Browser.** Officially it installs from the Chrome Web Store and
-Opera add-ons. For testing: unzip `gideon-extension-0.3.3.zip` into a phone
+Opera add-ons. For testing: unzip `gideon-extension-0.3.4.zip` into a phone
 folder, open `browser://extensions`, turn on **Developer mode**, tap **Load
 unpacked extension** and pick `manifest.json` in that folder. Users reported
 in 2020 that newer builds stopped loading unpacked extensions, so this may not
