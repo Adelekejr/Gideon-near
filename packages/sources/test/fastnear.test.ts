@@ -66,7 +66,7 @@ describe("merged history", () => {
       hosts.add(new URL(url).host);
       if (url.includes("fastnear.com/v0/account")) return J({ account_txs: [{ transaction_hash: "F" }] });
       if (url.includes("fastnear.com/v0/transactions")) return J({ transactions: [tx("F", "me.testnet", "fresh.testnet", [{ Transfer: { deposit: "5" } }], 9)] });
-      return J({ txns: [{ transaction_hash: "N", predecessor_account_id: "me.testnet", receiver_account_id: "old.testnet", actions_agg: { deposit: 1 }, block_timestamp: "1" }] });
+      return J({ data: [{ transaction_hash: "N", signer_account_id: "me.testnet", receiver_account_id: "old.testnet", actions_agg: { deposit: 1 }, block_timestamp: "1" }] });
     }) });
     const r = await s.recentTransfers("testnet", "me.testnet");
     expect(r.map((x) => x.receiver).sort()).toEqual(["fresh.testnet", "old.testnet"]);

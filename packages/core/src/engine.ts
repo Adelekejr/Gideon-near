@@ -11,10 +11,10 @@ import type { CheckInput, CheckOptions, CheckResult, Finding, Sources, Verdict }
 const EXISTS_CODES = new Set(["ACCOUNT_EXISTS", "ETH_IMPLICIT_EXISTS"]);
 
 /**
- * Printed on every receipt. This is the product release the site and extension ship (0.3.3),
+ * Printed on every receipt. This is the product release the site and extension ship (0.3.4),
  * not the unpublished @gideon/core package semver (0.1.0).
  */
-export const ENGINE_VERSION = "gideon-core/0.3.3";
+export const ENGINE_VERSION = "gideon-core/0.3.4";
 
 /** Any BLOCKED → BLOCKED. Otherwise anything ATTENTION or COULD_NOT_CHECK → ATTENTION. Only then SAFE. */
 export function verdictOf(findings: Finding[]): Verdict {
