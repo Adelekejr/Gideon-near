@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { check, withDrainer, verdictFinding, type CheckResult } from "@gideon/core";
+import { check, withDrainer, verdictFinding, drainerFailedFinding, type CheckResult } from "@gideon/core";
 import { card, drainerLine } from "../src/lib/view.js";
 import { sendDrainer } from "../src/lib/messages.js";
 import { empty } from "../../../packages/core/test/helpers.js";
@@ -20,9 +20,10 @@ describe("drained-wallet line on the card (R18)", () => {
     const pass = await withDrainer(r, verdictFinding([], 5, "testnet"));
     expect(pass.verdict).toBe("SAFE");
     expect(drainerLine(pass)).toContain("No sign of hacked wallets sending here");
-    const skipped = await withDrainer(r, { rule: "R18", status: "SKIPPED", code: "FAILED", title: "Drained-wallet check didn't run", detail: "" });
-    // 0.3.1: a failed check says so instead of vanishing.
+    const skipped = await withDrainer(r, drainerFailedFinding());
+    expect(skipped.verdict).toBe("ATTENTION");
     expect(drainerLine(skipped, true)).toContain("couldn&#39;t check recent senders for hacked wallets");
+    expect(card(skipped)).not.toContain("NO PROBLEMS FOUND");
     const own = await withDrainer(r, { rule: "R18", status: "SKIPPED", code: "OWN_ACCOUNT", title: "Your own account", detail: "" });
     expect(drainerLine(own)).toBe("");
     // The worker never answered (page-side time-out): the card says so too.

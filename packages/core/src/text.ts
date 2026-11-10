@@ -57,6 +57,7 @@ export function notCheckedLine(f: Finding): string | null {
   if (f.code === "HISTORY_UNAVAILABLE" && f.status === "ATTENTION") return VERDICT_TEXT.historyUnknown;
   if (f.code === "FIRST_SEND_UNKNOWN") return VERDICT_TEXT.firstSendUnknown;
   if (f.code === "AMOUNT_NO_SENDER") return VERDICT_TEXT.amountNoSender;
+  if (f.code === "SKIPPED_BY_USER") return "Not checked: the drained-wallet check was skipped (--no-drainer). Gideon didn't look at recent senders for hacked wallets.";
   return null;
 }
 
@@ -83,5 +84,5 @@ export function skippedNotCheckedCount(r: Pick<CheckResult, "findings">): number
 
 /** The drained-wallet check (R18) ran but couldn't finish. */
 export function drainerFailed(r: Pick<CheckResult, "findings">): boolean {
-  return r.findings.some((f) => f.rule === "R18" && f.status === "SKIPPED" && f.code === "FAILED");
+  return r.findings.some((f) => f.rule === "R18" && f.code === "FAILED");
 }

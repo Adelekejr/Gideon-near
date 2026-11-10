@@ -12,7 +12,7 @@ import { rememberAccount, rememberSend, senderHint, type SenderHint } from "./li
 import { placement } from "./lib/place.js";
 import { asMode, loadTheme, themeOf, type Mode } from "./lib/shift.js";
 import { playAll } from "./lib/motion.js";
-import { drainerWanted, unfinishedRequest, unreadableRequest, type CheckResult, type Contact } from "@gideon/core";
+import { drainerWanted, drainerFailedFinding, unfinishedRequest, unreadableRequest, withDrainer, type CheckResult, type Contact } from "@gideon/core";
 import { LIMITS } from "./lib/limits.js";
 import { missingOptional } from "./lib/runcache.js";
 
@@ -440,16 +440,17 @@ async function run(field: Field, value: string, copied: string | null, force = f
   const drainer = drainerWanted(res.result);
   render(p, field, res, true, drainer);
   const current = (): boolean => p.seq === seq && p.field === field;
-  const withDrainer = async (r: Extract<CheckResponse, { ok: true }>): Promise<void> => {
+  const withDrainerFollowUp = async (r: Extract<CheckResponse, { ok: true }>): Promise<void> => {
     if (!drainerWanted(r.result)) return;
     const merged = await sendDrainer(r.result, LIMITS.drainerWaitMs);
     if (!current()) return;
-    latest = { ...r, result: merged ?? r.result };
-    // Re-animate only when the answer changed. No answer: the card says it couldn't check.
-    render(p, field, latest, !!merged && merged.verdict !== r.result.verdict, false, !merged);
+    const result = merged ?? await withDrainer(r.result, drainerFailedFinding());
+    latest = { ...r, result };
+    // Re-animate when the answer changed. A missing worker answer is look again, never a pass.
+    render(p, field, latest, result.verdict !== r.result.verdict, false, !merged);
   };
   let latest = res;
-  const drained = drainer ? withDrainer(res) : Promise.resolve();
+  const drained = drainer ? withDrainerFollowUp(res) : Promise.resolve();
   // If only the creation date missed the time limit, ask once more in a moment (the worker
   // remembers the account) and fill it in quietly, keeping the drained-wallet answer.
   if (missingOptional(res.result)) {
@@ -464,8 +465,8 @@ async function run(field: Field, value: string, copied: string | null, force = f
       if (!shown) return render(p, field, again, false);
       const merged = await sendDrainer(again.result, LIMITS.drainerWaitMs);
       if (!current()) return;
-      latest = merged ? { ...again, result: merged } : latest;
-      render(p, field, latest, false);
+      latest = { ...again, result: merged ?? await withDrainer(again.result, drainerFailedFinding()) };
+      render(p, field, latest, false, false, !merged);
     }, LIMITS.refillAfterMs);
   }
 }

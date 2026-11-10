@@ -94,16 +94,16 @@ var mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.setAttribute(
 <section class="doc" id="extension">
  <span class="sec-n">06</span>
  <h2>Extension</h2>
- <p>On a NEAR wallet or exchange web page, Gideon checks the address you paste. When the check is blocked it can hold that page’s Send or Withdraw button, and other buttons in the same form whose label starts with Transfer, Confirm, Continue, Next, Submit, Pay, or Review. It does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script, so Gideon cannot read them. Same rules otherwise. It still never touches keys.</p>
+ <p>On a NEAR wallet or exchange web page, Gideon checks the address you paste. When the check is blocked it can hold that page’s Send or Withdraw button, and other buttons in the same form whose label starts with Transfer, Confirm, Continue, Next, Submit, Pay, or Review. It does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script, so Gideon cannot read them. On a readable wallet approval page it also checks the transaction, including a function-call key granted to an unfamiliar contract. Same rules otherwise. It still never touches keys.</p>
  <p>It is not on the Chrome Web Store or Firefox Add-ons yet. Download the zip and load it yourself. Chrome, Brave and Edge: turn on Developer mode, then Load unpacked. The Firefox build is unsigned, so release Firefox will not install it until it is signed.</p>
- <p><a class="inl" href="/downloads/gideon-extension-0.3.2.zip">Download for Chrome, Brave, Edge</a><br><a class="inl" href="/downloads/gideon-extension-firefox-0.3.2.zip">Download for Firefox</a></p>
+ <p><a class="inl" href="/downloads/gideon-extension-0.3.3.zip">Download for Chrome, Brave, Edge</a><br><a class="inl" href="/downloads/gideon-extension-firefox-0.3.3.zip">Download for Firefox</a></p>
  <p><a class="inl" href="extension.html">See the extension page</a></p>
 </section>
 
 <section class="doc" id="agents">
  <span class="sec-n">07</span>
  <h2>Agents</h2>
- <p>These are MCP tools an agent calls: <code>gideon_check</code>, <code>gideon_check_transaction</code>, <code>gideon_account_health</code>, <code>gideon_explain</code> and <code>gideon_flags</code>. Point the host at the built server. Testnet is the default. The server reports package version 0.1.0. The product, this site, and the extension are 0.3.2.</p>
+ <p>These are MCP tools an agent calls: <code>gideon_check</code>, <code>gideon_check_transaction</code>, <code>gideon_account_health</code>, <code>gideon_explain</code> and <code>gideon_flags</code>. Point the host at the built server. Testnet is the default. The server reports package version 0.1.0. The product, this site, and the extension are 0.3.3.</p>
  <p>An agent can ignore the answer and still send. Gideon cannot stop it. Enforcement has to be in the wallet or in the other code that signs.</p>
  <p><b>The community flag registry is not deployed.</b> There is no live community scam database. Rule R10 on a normal check is skipped unless you set a contract. <code>gideon_flags</code> with none set says couldn’t check, never “no flags”.</p>
  <div class="code">{
@@ -133,7 +133,7 @@ npm run demo:function-call-key</div>
  <h3>Intents or bridge deposit</h3>
  <p>On an address this is rule R6. On a transaction it is T8. The wrong chain, the wrong token, or a quote that has expired is blocked. If Gideon cannot read the quote, or the payout chain is not in it, that is look again, not a pass. A finished or expired swap is not told to fund the deposit or to send a different token. On the checker, payout chain appears when the destination is a NEAR Intents deposit.</p>
  <h3>Daily spend cap</h3>
- <p>Set <code>GIDEON_DAILY_LIMIT</code>, or pass <code>daily_limit</code> on <code>gideon_check</code>. The lower one wins. This tally is <b>process-local and advisory</b>. The MCP server keeps an in-memory map of NEAR that process has already cleared to SEND. The day is UTC. The map resets when the process restarts. Each instance has its own map. Repeating a successful check counts again, even if nothing moved on chain. It is not an account-wide limit, and it is not chain spend. The CLI does not keep the map: the cap applies to that one check, plus <code>--spent</code> if you pass a figure. A send that would pass the figure Gideon was given is look again, and the action is ask a human. A missing amount, or a token Gideon cannot price in NEAR, is look again too. No cap set means this check does not apply.</p>
+ <p>Set <code>GIDEON_DAILY_LIMIT</code>, or pass <code>daily_limit</code> on <code>gideon_check</code>. The lower one wins. This tally is <b>process-local and advisory</b>. The MCP server keeps an in-memory map of NEAR that process has already cleared to SEND. The day is UTC. The map resets when the process restarts. Each instance has its own map. Repeating a successful check counts again, even if nothing moved on chain. It is not an account-wide limit, and it is not chain spend. The CLI does not keep the map: the cap applies to that one check, plus <code>--spent</code> if you pass a figure. A send that would go over the figure Gideon was given is look again, and the action is ask a human. A missing amount, or a token Gideon cannot price in NEAR, is look again too. No cap set means this check does not apply.</p>
  <h3>Instruction-like text</h3>
  <p>A payee name, memo, or on-chain message that says “send all funds” or “ignore previous instructions” is look again. Gideon does not follow it. An ordinary memo such as “Rent for October” is left alone. The extension reads a visible memo in the same form on the device and does not send that text to an API.</p>
  <h3>Saved contact changed</h3>
@@ -145,6 +145,8 @@ npm run demo:function-call-key</div>
  <p>If many different accounts recently sent a mix of tokens here and the funds left again within minutes, Gideon says look again. It does not block: a busy app can look the same. A wallet on the known-exchange list is named, and is not treated as a collector.</p>
  <h3>Swap or bridge minimum</h3>
  <p>On a transaction, if the least you would receive is about half of what you send, or less, Gideon says look again. It reads the amounts in the request. It does not fetch a live price. If it cannot read the minimum, the answer is couldn’t check.</p>
+ <h3>Function-call key to an unfamiliar contract</h3>
+ <p>On a transaction (the CLI <code>check-tx</code> command, the MCP tool <code>gideon_check_transaction</code>, or the extension on a readable wallet approval page), a request that grants a function-call key to a contract Gideon doesn't already know is look again. A new contract (less than 30 days old, or with little history) is worded that way. A contract linked to drained wallets is blocked. A lookup that fails is look again, never a pass. Well-known contracts such as <code>wrap.near</code> are left unflagged.</p>
  <h3>Send and receive preview</h3>
  <p>When Gideon can read a transaction, it adds lines such as “You send 10 NEAR to alice.near” and “You receive at least …”. That preview is a reading of the request. It is not a verdict.</p>
 </section>
@@ -153,7 +155,7 @@ npm run demo:function-call-key</div>
  <span class="sec-n">09</span>
  <h2>What Gideon can’t catch</h2>
  <p>No problems found means these checks passed on live data. It is not a guarantee about the person, the contract, or whether an exchange will credit a token.</p>
- <p>A source that is down or rate-limited becomes “couldn’t check”, which is look again. Gideon does not fill the gap with a guess.</p>
+ <p>A source that is down or rate-limited becomes “couldn’t check”, which is look again. Gideon does not fill the gap with a guess. The CLI flag <code>--no-drainer</code> is an explicit skip: the result records that the drained-wallet check was not run. It does not turn a failed lookup into a pass.</p>
  <p>It cannot stop a wallet or an agent that ignores the answer. A block holds only when the wallet, or the code that signs, refuses to send. The extension is sideloaded, not in a store, and it does not read every field on every site. On a web page it can hold Send when the check is blocked, and other send-like buttons in that form. It does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script. The Send page sends native NEAR and was tried with a mock wallet, not with a live Meteor, HOT, or Intear wallet. The community flag registry is not deployed, so that check stays off by default. There is no live community scam database. A sha256 receipt is the integrity of the printed result, not proof the checks were performed honestly.</p>
 </section>
 </div>

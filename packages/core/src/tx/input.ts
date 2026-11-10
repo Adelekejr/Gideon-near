@@ -10,8 +10,11 @@ import { decodeTransactions, type TxAction, type TxRequest } from "./decode.js";
 
 export interface ParsedRequest {
   transactions: TxRequest[];
-  /** A sign-in that asks for a full-access key (MyNearWallet login without contract_id). */
-  signIn?: { fullAccess: true; publicKey?: string; site?: string };
+  /**
+   * A wallet sign-in. fullAccess is a login without contract_id (the site gets a key that can
+   * do anything). A login with contract_id is a function-call key for that contract.
+   */
+  signIn?: { fullAccess: boolean; publicKey?: string; site?: string; contractId?: string };
   /** Network the link points at, when it says (wallet host or path). */
   network?: Network;
   /** Where the request came from: the wallet link's host. */
@@ -64,6 +67,10 @@ export function parseWalletUrl(text: string): ParsedRequest | null {
     const key = q.get("public_key");
     const contract = q.get("contract_id");
     if (key && !contract) return { ...base, transactions: [], signIn: { fullAccess: true, publicKey: key, ...(site ? { site } : {}) }, source: "login-link" };
+    if (key && contract) {
+      const contractId = contract.trim().toLowerCase();
+      return { ...base, transactions: [], signIn: { fullAccess: false, publicKey: key, contractId, ...(site ? { site } : {}) }, source: "login-link" };
+    }
     return { ...base, transactions: [], source: "login-link" };
   }
   return null;

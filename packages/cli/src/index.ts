@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { accountHealth, check, checkDrainer, HEALTH_TEXT, healthNetwork, checkTransaction, explain, keyScopeText, newReceiptKey, resolveNetwork, verifyReceipt, type CheckInput, type CheckResult, type Contact, type Destination, type TxCheckResult, type AccountHealthResult } from "@gideon/core";
+import { accountHealth, check, checkDrainer, HEALTH_TEXT, healthNetwork, checkTransaction, explain, keyScopeText, newReceiptKey, resolveNetwork, verifyReceipt, drainerFailedFinding, drainerSkippedByUserFinding, type CheckInput, type CheckResult, type Contact, type Destination, type TxCheckResult, type AccountHealthResult } from "@gideon/core";
 import { liveSources, nearAiExplainer, sourcesOptionsFromEnv } from "@gideon/sources";
 import { withDrainer } from "@gideon/core";
 import { notCheckedText, sendLabel, sendSafeText, txLabel, txNotCheckedText, txSafeText } from "./words.js";
@@ -30,7 +30,9 @@ const HELP = `gideon — check a NEAR send before you make it
                                 Not deployed; the check stays off unless you set one
     --json                      print the full result JSON
     --no-drainer                skip the drained-wallet check (R18: recent senders that look
-                                hacked); otherwise it runs after the main check, up to 8 s
+                                hacked). The result records that it was not run. Other checks
+                                still decide the verdict. Otherwise it runs after the main
+                                check, up to 8 s; a failure is look again, never a pass
   gideon check-tx <link|base64|json|-> [options]
                                 check a transaction or sign-in BEFORE you approve it in your
                                 wallet: a MyNearWallet or Meteor sign/login link, base64
@@ -115,8 +117,10 @@ async function main(argv: string[]): Promise<number> {
   });
   // The drained-wallet check (R18) on the recipient's recent senders: time-limited. If it fails,
   // the result says so ("Not checked") instead of staying quiet.
-  const r = values["no-drainer"] ? first : await checkDrainer(first, sources, {}, { timeoutMs: 8000 }, receiptKey)
-    .catch(() => withDrainer(first, { rule: "R18", status: "SKIPPED", code: "FAILED", title: "Drained-wallet check didn't run", detail: "The check failed." }, receiptKey));
+  const r = values["no-drainer"]
+    ? await withDrainer(first, drainerSkippedByUserFinding(), receiptKey)
+    : await checkDrainer(first, sources, {}, { timeoutMs: 8000 }, receiptKey)
+      .catch(() => withDrainer(first, drainerFailedFinding(), receiptKey));
   if (values.json) console.log(JSON.stringify(r, null, 2));
   else await print(r);
   return r.verdict === "SAFE" ? 0 : r.verdict === "ATTENTION" ? 1 : 2;
@@ -217,7 +221,7 @@ function printTx(r: TxCheckResult) {
     const acts = t.actions.map((a) => a.type === "FunctionCall" ? `${a.methodName}()` : a.type === "AddKey" ? `AddKey(${a.fullAccess ? "FULL ACCESS" : "function-call"})` : a.type);
     console.log(` ${C.d}→${C.x} ${t.receiverId}: ${acts.join(", ") || "no actions"}${t.partial ? ` ${C.y}(not fully readable)${C.x}` : ""}`);
   }
-  if (r.signIn) console.log(` ${C.d}→${C.x} sign-in asking for a full-access key${r.signIn.site ? ` (${r.signIn.site})` : ""}`);
+  if (r.signIn) console.log(` ${C.d}→${C.x} sign-in asking for a ${r.signIn.fullAccess ? "full-access" : "function-call"} key${r.signIn.contractId ? ` for ${r.signIn.contractId}` : ""}${r.signIn.site ? ` (${r.signIn.site})` : ""}`);
   for (const x of r.findings) {
     console.log(` ${ICON[x.status]}${C.x} ${x.rule.padEnd(3)} ${x.title}${x.detail ? `${C.d} — ${x.detail}${C.x}` : ""}`);
     for (const e of x.evidence ?? []) console.log(`       ${C.d}${e.label}: ${e.value}${C.x}`);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { check, checkTransaction, VERDICT_TEXT, withDrainer } from "@gideon/core";
+import { check, checkTransaction, VERDICT_TEXT, withDrainer, drainerFailedFinding, drainerSkippedByUserFinding } from "@gideon/core";
 import { acct, empty } from "../../core/test/helpers.js";
 import { notCheckedText, sendLabel, sendSafeText, txLabel, txNotCheckedText, txSafeText } from "../src/words.js";
 
@@ -16,8 +16,12 @@ describe("0.3.1 fixes on the CLI surface", () => {
   it("prints the Not checked line for an unknown sender and a failed drained-wallet check", async () => {
     const r = await check({ to: "bob.testnet", network: "testnet", destination: "wallet" }, live);
     expect(notCheckedText(r)).toEqual([VERDICT_TEXT.senderUnknown]);
-    const f = await withDrainer(r, { rule: "R18", status: "SKIPPED", code: "FAILED", title: "x", detail: "" });
+    const f = await withDrainer(r, drainerFailedFinding());
+    expect(f.verdict).toBe("ATTENTION");
     expect(notCheckedText(f)).toContain("Not checked: couldn't check recent senders for hacked wallets.");
+    const opted = await withDrainer(r, drainerSkippedByUserFinding());
+    expect(opted.verdict).toBe(r.verdict);
+    expect(notCheckedText(opted).some((l) => l.includes("the drained-wallet check was skipped (--no-drainer)"))).toBe(true);
   });
   it("check-tx SAFE prints 'Nothing flagged, but check it yourself'", async () => {
     const r = await checkTransaction({ request: JSON.stringify({ signerId: "me.near", receiverId: "wrap.near", actions: [{ type: "FunctionCall", params: { methodName: "near_deposit", args: {}, gas: "30000000000000", deposit: "1000000000000000000000000" } }] }), network: "mainnet" }, live);

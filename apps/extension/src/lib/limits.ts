@@ -31,7 +31,7 @@ export const LIMITS = {
   refillAfterMs: 2500,
   /**
    * The drained-wallet check (R18), run after the card shows: the whole look at recent senders.
-   * Past it the card just stays as it is.
+   * Past it the card records a failed check (look again, never a pass).
    */
   drainerMs: 8000,
   /** The page stops waiting for the drained-wallet answer after this. */
