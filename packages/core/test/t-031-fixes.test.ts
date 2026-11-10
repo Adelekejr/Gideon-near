@@ -50,10 +50,16 @@ describe("fix 1: never green when the check failed or couldn't look", () => {
     expect(codes(r)).toContain("SCREEN_ONLY");
     expect(r.verdict).not.toBe("SAFE");
   });
-  it("a plain sign-in (no transaction) stays green: there is nothing to look up", async () => {
-    const r = await checkTransaction({ request: `https://app.mynearwallet.com/login/?contract_id=app.near&public_key=${KEY}` }, fake(), opts);
+  it("a plain sign-in (no key, no transaction) stays green: there is nothing to look up", async () => {
+    const r = await checkTransaction({ request: "https://app.mynearwallet.com/login/?success_url=https://s.example" }, fake(), opts);
     expect(r.verdict).toBe("SAFE");
     expect(codes(r)).toEqual(["PLAIN_SIGN_IN"]);
+  });
+  it("a function-call sign-in is never treated as a plain sign-in", async () => {
+    const r = await checkTransaction({ request: `https://app.mynearwallet.com/login/?contract_id=app.near&public_key=${KEY}` }, fake(), opts);
+    expect(r.verdict).not.toBe("SAFE");
+    expect(codes(r)).not.toContain("PLAIN_SIGN_IN");
+    expect(codes(r)).toContain("CONTRACT_UNKNOWN");
   });
 });
 
@@ -188,7 +194,9 @@ describe("fix 4: a page-guessed sender doesn't switch off R18 or the whole-balan
     const x = await checkDrainer(r, empty({ inboundTxs: async () => { throw new Error("indexer down"); }, signedTxsUpTo: async () => [] }), { trustFrom: false }, { timeoutMs: 500 });
     const r18 = x.findings.find((f) => f.rule === "R18")!;
     expect(r18.code).toBe("FAILED"); // it tried (and failed), instead of "OWN_ACCOUNT"
+    expect(r18.status).toBe("COULD_NOT_CHECK");
     expect(drainerFailed(x)).toBe(true);
+    expect(x.verdict).toBe("ATTENTION");
   });
   it("a signer guessed from the page doesn't make the recipient 'yours'", async () => {
     // The page claims you are bigbank101.near and asks you to send to bigbank101.near.

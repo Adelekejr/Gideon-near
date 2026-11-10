@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { check, VERDICT_TEXT } from "@gideon/core";
+import { check, VERDICT_TEXT, withDrainer, drainerFailedFinding } from "@gideon/core";
 import { acct, empty } from "../../../packages/core/test/helpers.js";
 import { CASES, exampleCheckNetwork, inputFromQuery } from "../src/run.js";
 import { verdictChrome } from "../src/verdict-text.js";
@@ -37,6 +37,23 @@ describe("pending drained-wallet verdict", () => {
     expect(sendSrc).toContain("verdictChrome(r, pendingSafe)");
     expect(sendSrc).toContain("sendEnabled(g.canSend, drainerPending)");
     expect(sendSrc).not.toContain("g.canSend && !drainerPending");
+    expect(checkSrc).toContain("withDrainer(r, drainerFailedFinding())");
+    expect(checkSrc).not.toContain(".catch(() => r)");
+    expect(at("../src/run.ts")).toContain("withDrainer(r, drainerFailedFinding())");
+  });
+
+  it("a failed drained-wallet check is look again, not a final clear result", async () => {
+    const r = await check({ to: "bob.testnet", network: "testnet", from: "me.testnet", destination: "wallet" }, live);
+    const pending = verdictChrome(r, true);
+    expect(pending.provisional).toBe(true);
+    expect(pending.chip).toBe(VERDICT_TEXT.stillCheckingChip);
+    const failed = await withDrainer(r, drainerFailedFinding());
+    expect(failed.verdict).toBe("ATTENTION");
+    const shown = verdictChrome(failed, false);
+    expect(shown.provisional).toBe(false);
+    expect(shown.tone).toBe("warn");
+    expect(shown.chip).not.toBe(VERDICT_TEXT.safeChip);
+    expect(shown.chip).not.toBe(VERDICT_TEXT.stillCheckingChip);
   });
 });
 

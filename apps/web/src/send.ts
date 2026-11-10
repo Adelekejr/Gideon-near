@@ -2,7 +2,7 @@ import type { CheckResult, Finding, Status } from "@gideon/core";
 import { NETWORKS, explorerTxUrl } from "@gideon/core";
 import { initChrome, stopper, esc, footer, playVerdict, recordWatch } from "./chrome";
 import { runCheck, runDrainer } from "./run";
-import { drainerWanted, VERDICT_TEXT } from "@gideon/core";
+import { drainerWanted, VERDICT_TEXT, withDrainer, drainerFailedFinding } from "@gideon/core";
 import { notChecked, safeTitle, safeWhy, sendersLine, verdictChrome } from "./verdict-text";
 import { getContacts } from "./state";
 import { gate, nearToYocto, sendEnabled, sendKey, sendNetwork, type GateKind } from "./sendgate";
@@ -64,7 +64,7 @@ async function doCheck() {
   const first = checked;
   if (!first || !drainerPending) return;
   // The sender here is the wallet you connected, so it really is yours.
-  const merged = await runDrainer(first.result, false, { trustFrom: true });
+  const merged = await runDrainer(first.result, false, { trustFrom: true }).catch(() => withDrainer(first.result, drainerFailedFinding()));
   if (checked !== first) return; // a newer check replaced this one
   drainerPending = false;
   checked = { key: first.key, result: merged };

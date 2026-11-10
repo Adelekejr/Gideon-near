@@ -3,7 +3,7 @@ import { isAccount, rememberAccount } from "./lib/sender.js";
 import { plainTrim } from "./lib/detect.js";
 import { addContact, load, removeContact, saveContacts, saveSettings, type LastCheck, type Settings } from "./lib/settings.js";
 import { sendCheck, sendDrainer, sendHealth, type CheckRequest } from "./lib/messages.js";
-import { drainerWanted, VERDICT_TEXT } from "@gideon/core";
+import { drainerWanted, drainerFailedFinding, VERDICT_TEXT, withDrainer } from "@gideon/core";
 import { LIMITS } from "./lib/limits.js";
 import { missingOptional } from "./lib/runcache.js";
 import type { NetworkMode } from "./lib/network.js";
@@ -211,9 +211,9 @@ $<HTMLFormElement>("f").addEventListener("submit", async (e) => {
     if (!pending) return;
     const merged = await sendDrainer(res.result, LIMITS.drainerWaitMs);
     if (asked !== drainerSeq) return; // a newer check replaced this one
-    shown = merged ?? res.result;
+    shown = merged ?? await withDrainer(res.result, drainerFailedFinding());
     $("result").innerHTML = card(shown, { ...netOpt, ...(merged ? {} : { drainerFailed: true }) });
-    if (merged && merged.verdict !== res.result.verdict) playAll($("result"));
+    if (shown.verdict !== res.result.verdict) playAll($("result"));
     await showStats();
   })();
   // Same as the card on a page: if only the creation date missed the time limit, ask once more in a
@@ -226,9 +226,13 @@ $<HTMLFormElement>("f").addEventListener("submit", async (e) => {
       await drained;
       if (asked !== drainerSeq) return;
       const r18 = shown.findings.some((f) => f.rule === "R18" && f.status !== "SKIPPED");
-      const filled = r18 ? await sendDrainer(again.result, LIMITS.drainerWaitMs) : again.result;
-      if (asked !== drainerSeq || !filled) return;
-      shown = filled;
+      if (r18) {
+        const filled = await sendDrainer(again.result, LIMITS.drainerWaitMs);
+        if (asked !== drainerSeq) return;
+        shown = filled ?? await withDrainer(again.result, drainerFailedFinding());
+      } else {
+        shown = again.result;
+      }
       $("result").innerHTML = card(shown, again.net ? { net: again.net } : netOpt);
     }, LIMITS.refillAfterMs);
   }

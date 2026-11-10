@@ -1,7 +1,7 @@
 {
   "name": "@gideon/core",
   "version": "0.1.0",
-  "description": "Gideon rule engine (R1–R12). Pure TypeScript, no network calls of its own.",
+  "description": "Gideon rule engine: address checks, transaction checks, and receipts. Pure TypeScript, no network calls of its own.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/src/index.js",

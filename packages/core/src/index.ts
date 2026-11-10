@@ -17,7 +17,7 @@ export { oddCharacters, plainVersion, type OddChar } from "./rules/r15-fake-lett
 export { yoctoToNear, fmtDate } from "./context.js";
 export { withTimeout, TimeoutError } from "./time.js";
 export { disguisedAs, type Disguise } from "./rules/r17-disguised-name.js";
-export { drainerCheck, drainerPrecheck, drainerWanted, drainedBy, withDrainer, checkDrainer, drainerInputOf, drainerShown, verdictFinding, DrainerCache, DRAINER_DEFAULTS, type DrainerInput, type DrainerOptions, type DrainedSender } from "./drainer.js";
+export { drainerCheck, drainerPrecheck, drainerWanted, drainedBy, withDrainer, checkDrainer, drainerInputOf, drainerShown, verdictFinding, drainerFailedFinding, drainerSkippedByUserFinding, DrainerCache, DRAINER_DEFAULTS, type DrainerInput, type DrainerOptions, type DrainedSender } from "./drainer.js";
 export { decodeTransaction, decodeTransactions, encodeTransaction, base58, fromBase64, toBase64, type TxAction, type TxRequest } from "./tx/decode.js";
 export { nearSpend } from "./tx/spend.js";
 export { parseTxRequest, parseWalletUrl, parseJsonTransactions, friendlyTxError, type ParsedRequest } from "./tx/input.js";

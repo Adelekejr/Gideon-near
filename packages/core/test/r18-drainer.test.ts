@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DrainerCache, checkDrainer, drainedBy, drainerCheck, withDrainer } from "../src/drainer.js";
+import { DrainerCache, checkDrainer, drainedBy, drainerCheck, drainerFailedFinding, drainerSkippedByUserFinding, withDrainer } from "../src/drainer.js";
 import type { ChainTx, Sources } from "../src/types.js";
 import { acct, empty, run } from "./helpers.js";
 
@@ -141,12 +141,12 @@ describe("R18 drained wallets swept into the recipient", () => {
     expect((await check(s, { from: TO })).code).toBe("OWN_ACCOUNT");
   });
 
-  it("failures and time-outs are silent (SKIPPED)", async () => {
+  it("failures and time-outs are COULD_NOT_CHECK (never a pass)", async () => {
     const vs = [victim("a.near", TO, 1, T0)];
     const down = await check(sources(TO, vs, { inboundTxs: async () => { throw new Error("HTTP 500"); } }));
-    expect(down).toMatchObject({ status: "SKIPPED", code: "FAILED" });
+    expect(down).toMatchObject({ status: "COULD_NOT_CHECK", code: "FAILED" });
     const slow = await drainerCheck({ to: TO, network: "mainnet" }, sources(TO, vs, { inboundTxs: () => new Promise(() => {}) }), { timeoutMs: 30 });
-    expect(slow).toMatchObject({ status: "SKIPPED", code: "FAILED" });
+    expect(slow).toMatchObject({ status: "COULD_NOT_CHECK", code: "FAILED" });
     expect((await check(empty())).code).toBe("UNAVAILABLE");
   });
 
@@ -161,7 +161,7 @@ describe("R18 drained wallets swept into the recipient", () => {
     expect(peak).toBe(5);
   });
 
-  it("withDrainer updates the verdict, headline and receipt; SKIPPED changes nothing", async () => {
+  it("withDrainer updates the verdict, headline and receipt; SKIPPED changes nothing; FAILED is look again", async () => {
     const r = await run({ to: "collector.testnet" }, empty({ viewAccount: async () => acct(30) }));
     expect(r.verdict).toBe("SAFE");
     const s = sources("collector.testnet", [victim("a.testnet", "collector.testnet", 1, T0), victim("b.testnet", "collector.testnet", 2, T0 - MIN)]);
@@ -170,9 +170,15 @@ describe("R18 drained wallets swept into the recipient", () => {
     expect(m.verdict).toBe("BLOCKED");
     expect(m.headline?.rule).toBe("R18");
     expect(m.receipt.sha256).not.toBe(r.receipt.sha256);
-    const k = await withDrainer(r, { rule: "R18", status: "SKIPPED", code: "FAILED", title: "", detail: "" });
+    const k = await withDrainer(r, { rule: "R18", status: "SKIPPED", code: "CONTACT", title: "", detail: "" });
     expect(k.verdict).toBe(r.verdict);
     expect(k.headline).toEqual(r.headline);
+    const failed = await withDrainer(r, drainerFailedFinding());
+    expect(failed.verdict).toBe("ATTENTION");
+    expect(failed.headline?.code).toBe("FAILED");
+    const opted = await withDrainer(r, drainerSkippedByUserFinding());
+    expect(opted.verdict).toBe("SAFE");
+    expect(opted.findings.some((f) => f.code === "SKIPPED_BY_USER")).toBe(true);
   });
 
   it("cache keeps answers, not failures", async () => {
@@ -182,7 +188,7 @@ describe("R18 drained wallets swept into the recipient", () => {
     const pass = async () => { calls++; return { rule: "R18" as const, status: "PASS" as const, code: "NO_DRAINED_SENDERS", title: "", detail: "" }; };
     await c.get(input, pass); await c.get(input, pass);
     expect(calls).toBe(1);
-    const fail = async () => { calls++; return { rule: "R18" as const, status: "SKIPPED" as const, code: "FAILED", title: "", detail: "" }; };
+    const fail = async () => { calls++; return drainerFailedFinding(); };
     await c.get({ ...input, to: "x.near" }, fail); await c.get({ ...input, to: "x.near" }, fail);
     expect(calls).toBe(3);
   });
@@ -200,10 +206,19 @@ describe("R18 drained wallets swept into the recipient", () => {
     const r = await run({ to }, empty({ viewAccount: async () => acct(30) }));
     const m = await checkDrainer(r, s);
     expect(m.verdict).toBe("BLOCKED");
-    expect(m.sources.find((x) => x.source === "R18:drained-wallets")?.optional).toBe(true);
+    // A completed check (here, a block) is not optional: only an intentional skip is.
+    expect(m.sources.find((x) => x.source === "R18:drained-wallets")?.optional).toBe(false);
     let asked = 0;
     const again = await checkDrainer(m, { ...s, inboundTxs: async (...a) => { asked++; return s.inboundTxs!(...a); } });
     expect(asked).toBe(0);
     expect(again).toBe(m);
+  });
+
+  it("checkDrainer: a failed lookup on a SAFE result becomes ATTENTION, never stays SAFE", async () => {
+    const r = await run({ to: "collector.testnet" }, empty({ viewAccount: async () => acct(30) }));
+    expect(r.verdict).toBe("SAFE");
+    const m = await checkDrainer(r, empty({ inboundTxs: async () => { throw new Error("indexer down"); }, signedTxsUpTo: async () => [] }), {}, { timeoutMs: 200 });
+    expect(m.verdict).toBe("ATTENTION");
+    expect(m.findings.find((f) => f.rule === "R18")).toMatchObject({ code: "FAILED", status: "COULD_NOT_CHECK" });
   });
 });

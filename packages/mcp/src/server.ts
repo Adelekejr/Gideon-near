@@ -2,13 +2,13 @@ import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import { readFileSync } from "node:fs";
 import {
-  accountHealth, check, checkDrainer, drainerFailed, nearSpend, notCheckedLines, parseTxRequest, txNotCheckedLines, VERDICT_TEXT, withDrainer, healthNetwork, checkTransaction, DrainerCache, explain, NETWORKS, resolveNetwork, verifyReceipt,
+  accountHealth, check, checkDrainer, drainerFailed, drainerFailedFinding, nearSpend, notCheckedLines, parseTxRequest, txNotCheckedLines, VERDICT_TEXT, withDrainer, healthNetwork, checkTransaction, DrainerCache, explain, NETWORKS, resolveNetwork, verifyReceipt,
   type AccountHealthResult, type CheckInput, type CheckResult, type Explainer, type Network, type Sources, type TxCheckResult, type Verdict,
 } from "@gideon/core";
 import { liveSources, nearAiExplainer, replaySources, sourcesOptionsFromEnv } from "@gideon/sources";
 import { noteSpend, resolveDailyLimit, spentOf, type SpendBook } from "./spend.js";
 
-/** Unpublished package version. The product, site, extension, and ENGINE line are 0.3.2. */
+/** Unpublished package version. The product, site, extension, and ENGINE line are 0.3.3. */
 export const VERSION = "0.1.0";
 /** Time limit for the drained-wallet check (R18) after the main check. */
 const DRAINER_MS = 8000;
@@ -211,7 +211,7 @@ export function createGideonServer(deps: ServerDeps = {}): McpServer {
     // Then the drained-wallet check (R18): the recipient's recent senders, time-limited. A failure
     // is reported as "not checked", never dropped.
     const done = await checkDrainer(r, sources, { cache: drainers }, { timeoutMs: DRAINER_MS }, receiptKey)
-      .catch(() => withDrainer(r, { rule: "R18", status: "SKIPPED", code: "FAILED", title: "Drained-wallet check didn't run", detail: "The check failed." }, receiptKey));
+      .catch(() => withDrainer(r, drainerFailedFinding(), receiptKey));
     if (done.verdict === "SAFE" && done.input.dailyLimit && done.input.from && done.input.amount) {
       spend = noteSpend(spend, done.input.from, done.input.amount, nowMs());
     }

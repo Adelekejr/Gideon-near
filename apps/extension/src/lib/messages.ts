@@ -82,7 +82,7 @@ export function sendCheck(req: Omit<CheckRequest, "type">, timeoutMs?: number, s
 
 /**
  * The follow-up drained-wallet check. Never throws or hangs: any failure, time-out or orphaned
- * script answers null and the card simply stays as it is.
+ * script answers null, and the caller must merge a FAILED finding so the verdict is look again.
  */
 export function sendDrainer(result: CheckResult, timeoutMs?: number, send: (m: DrainerRequest) => Promise<DrainerResponse | undefined> = (m) => chrome.runtime.sendMessage(m), alive: () => boolean = extensionAlive): Promise<CheckResult | null> {
   if (!alive()) return Promise.resolve(null);

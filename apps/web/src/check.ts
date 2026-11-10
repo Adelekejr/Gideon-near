@@ -2,7 +2,7 @@ import { explain, explorerAccountUrl, type CheckResult, type Finding, type Statu
 import { initChrome, stopper, esc, footer, playVerdict, recordWatch, tearSlip, reveal, LOGO } from "./chrome";
 import { getNetwork, setNetwork } from "./state";
 import { exampleCheckNetwork, inputFromQuery, runCheck, runDrainer, CASES } from "./run";
-import { drainerWanted } from "@gideon/core";
+import { drainerWanted, withDrainer, drainerFailedFinding } from "@gideon/core";
 import { countsLine, notChecked, sendersLine, verdictChrome } from "./verdict-text";
 
 const RULE_NAMES: Record<string, string> = {
@@ -58,7 +58,7 @@ if (!input.to.trim() && !q.get("example")) {
     const pending = drainerWanted(r) && !replay;
     await render(r, { pending });
     if (!pending) return;
-    const merged = await runDrainer(r, replay).catch(() => r);
+    const merged = await runDrainer(r, replay).catch(() => withDrainer(r, drainerFailedFinding()));
     await render(merged, { prev: r });
   }, (e) => {
     out.innerHTML = `<section class="verdict warn" style="margin-top:32px"><div class="l"><div class="tagline"><span class="chip warn big">COULDN’T CHECK</span></div><h1 class="vh">Gideon couldn’t finish this check.</h1><p class="why">${esc(e?.message ?? e)}</p><p class="why">That is not a “safe”. Don’t send until a check completes.</p></div><div class="vstage">${stopper("idle", "cnc")}<span class="cap">Gideon · <b>NOT VERIFIED</b></span></div></section>`;

@@ -30,7 +30,7 @@ import { nearSpend } from "./spend.js";
  * Checks a transaction request before you approve it in your wallet. Read-only: nothing is signed
  * or sent. Four things, in plain words:
  *   T1  asks for FULL ACCESS to your account (AddKey full access, or a full-access sign-in)
- *   T2  calls a brand-new contract with little history, or one linked to drained wallets (R18)
+ *   T2  calls a brand-new contract with little history, grants a function-call key to a new or unfamiliar contract, or is linked to drained wallets (R18)
  *   T3  sends your whole token (or NEAR) balance to an account Gideon hasn't seen before
  *   T4  lets an account Gideon hasn't seen before move your NFT (nft_approve, nft_transfer_call)
  *   T5  removes a key (DeleteKey): an app key is fine; a full-access key needs a second look; your
@@ -100,6 +100,10 @@ export const TX_TEXT = {
   emptyRequest: "Gideon couldn't read this request",
   emptyRequestDetail: "It has a transaction with no actions in it, which no normal app sends. Don't approve it; go back and start again from the app.",
   selfAppKeyDetail: "If your account runs a contract (a multisig or lockup, for example), this key may be able to move funds. Approve only if you meant to.",
+  // 0.3.3: a function-call key granted to a contract Gideon doesn't already know
+  keyNew: (c: string) => `This gives a key to a new, unfamiliar contract (${c}).`,
+  keyUnfamiliar: (c: string) => `This gives a key to an unfamiliar contract (${c}).`,
+  keyGrantDetail: "A function-call key can move tokens or act for you on that contract. Approve only if you trust it.",
 } as const;
 
 export { wellKnown };
@@ -285,9 +289,18 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
       ] }));
   }
 
-  /* ---- T2: the contracts this calls ---- */
+  /* ---- T2: the contracts this calls, and contracts a function-call key would be granted to ---- */
+  const grantable = (c: string) => nearKind(c) && !mine.has(c) && !known.has(c);
+  const unknownContract = (c: string) => grantable(c) && !wellKnown(network, c);
   const called = [...new Set(txs.filter((t) => t.actions.some(ft)).map((t) => t.receiverId))]
-    .filter((c) => nearKind(c) && !mine.has(c) && !known.has(c) && !wellKnown(network, c));
+    .filter(unknownContract);
+  // Function-call AddKey receiverId, plus a wallet login that asks for a function-call key (not full access).
+  const keyGrantTargets = [...new Set([
+    ...txs.flatMap((t) => t.actions.flatMap((a) => (a.type === "AddKey" && !a.fullAccess && a.receiverId ? [a.receiverId.trim().toLowerCase()] : []))),
+    ...(!parsed.signIn || parsed.signIn.fullAccess || !parsed.signIn.contractId ? [] : [parsed.signIn.contractId.trim().toLowerCase()]),
+  ])].filter(grantable);
+  // T2 new/unfamiliar wording applies only to contracts Gideon doesn't already know.
+  const keyGrants = keyGrantTargets.filter((c) => !wellKnown(network, c));
   // Accounts that would receive value or control: checked against the drained-wallet pattern too.
   const counterparts = new Set<string>();
 
@@ -402,6 +415,40 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
       findings.push(f("T2", "ATTENTION", "NEW_CONTRACT",
         `You're about to call ${c}.`,
         `It was created ${daysText(days)} ago and has very little history.`,
+        { evidence: [
+          acctEv("Contract", c),
+          ...(facts.createdAt ? [{ label: "Created", value: facts.createdAt.replace("T", " ").slice(0, 16) + " UTC" }] : []),
+          ...(count != null ? [{ label: "Transactions", value: count.toLocaleString("en-US") }] : []),
+        ] }));
+    })());
+  }
+
+  // Function-call keys and function-call sign-ins: well-known contracts stay unflagged (filtered
+  // above). Anything else is look again; a new contract uses the stronger wording; a failed
+  // lookup is couldn't check, never green.
+  for (const c of keyGrants) {
+    work.push((async () => {
+      const ctx = ctxFor(c);
+      const facts = await ctx.accountFacts().catch(() => null);
+      if (!facts || facts.exists === null) {
+        findings.push(f("T2", "COULD_NOT_CHECK", "CONTRACT_UNKNOWN", `Couldn't check: ${c}`,
+          "A data source didn't answer, so Gideon couldn't see whether this contract is known or how old it is. Gideon won't call this request safe until it can check. Try again in a minute."));
+        return;
+      }
+      let days: number | null = null;
+      if (facts.exists === true) {
+        if (facts.createdAt) days = Math.max(0, Math.floor((now - Date.parse(facts.createdAt)) / DAY));
+        else if (facts.created === "after-indexer" && facts.chainAgeDays != null && facts.chainAgeDays < 7) days = facts.chainAgeDays;
+      }
+      let count: number | null = null;
+      let isNew = false;
+      if (days != null && days < NEW_CONTRACT_DAYS) {
+        if (sources.txCount) count = await ask(() => sources.txCount!(network, c)).catch(() => null);
+        isNew = count != null ? count < LOW_HISTORY_TXS : days < 7;
+      }
+      findings.push(f("T2", "ATTENTION", isNew ? "NEW_CONTRACT_KEY" : "UNFAMILIAR_CONTRACT_KEY",
+        isNew ? TX_TEXT.keyNew(c) : TX_TEXT.keyUnfamiliar(c),
+        TX_TEXT.keyGrantDetail,
         { evidence: [
           acctEv("Contract", c),
           ...(facts.createdAt ? [{ label: "Created", value: facts.createdAt.replace("T", " ").slice(0, 16) + " UTC" }] : []),
@@ -554,7 +601,7 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
   // Drained-wallet links (R18), for called contracts and accounts receiving value or control. At most
   // MAX_CHECKED_ACCOUNTS; the rest are shown as "couldn't check", never dropped.
   const beneficiaries = [...targets.entries()].filter(([, r]) => r === "beneficiary").map(([a]) => a);
-  const allDrain = [...new Set([...called, ...counterparts, ...beneficiaries])].filter(nearKind);
+  const allDrain = [...new Set([...called, ...keyGrantTargets, ...counterparts, ...beneficiaries])].filter(nearKind);
   const drainTargets = allDrain.slice(0, MAX_CHECKED_ACCOUNTS);
   for (const d of allDrain.slice(MAX_CHECKED_ACCOUNTS)) {
     findings.push(f("T2", "COULD_NOT_CHECK", "DRAINER_UNKNOWN", TX_TEXT.drainerUnknown(d), TX_TEXT.tooManyAccountsDetail, { evidence: [acctEv("Account", d)] }));
@@ -563,7 +610,7 @@ export async function checkTransaction(input: TxCheckInput, rawSources: Sources,
     work.push((async () => {
       const x = await drainerCheck({ to: d, network, ...(signer && mine.has(signer) ? { from: signer } : {}), ...(input.addressBook ? { addressBook: input.addressBook } : {}), myAccounts: [...mine] },
         sources, { timeoutMs: opts.drainerTimeoutMs ?? 8000 }, opts.drainerCache);
-      if (x.status === "SKIPPED" && x.code === "FAILED") {
+      if (x.code === "FAILED") {
         // A failed check is shown, never silent: Gideon didn't look, so it can't say "nothing found".
         findings.push(f("T2", "COULD_NOT_CHECK", "DRAINER_UNKNOWN", TX_TEXT.drainerUnknown(d), TX_TEXT.drainerUnknownDetail,
           { evidence: [acctEv("Account", d)] }));

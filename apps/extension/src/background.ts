@@ -1,4 +1,4 @@
-import { accountHealth, check, checkDrainer, checkTransaction, DrainerCache, drainerWanted, type CheckResult, type TxCheckResult } from "@gideon/core";
+import { accountHealth, check, checkDrainer, checkTransaction, DrainerCache, drainerWanted, drainerFailedFinding, withDrainer, type CheckResult, type TxCheckResult } from "@gideon/core";
 import { liveSources } from "@gideon/sources";
 import { load, type LastCheck } from "./lib/settings.js";
 import type { CheckRequest, CheckResponse, DrainerRequest, DrainerResponse, HealthRequestMsg, HealthResponse, NetUsed, TxRequestMsg, TxResponse } from "./lib/messages.js";
@@ -80,7 +80,8 @@ export async function runDrainer(req: DrainerRequest): Promise<CheckResult> {
   const { myAccounts, stats, last } = await load();
   // A sender read off the page only counts as yours once you confirmed it (else R18 would skip it).
   const trustFrom = !!r.input.from && myAccounts.includes(r.input.from);
-  const merged = await checkDrainer(r, sources, { myAccounts, cache: drainers, trustFrom }, { timeoutMs: LIMITS.drainerMs });
+  const merged = await checkDrainer(r, sources, { myAccounts, cache: drainers, trustFrom }, { timeoutMs: LIMITS.drainerMs })
+    .catch(() => withDrainer(r, drainerFailedFinding()));
   // A stop found only now still counts, and the popup's "last check" line follows it.
   if (merged.verdict !== r.verdict && last && last.verdict !== merged.verdict && last.to === r.input.to && last.at === r.checkedAt) {
     await chrome.storage.local.set({

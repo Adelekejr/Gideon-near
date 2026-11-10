@@ -71,9 +71,9 @@ describe("reading what was pasted", () => {
     expect(r).toMatchObject({ network: "mainnet", site: "x.example" });
     expect(r.transactions).toHaveLength(2);
   });
-  it("MyNearWallet sign-in without contract_id asks for full access; with one it doesn't", () => {
+  it("MyNearWallet sign-in without contract_id asks for full access; with one it's a function-call key", () => {
     expect(parseWalletUrl(`https://app.mynearwallet.com/login/?success_url=https://s.example&public_key=${KEY2}`)!.signIn).toEqual({ fullAccess: true, publicKey: KEY2, site: "s.example" });
-    expect(parseWalletUrl(`https://app.mynearwallet.com/login/?contract_id=app.near&public_key=${KEY2}`)!.signIn).toBeUndefined();
+    expect(parseWalletUrl(`https://app.mynearwallet.com/login/?contract_id=app.near&public_key=${KEY2}`)!.signIn).toEqual({ fullAccess: false, publicKey: KEY2, contractId: "app.near" });
   });
   it("raw base64 and wallet-selector JSON", () => {
     expect(parseTxRequest(one).source).toBe("base64");
@@ -104,8 +104,8 @@ describe("T1 full access", () => {
     expect(r.headline).toMatchObject({ code: "FULL_ACCESS_SIGN_IN" });
     expect(r.headline!.evidence![0]).toEqual({ label: "Site", value: "s.example" });
   });
-  it("a function-call key (normal sign-in) is fine", async () => {
-    const r = await checkTransaction({ request: b64({ signerId: "a.near", receiverId: "a.near", actions: [{ type: "AddKey", publicKey: KEY2, fullAccess: false, receiverId: "app.near", methodNames: [] }] }) }, empty(), opts);
+  it("a function-call key to a well-known contract is fine", async () => {
+    const r = await checkTransaction({ request: b64({ signerId: "a.near", receiverId: "a.near", actions: [{ type: "AddKey", publicKey: KEY2, fullAccess: false, receiverId: "social.near", methodNames: [] }] }) }, empty(), opts);
     expect(r.verdict).toBe("SAFE");
     expect(r.findings.map((x) => x.code)).toEqual(["NOTHING_FOUND"]);
   });

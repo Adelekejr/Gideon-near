@@ -2,11 +2,11 @@
 
 # Gideon
 
-Crypto transfers can be hard to reverse; on NEAR and other networks, a wrong recipient, token, or network can put your funds at risk.
+On NEAR, a signed send is usually hard to reverse. A lookalike or poisoned address, a pasted transaction hash, the wrong network, a fake token, or a request that adds a key, deploys code, or deletes the account can put the funds at risk.
 
-**A pre-send check for NEAR.** Paste the address, token and destination you are about to send to. Gideon checks them against live public chain data and says **BLOCKED**, **LOOK AGAIN** or **NO PROBLEMS FOUND**, in plain words.
+Gideon is a pre-send safety check for NEAR. It reads public chain data and answers **BLOCKED**, **LOOK AGAIN** or **NO PROBLEMS FOUND**, in plain words. It never sees keys and never holds funds. It advises; your wallet still signs. An agent that ignores the advice can still send.
 
-Gideon never sees keys and never holds funds. It advises. Your wallet signs. An agent that ignores the advice can still send.
+Paste the address, token and destination you are about to send to. In the extension, the CLI (`check-tx`) and the MCP server (`gideon_check_transaction`), you can also check a transaction before you approve it, including a function-call key granted to an unfamiliar contract.
 
 ![Gideon home, Gate G, light](shots/home-light.png)
 
@@ -20,8 +20,8 @@ The website is [gideon-near.vercel.app](https://gideon-near.vercel.app). Docs ar
 
 The extension is not on the Chrome Web Store or Firefox Add-ons. Sideload it:
 
-- [Chrome, Brave, Edge](apps/web/public/downloads/gideon-extension-0.3.2.zip)
-- [Firefox](apps/web/public/downloads/gideon-extension-firefox-0.3.2.zip) (unsigned; release Firefox will not install it until it is signed)
+- [Chrome, Brave, Edge](apps/web/public/downloads/gideon-extension-0.3.3.zip)
+- [Firefox](apps/web/public/downloads/gideon-extension-firefox-0.3.3.zip) (unsigned; release Firefox will not install it until it is signed)
 
 Needs Node.js 20.10 or newer. No accounts or API keys.
 
@@ -63,23 +63,23 @@ flowchart LR
   S --> O["Tron · Ethereum · Bitcoin · Intents"]
 ```
 
-The same rules run in the browser, the extension, the CLI and the MCP server. They only read public APIs.
+The same engine runs in the browser, the extension, the CLI and the MCP server. They only read public APIs. Address checks run on every surface. Transaction checks (including function-call keys to unfamiliar contracts) run in the CLI, the MCP server, and the extension on a readable wallet approval page.
 
 ![Docs](shots/docs-light.png)
 
 ## Versions
 
-The product on the site and in the download zips is **0.3.2**. That is the extension manifest, the website copy, the receipt engine line `gideon-core/0.3.2`, and the files `gideon-extension-0.3.2.zip` and `gideon-extension-firefox-0.3.2.zip`.
+The product on the site and in the download zips is **0.3.3**. That is the extension manifest, the website copy, the receipt engine line `gideon-core/0.3.3`, and the files `gideon-extension-0.3.3.zip` and `gideon-extension-firefox-0.3.3.zip`.
 
-The unpublished workspace packages (this repo, `@gideon/core`, `@gideon/sources`, `@gideon/cli`, `@gideon/mcp`, and the website) stay at **0.1.0**. They are not published: the npm scope `@gideon` is already taken. The MCP server reports `0.1.0` for that reason. It runs the same engine as the 0.3.2 site and extension.
+The unpublished workspace packages (this repo, `@gideon/core`, `@gideon/sources`, `@gideon/cli`, `@gideon/mcp`, and the website) stay at **0.1.0**. They are not published: the npm scope `@gideon` is already taken. The MCP server reports `0.1.0` for that reason. It runs the same engine as the 0.3.3 site and extension.
 
-A few tests and comments say “0.3.2” for follow-ups that shipped inside 0.3.1. Those labels name those fixes. The 0.3.2 release moves the popup’s saved-theme script into its own file, so the extension page no longer trips the Manifest V3 content-security policy.
+A few tests and comments say “0.3.2” for follow-ups that shipped inside 0.3.1. Those labels name those fixes. The 0.3.2 release moved the popup’s saved-theme script into its own file, so the extension page no longer trips the Manifest V3 content-security policy. 0.3.3 flags a function-call key granted to an unfamiliar contract, and treats a failed drained-wallet check on an address as look again, never a pass.
 
 ## Honest limits
 
 No problems found means these checks passed on live data. It is not proof of who controls the account. A lookup that fails is look again, never a pass. A deposit on the wrong chain, for the wrong token, or past its deadline is blocked. Instruction-like text in a memo, and a saved contact whose address changed, are look again. Account health says what each key can do before you remove it.
 
-The MCP daily spend tally (R21) is process-local and advisory. That server keeps an in-memory map of NEAR this process has already cleared to SEND. The day is UTC. The map resets when the process restarts. Each instance has its own map. Repeating a successful check counts again. It is not an account-wide limit, and it is not what the chain shows was sent. The CLI does not keep that map: a cap applies to the check you are running, plus `--spent` if you pass it. No cap set means the check does not apply.
+The MCP daily spend tally (R21) is process-local and advisory. That server keeps an in-memory map of NEAR this process has already cleared to SEND. The day is UTC. The map resets when the process restarts. Each instance has its own map. Repeating a successful check counts again. It is not an account-wide limit, and it is not what the chain shows was sent. The CLI does not keep that map: a cap applies to the check you are running, plus `--spent` if you pass it. No cap set means the check does not apply. `--no-drainer` skips the drained-wallet check and records that it was not run; it does not turn a failed lookup into a pass.
 
 Gideon advises. An agent can ignore the answer and still send. A block holds only when the wallet, or the other code that signs, refuses the send.
 

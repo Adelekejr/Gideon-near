@@ -19,8 +19,9 @@ import { f, short } from "./rules/util.js";
  *
  * It needs several lookups, so it runs after the main check and never holds it up: surfaces show
  * the verdict first and update it when this answers (withDrainer). A failure or time-out is
- * SKIPPED with code FAILED: it never makes a send look worse or better, but every surface shows it
- * as "not checked" (0.3.1).
+ * COULD_NOT_CHECK with code FAILED: the verdict is at least LOOK AGAIN, never NO PROBLEMS FOUND.
+ * Intentional skips (your own account, a contact, --no-drainer, no source in this build) stay
+ * SKIPPED and do not change the verdict; they are still shown as "not checked".
  */
 
 export interface DrainerInput {
@@ -66,6 +67,19 @@ export interface DrainedSender {
 }
 
 const skip = (code: string, detail: string): Finding => ({ ...f("R18", "SKIPPED", code, "Drained-wallet check didn't run", detail) });
+
+const FAILED_TITLE = "Couldn't check recent senders for hacked wallets";
+const FAILED_DETAIL = "The drained-wallet check didn't finish. Gideon won't call this send safe until it can check. Try again in a minute.";
+
+/** A failure or time-out: LOOK AGAIN, never a pass. Same finding every surface uses. */
+export function drainerFailedFinding(detail = FAILED_DETAIL): Finding {
+  return f("R18", "COULD_NOT_CHECK", "FAILED", FAILED_TITLE, detail);
+}
+
+/** CLI `--no-drainer`: the check was not run, recorded as "not checked". Does not change the verdict. */
+export function drainerSkippedByUserFinding(): Finding {
+  return skip("SKIPPED_BY_USER", "The drained-wallet check was skipped (--no-drainer), so Gideon didn't look at recent senders for hacked wallets.");
+}
 
 function nearStr(yocto: bigint): string {
   const n = Number(yocto / 10n ** 18n) / 1e6;
@@ -127,7 +141,7 @@ export async function drainerCheck(input: DrainerInput, sources: Sources, opts: 
     try {
       return await withTimeout(run(to, input.network, sources, o), o.timeoutMs, "The drained-wallet check");
     } catch (e) {
-      return skip("FAILED", `Couldn't finish (${e instanceof Error ? e.message : String(e)}). This says nothing about the address.`);
+      return drainerFailedFinding(`Couldn't finish (${e instanceof Error ? e.message : String(e)}). Gideon won't call this send safe until it can check. Try again in a minute.`);
     }
   };
   return cache ? cache.get({ ...input, to }, timed) : timed();
@@ -218,12 +232,13 @@ export const drainerShown = (x: Finding | null | undefined): x is Finding => !!x
 
 /**
  * Put the R18 finding into a finished result: verdict, headline and receipt are recomputed.
- * A SKIPPED finding is still recorded (so the receipt says the check didn't run) but changes nothing else.
+ * A SKIPPED finding is still recorded (so the receipt says the check didn't run) but changes nothing
+ * else. A FAILED (COULD_NOT_CHECK) finding turns a SAFE result into ATTENTION.
  */
 export async function withDrainer(r: CheckResult, x: Finding, receiptKey?: string, call?: { ms: number; ok: boolean }): Promise<CheckResult> {
   const findings = [...r.findings.filter((y) => y.rule !== "R18"), x];
   const verdict = verdictOf(findings);
-  const sources = call ? [...r.sources.filter((s) => s.source !== "R18:drained-wallets"), { source: "R18:drained-wallets", ok: call.ok, ms: call.ms, optional: true }] : r.sources;
+  const sources = call ? [...r.sources.filter((s) => s.source !== "R18:drained-wallets"), { source: "R18:drained-wallets", ok: call.ok, ms: call.ms, optional: x.status === "SKIPPED" }] : r.sources;
   const { receipt: _old, ...rest } = r;
   const base = { ...rest, findings, verdict, headline: headlineOf(findings, verdict), sources };
   return { ...base, receipt: await makeReceipt(base, receiptKey) };
@@ -267,7 +282,7 @@ export class DrainerCache {
     const hit = this.m.get(k);
     if (hit && now - hit.at < this.ttlMs) return hit.p;
     const p = run().then((x) => {
-      if (x.status === "SKIPPED" && x.code !== "BUSY_ACCOUNT") this.m.delete(k);
+      if ((x.status === "SKIPPED" && x.code !== "BUSY_ACCOUNT") || x.code === "FAILED") this.m.delete(k);
       return x;
     });
     this.m.set(k, { at: now, p });
