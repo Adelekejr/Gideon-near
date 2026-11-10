@@ -3,6 +3,27 @@
 The Gideon browser extension for Chrome (Manifest V3). It bundles the same
 engine as the CLI and website (`@gideon/core` and `@gideon/sources`).
 
+## Current behavior
+
+Product version is 0.3.4 (manifest, zips, and the receipt line `gideon-core/0.3.4`).
+The `@gideon/core` package.json stays 0.1.0 because that package is unpublished.
+
+On a web page it checks a pasted or typed address, and it can check a
+transaction on a readable wallet approval page. A blocked check can hold a
+button whose label starts with Send, Withdraw, Transfer, Confirm, Continue,
+Next, Submit, Pay, or Review, and a Submit control in that form. It does not
+hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed
+windows) are outside the content script.
+
+It was tested live on an Android phone in Mises Browser, installed from the
+zip, with Meteor Wallet. Install steps for other browsers come from each
+browser's docs or user reports (see Phones below).
+
+It never signs, never sees keys, never moves funds. A failed lookup is
+"couldn't check", never safe. Gideon does not detect honeypot tokens. Up to
+six accounts in a request are checked; any further accounts are listed as not
+checked.
+
 ## Install (Load unpacked)
 
 ```bash
@@ -66,9 +87,9 @@ Fixes from the pre-release audit. Every fix also applies to the website, the CLI
   money goes to one of your accounts or a contact (then LOOK AGAIN). A call with a deposit of
   100 NEAR or more gets a second look, even to a well-known contract. Stake is LOOK AGAIN. An
   action Gideon can't read is COULDN'T CHECK.
-- **Every account in a request is checked**: each recipient, the contract called, the token
+- **Up to six accounts in a request are checked**: each recipient, the contract called, the token
   receiver and a DeleteAccount beneficiary (lookalikes, fake letters, reported scams, missing
-  accounts).
+  accounts). Any further accounts are listed as not checked.
 - **No account planting.** A sender read from the page is never saved to Your accounts.
   Gideon asks "Is {account} yours?" and adds it only when you click. Clicks and pastes made by a
   page script are ignored.
@@ -96,7 +117,7 @@ Fixes from the pre-release audit. Every fix also applies to the website, the CLI
   don't change a CLEAN result. Red is for danger only: a risky contract's app key is now amber.
 - **One quiet retry** before "Couldn't read this account's history" or the key list fails.
 - **"Remove with any wallet"** opens the website's account page for that key, where any NEAR
-  wallet can sign the removal. Shown only when built with `GIDEON_SITE` (see the main README).
+  wallet can sign the removal. Shown only when built with `GIDEON_SITE` (see `apps/extension/build.mjs`; for example `GIDEON_SITE=https://gideon-near.vercel.app`).
 - No new permissions or hosts.
 
 ## What changed in 0.2.9
@@ -125,8 +146,7 @@ Fixes from the pre-release audit. Every fix also applies to the website, the CLI
   (`/connect/testnet/sign?transactions=…`, not signed). Meteor's pop-up flow (the approval
   screen read from its public app code) is **not yet verified live**. Meteor already blocks
   full-access key requests on its own (only approved account recovery services may ask, and
-  Approve is greyed out), so on Meteor the full-access card is a second opinion, not new. The card does not hold the Approve button, and
-  shows nothing when the check itself fails. No new permissions.
+  Approve is greyed out), so on Meteor the full-access card is a second opinion, not new. The card does not hold the Approve button. (Since 0.3.1, a failed check says COULDN'T CHECK; it does not stay silent.) No new permissions.
 
 - **Creation date in the popup's own check.** "Check this send" in the popup now fills in a
   creation date that missed the time limit, the same way the card on a page does (one quiet
@@ -162,7 +182,7 @@ Fixes from the pre-release audit. Every fix also applies to the website, the CLI
   before, used first to send here, account left nearly empty), the card changes to BLOCKED
   "Funds from hacked wallets were swept into this address"; one gives a "Look again". The card
   shows "senders → checking recent senders for hacked wallets…" while this runs (at most 8 s).
-  Skipped for your own accounts, contacts and exchanges. If it fails, nothing changes.
+  Skipped for your own accounts, contacts and exchanges. If it fails, nothing changes. (Superseded in 0.3.3: a failed lookup is now look again, never a pass.)
 - **Long addresses wrap** inside the card instead of running past its edge.
 
 ## What changed in 0.2.5
@@ -294,9 +314,10 @@ Fixes from the pre-release audit. Every fix also applies to the website, the CLI
 ## Phones (Android)
 
 The extension isn't on the Chrome Web Store and doesn't need to be. Some
-Android browsers load extensions from a file. None of these has been tested on
-a real phone yet; the steps come from each browser's docs or user reports,
-linked below.
+Android browsers load extensions from a file. It was tested live on an Android
+phone in Mises Browser, installed from the zip, with Meteor Wallet. The install
+steps below for Quetta, Yandex, Edge, and Firefox come from each browser's docs
+or user reports and have not all been re-tested on a phone.
 
 Build the files on a computer and copy them to the phone:
 
@@ -309,8 +330,7 @@ Build the files on a computer and copy them to the phone:
 so clearing the browser's cache or data removes it; install again if so.
 After installing a new version, reload any wallet tab that was already open
 (otherwise its card says "Gideon was updated. Reload this page to keep checking.").
-([steps](https://github.com/lukman754/Mentari-Unpam),
-[Play listing](https://play.google.com/store/apps/details?id=site.mises.browser_stable),
+([Play listing](https://play.google.com/store/apps/details?id=site.mises.browser_stable),
 [no load-from-folder](https://github.com/mises-id/mises-browser-core/issues/332))
 
 **Quetta** (Chromium). Settings → **Extensions** → **Developer mode** →
