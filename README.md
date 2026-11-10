@@ -8,6 +8,16 @@ Gideon is a pre-send safety check for NEAR. It reads public chain data and answe
 
 Paste the address, token and destination you are about to send to. In the extension, the CLI (`check-tx`) and the MCP server (`gideon_check_transaction`), you can also check a transaction before you approve it, including a function-call key granted to an unfamiliar contract.
 
+## Two kinds of check
+
+**Before you send.** Paste the address, token and destination. Gideon looks for a lookalike or poisoned address, a pasted transaction hash, the wrong network, a missing account, a token an exchange will not credit, an Intents or bridge deposit on the wrong chain or past its deadline, and an address linked to drained wallets.
+
+**Before you approve a transaction.** In the CLI (`check-tx`), the MCP server (`gideon_check_transaction`), and the extension on a readable wallet approval page, Gideon also reads the request itself. It flags a full-access key grant, a function-call key to an unfamiliar contract, a deploy or delete-account, a whole-balance send to someone you have not paid, a contract linked to drained wallets, and a swap or bridge minimum far below what you send.
+
+The website checks addresses (and Intents deposits) only. It does not run a transaction check.
+
+Gideon advises; your wallet still signs. The extension can hold Send on a web page when the check is blocked; it does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script. Gideon does not detect honeypot tokens.
+
 ![Gideon home, Gate G, light](shots/home-light.png)
 
 | Light | Dark |
@@ -20,8 +30,8 @@ The website is [gideon-near.vercel.app](https://gideon-near.vercel.app). Docs ar
 
 The extension is not on the Chrome Web Store or Firefox Add-ons. Sideload it:
 
-- [Chrome, Brave, Edge](apps/web/public/downloads/gideon-extension-0.3.3.zip)
-- [Firefox](apps/web/public/downloads/gideon-extension-firefox-0.3.3.zip) (unsigned; release Firefox will not install it until it is signed)
+- [Chrome, Brave, Edge](apps/web/public/downloads/gideon-extension-0.3.4.zip)
+- [Firefox](apps/web/public/downloads/gideon-extension-firefox-0.3.4.zip) (unsigned; release Firefox will not install it until it is signed)
 
 Needs Node.js 20.10 or newer. No accounts or API keys.
 
@@ -69,11 +79,11 @@ The same engine runs in the browser, the extension, the CLI and the MCP server. 
 
 ## Versions
 
-The product on the site and in the download zips is **0.3.3**. That is the extension manifest, the website copy, the receipt engine line `gideon-core/0.3.3`, and the files `gideon-extension-0.3.3.zip` and `gideon-extension-firefox-0.3.3.zip`.
+The product on the site and in the download zips is **0.3.4**. That is the extension manifest, the website copy, the receipt engine line `gideon-core/0.3.4`, and the files `gideon-extension-0.3.4.zip` and `gideon-extension-firefox-0.3.4.zip`.
 
-The unpublished workspace packages (this repo, `@gideon/core`, `@gideon/sources`, `@gideon/cli`, `@gideon/mcp`, and the website) stay at **0.1.0**. They are not published: the npm scope `@gideon` is already taken. The MCP server reports `0.1.0` for that reason. It runs the same engine as the 0.3.3 site and extension.
+The unpublished workspace packages (this repo, `@gideon/core`, `@gideon/sources`, `@gideon/cli`, `@gideon/mcp`, and the website) stay at **0.1.0**. They are not published: the npm scope `@gideon` is already taken. The MCP server reports `0.1.0` for that reason. It runs the same engine as the 0.3.4 site and extension.
 
-A few tests and comments say “0.3.2” for follow-ups that shipped inside 0.3.1. Those labels name those fixes. The 0.3.2 release moved the popup’s saved-theme script into its own file, so the extension page no longer trips the Manifest V3 content-security policy. 0.3.3 flags a function-call key granted to an unfamiliar contract, and treats a failed drained-wallet check on an address as look again, never a pass.
+A few tests and comments say “0.3.2” for follow-ups that shipped inside 0.3.1. Those labels name those fixes. The 0.3.2 release moved the popup’s saved-theme script into its own file, so the extension page no longer trips the Manifest V3 content-security policy. 0.3.3 flags a function-call key granted to an unfamiliar contract, and treats a failed drained-wallet check on an address as look again, never a pass. 0.3.4 moves NearBlocks reads to API v3, so testnet account age and history lookups work again.
 
 ## Honest limits
 
