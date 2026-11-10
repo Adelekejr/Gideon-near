@@ -4,13 +4,13 @@ An MCP server (stdio, official TypeScript MCP SDK v2) that lets an AI agent chec
 
 | Tool | What it does |
 | --- | --- |
-| `gideon_check` | Runs every Gideon address rule on `recipient` (plus optional `network`, `amount`, `token`, `token_contract`, `destination`, `exchange`, `sender`, `address_book`, `memo`, `payee`, `chain`, `daily_limit`). Returns `verdict`, `agent_action`, `reasons`, `fix`, `couldnt_check`, `receipt` and the full `result`. A failed drained-wallet lookup is look again, never a pass. |
+| `gideon_check` | Runs Gideon’s address rules on `recipient` (plus optional `network`, `amount`, `token`, `token_contract`, `destination`, `exchange`, `sender`, `address_book`, `memo`, `payee`, `chain`, `daily_limit`). R10 stays skipped unless a registry is set. Returns `verdict`, `agent_action`, `reasons`, `fix`, `couldnt_check`, `receipt` and the full `result`. A failed drained-wallet lookup is look again, never a pass. |
 | `gideon_check_transaction` | Checks a transaction or sign-in before you approve it (`request` is a wallet link, base64, or JSON). This includes a function-call key granted to an unfamiliar contract. Returns the same shape as `gideon_check`. |
 | `gideon_account_health` | Lists the keys that can act for an account, from public data, and what each one can do. |
-| `gideon_explain` | Plain-words explanation of a `result` from `gideon_check` or `gideon_check_transaction`, or of a fresh check. Uses NEAR AI only if `NEARAI_API_KEY` is set, otherwise the built-in text. Refuses a result whose receipt doesn't match. |
+| `gideon_explain` | Plain-words explanation of a `result` from `gideon_check`, or of a fresh address check. It does not take a `gideon_check_transaction` result. Uses NEAR AI only if `NEARAI_API_KEY` is set, otherwise the built-in text. Refuses a result whose receipt doesn't match. |
 | `gideon_flags` | Community flags on an account from a flag registry contract. **Not deployed.** With no registry set the status is `COULD_NOT_CHECK`, never “no flags”. There is no live community scam database. |
 
-**Agent policy** (sent as the server's `instructions` and as `agent_action` on every result):
+**Agent policy** (sent as the server's `instructions` and as `agent_action` on every result). The `from` / `ASK_HUMAN` rule applies to `gideon_check`. On a transaction check (`gideon_check_transaction`), SAFE is `SEND`.
 
 | verdict | agent_action | Gideon asks (it cannot force this) |
 | --- | --- | --- |

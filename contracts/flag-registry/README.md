@@ -18,7 +18,7 @@ no admin key and no init call**: nobody can edit or delete someone else's
 flag. Once it's deployed, deleting the contract account's full-access key
 locks the code too.
 
-Build and test from the repo root (Rust 1.95 is pinned in `rust-toolchain.toml`):
+From the repo root, build and test in `contracts/flag-registry` (Rust 1.95 is pinned in `rust-toolchain.toml`):
 
 ```bash
 cd contracts/flag-registry

@@ -4,7 +4,7 @@
 
 On NEAR, a signed send is usually hard to reverse. A lookalike or poisoned address, a pasted transaction hash, the wrong network, a fake token, or a request that adds a key, deploys code, or deletes the account can put the funds at risk.
 
-Gideon is a pre-send safety check for NEAR. It reads public chain data and answers **BLOCKED**, **LOOK AGAIN** or **NO PROBLEMS FOUND**, in plain words. It never sees keys and never holds funds. It advises; your wallet still signs. An agent that ignores the advice can still send.
+Gideon is a pre-send safety check for NEAR. It reads public chain data and answers **BLOCKED**, **LOOK AGAIN** or **NO PROBLEMS FOUND**, in plain words (the extension card says **STOPPED** or **SEND HELD** when it holds the send). It never sees keys and never holds funds. It advises; your wallet still signs. An agent that ignores the advice can still send.
 
 Paste the address, token and destination you are about to send to. In the extension, the CLI (`check-tx`) and the MCP server (`gideon_check_transaction`), you can also check a transaction before you approve it, including a function-call key granted to an unfamiliar contract.
 
@@ -16,7 +16,7 @@ Paste the address, token and destination you are about to send to. In the extens
 
 The website checks addresses (and Intents deposits) only. It does not run a transaction check.
 
-Gideon advises; your wallet still signs. The extension can hold Send on a web page when the check is blocked; it does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script. Gideon does not detect honeypot tokens.
+The extension can hold Send on a web page when the check is blocked; it does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script. Gideon does not detect honeypot tokens.
 
 ![Gideon home, Gate G, light](shots/home-light.png)
 
@@ -56,7 +56,7 @@ npm run demo:function-call-key -- --offline
 
 `demo:attack` reads a planted invoice for `northwind-payrol1.testnet` (one character off a saved contact) and stops on **BLOCKED** / **DO_NOT_SEND**.
 
-`demo:function-call-key` holds one `ft_transfer` key on `wrap.testnet`. The allowance is gas, not a cap on the token. It refuses Transfer and AddKey, then stops on that same payee.
+`demo:function-call-key` holds one `ft_transfer` key on `wrap.testnet`. The allowance is gas, not a cap on the token. The key can only call `ft_transfer`; it cannot sign Transfer or AddKey. The demo then runs that same payee through Gideon and stops on **BLOCKED** / **DO_NOT_SEND**.
 
 ![A blocked lookalike on the checker](shots/check-blocked-light.png)
 
@@ -91,9 +91,9 @@ No problems found means these checks passed on live data. It is not proof of who
 
 The MCP daily spend tally (R21) is process-local and advisory. That server keeps an in-memory map of NEAR this process has already cleared to SEND. The day is UTC. The map resets when the process restarts. Each instance has its own map. Repeating a successful check counts again. It is not an account-wide limit, and it is not what the chain shows was sent. The CLI does not keep that map: a cap applies to the check you are running, plus `--spent` if you pass it. No cap set means the check does not apply. `--no-drainer` skips the drained-wallet check and records that it was not run; it does not turn a failed lookup into a pass.
 
-Gideon advises. An agent can ignore the answer and still send. A block holds only when the wallet, or the other code that signs, refuses the send.
+Gideon advises. An agent can ignore the answer and still send. A block holds only when the wallet, or the other code that signs, refuses the send — or when the extension holds a page button, as below.
 
-The extension can hold Send on a web page when the check is blocked, and other buttons in that form whose label starts with Withdraw, Transfer, Confirm, Continue, Next, Submit, Pay, or Review. It does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script, so Gideon cannot read them.
+The extension can hold a button in that form whose label starts with Send, Withdraw, Transfer, Confirm, Continue, Next, Submit, Pay, or Review, and a Submit control in that form. It does not hold Approve. Wallet extension pop-ups (Meteor, Sender, and Nightly sealed windows) are outside the content script, so Gideon cannot read them.
 
 The Send page sends native NEAR. That check-then-send flow was tried with a mock wallet, not with a live Meteor, HOT, or Intear wallet.
 
